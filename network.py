@@ -23,11 +23,20 @@ def ps(script):
         startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startup.wShowWindow = 0
     process = subprocess.run(
-        [POWERSHELL, "-NoProfile", "-NonInteractive", "-Command", script],
-        capture_output=True, text=True, timeout=60, shell=False, startupinfo=startup)
+        # Force UTF-8 output: otherwise Windows uses the OEM code page (e.g. 850 on
+        # Italian systems) and accented adapter names or messages are garbled.
+        [POWERSHELL, "-NoProfile", "-NonInteractive", "-Command",
+         "[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false\n" + script],
+        capture_output=True, encoding="utf-8", errors="replace", timeout=60, shell=False,
+        startupinfo=startup)
     if process.returncode:
-        raise RuntimeError((process.stderr or process.stdout).strip() or "PowerShell failed")
-    return process.stdout.strip()
+        parts = ["PowerShell exit code: " + str(process.returncode)]
+        if process.stderr.strip():
+            parts.extend(["STDERR:", process.stderr.rstrip()])
+        if process.stdout.strip():
+            parts.extend(["STDOUT:", process.stdout.rstrip()])
+        raise RuntimeError("\n\n".join(parts))
+    return process.stdout.lstrip("\ufeff").strip()
 
 def collect():
     """Collect independent configuration groups concurrently. Sessions are separate."""

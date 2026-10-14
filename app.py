@@ -4,6 +4,7 @@ import json
 import queue
 import sys
 import threading
+import traceback
 import time
 import tkinter as tk
 import webbrowser
@@ -12,9 +13,9 @@ import network
 import network_plan
 import network_guide
 import ui_theme as ui
+from version import VERSION
 from ui_theme import C, F, S1, S2, S3, S4, S5
 
-VERSION = "1.7.1"
 REPO_URL = "https://github.com/matiz311/WinNAT-UI"
 
 PAGES = [  # key, label, icon, subtitle
@@ -85,11 +86,14 @@ class Dialog(tk.Toplevel):
         self.result = True
         self.destroy()
 
-    def run(self, focus=None):
+    def recenter(self):
         self.update_idletasks()
         x = self.app.winfo_rootx() + (self.app.winfo_width() - self.winfo_reqwidth()) // 2
         y = self.app.winfo_rooty() + (self.app.winfo_height() - self.winfo_reqheight()) // 3
         self.geometry("+%d+%d" % (max(x, 0), max(y, 0)))
+
+    def run(self, focus=None):
+        self.recenter()
         self.grab_set()
         (focus or self.cancel_btn).focus_set()
         self.wait_window()
@@ -165,6 +169,23 @@ class Topology(tk.Canvas):
         self.create_text(w / 2, self.H - 16, fill=C["text_muted"], font=F["caption"], width=w - 40,
                          text="I client usano " + gateway + " come gateway e un DNS raggiungibile: "
                               "WinNAT non fornisce DHCP n\u00e9 DNS.")
+
+
+def format_error_debug(operation, message, traceback_text=""):
+    """Retain the complete error and Python traceback for copying/debugging."""
+    return ("Operazione: " + str(operation) + "\n\n" +
+            "Messaggio completo:\n" + str(message) + "\n\n" +
+            "Traceback Python:\n" + (traceback_text or "Non disponibile"))
+
+
+def error_summary(message):
+    """First line a person can act on, skipping exit codes and section headers."""
+    skip = ("PowerShell exit code", "STDERR:", "STDOUT:", "In riga:", "At line:", "+ ", "~")
+    for line in str(message).splitlines():
+        text = line.strip()
+        if text and not text.startswith(skip):
+            return text[:300] + ("\u2026" if len(text) > 300 else "")
+    return "Errore sconosciuto: apri i dettagli tecnici."
 
 
 class App(tk.Tk):
@@ -737,6 +758,52 @@ class App(tk.Tk):
             self.bind("<Control-Key-%d>" % (i + 1), lambda e, k=key: self.show_page(k))
 
     # ------------------------------------------------------------ tasks ---
+    def show_error_dialog(self, title, operation, message, traceback_text="", commit=False):
+        """Readable summary first; complete, copyable debug details on demand."""
+        dlg = Dialog(self, title, "Chiudi", cancel="Copia tutto")
+        dlg.ok.configure(command=dlg.destroy)
+        details = format_error_debug(operation, message, traceback_text)
+
+        def copy_all():
+            dlg.clipboard_clear()
+            dlg.clipboard_append(details)
+            dlg.update()
+            dlg.cancel_btn.configure(text="Copiato \u2713")
+        dlg.cancel_btn.configure(command=copy_all)
+        tk.Label(dlg.body, text=error_summary(message), font=F["body"], bg=C["surface"], fg=C["text"],
+                 wraplength=560, justify="left", anchor="w").pack(fill="x", anchor="w")
+        if commit:
+            ui.Callout(dlg.body, kind="warning", wraplength=520,
+                       text="Alcune modifiche potrebbero essere gi\u00e0 state applicate. Lo stato viene "
+                            "riletto da Windows: controllalo prima di preparare un nuovo Commit.").pack(fill="x", pady=(S3, 0))
+        panel = tk.Frame(dlg.body, bg=C["surface"], highlightthickness=1, highlightbackground=C["border"])
+        viewer = tk.Text(panel, wrap="none", height=16, width=92, font=F["mono_s"], bd=0, padx=S2, pady=S2,
+                         bg=C["surface_alt"], fg=C["text"], insertbackground=C["text"],
+                         selectbackground=C["select"], selectforeground=C["text"], undo=False)
+        sy = ttk.Scrollbar(panel, orient="vertical", command=viewer.yview)
+        sx = ttk.Scrollbar(panel, orient="horizontal", command=viewer.xview)
+        viewer.configure(yscrollcommand=sy.set, xscrollcommand=sx.set)
+        sy.pack(side="right", fill="y")
+        sx.pack(side="bottom", fill="x")
+        viewer.pack(side="left", fill="both", expand=True)
+        viewer.insert("1.0", details)
+        viewer.configure(state="disabled")
+        viewer.bind("<Control-a>", lambda e: (viewer.tag_add("sel", "1.0", "end-1c"), "break")[1])
+        toggle = ttk.Button(dlg.body, text="Mostra dettagli tecnici", style="CardGhost.TButton")
+
+        def toggle_debug():
+            if panel.winfo_ismapped():
+                panel.pack_forget()
+                toggle.configure(text="Mostra dettagli tecnici")
+            else:
+                panel.pack(fill="both", expand=True, pady=(S2, 0))
+                toggle.configure(text="Nascondi dettagli tecnici")
+            dlg.recenter()
+        toggle.configure(command=toggle_debug)
+        toggle.pack(anchor="w", pady=(S3, 0))
+        dlg.resizable(True, True)
+        dlg.run(focus=dlg.ok)
+
     def run_task(self, key, fn, on_success):
         if key in self.tasks:
             return
@@ -748,7 +815,7 @@ class App(tk.Tk):
             try:
                 self.work.put((key, True, fn(), on_success))
             except Exception as error:
-                self.work.put((key, False, str(error), on_success))
+                self.work.put((key, False, (str(error), traceback.format_exc()), on_success))
         threading.Thread(target=runner, daemon=True).start()
         self.render_changebar()
 
@@ -763,23 +830,19 @@ class App(tk.Tk):
                 if ok:
                     callback(value)
                 else:
-                    self.notice.set("Errore: " + value[:120])
+                    error_message, error_traceback = value
+                    self.notice.set("Errore: " + error_summary(error_message)[:80])
                     if key == "Commit":
                         # The script is not transactional: the previous steps may
                         # already have changed Windows even though one step failed.
                         # Do not allow a stale candidate to be re-committed.
                         self.pending.clear()
                         self.render_candidate()
-                        messagebox.showerror(
-                            "Commit non riuscito",
-                            value + "\n\n"
-                            "Una parte della configurazione potrebbe essere già stata modificata. "
-                            "La configurazione verrà riletta da Windows. "
-                            "Controlla lo stato e prepara nuovamente le modifiche.",
-                            parent=self)
+                        self.show_error_dialog("Commit non riuscito", key,
+                                               error_message, error_traceback, commit=True)
                         self.refresh()
                     else:
-                        messagebox.showerror("Operazione non riuscita", key + "\n\n" + value, parent=self)
+                        self.show_error_dialog("Operazione non riuscita", key, error_message, error_traceback)
                 self.render_changebar()
         except queue.Empty:
             pass
