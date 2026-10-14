@@ -43,7 +43,15 @@ class GuideTests(unittest.TestCase):
         self.assertIn("InterfaceMetric 50",text)
         self.assertIn("New-NetNat -Name 'NAT-Firewall'",text)
         self.assertIn("Remove-NetRoute",text)
-        self.assertIn("Remove-NetIPAddress",text)
+        self.assertIn("netsh.exe interface ipv4 set address",text)
+        self.assertIn('"source=static"',text)
+        self.assertIn('"gateway=none"',text)
+        self.assertIn('"store=persistent"',text)
+        self.assertIn("255.255.255.0",text)
+        self.assertIn("10.10.10.1",text)
+        self.assertIn("Get-NetIPInterface -InterfaceAlias $lan",text)
+        self.assertNotIn("New-NetIPAddress",text)
+        self.assertNotIn("Remove-NetIPAddress",text)
         self.assertEqual(result["backup"],"backup.json")
 
     def test_disable_preserves_ip_addresses(self):
@@ -67,11 +75,39 @@ class GuideTests(unittest.TestCase):
             guide.execute("reset",self.profile,self.data,fp)
         text=call.call_args.args[0]
         self.assertIn("Remove-NetNat",text)
-        self.assertIn("Remove-NetIPAddress",text)
+        self.assertIn('"source=dhcp"',text)
+        self.assertIn("netsh.exe interface ipv4 set address",text)
+        self.assertNotIn("New-NetIPAddress",text)
         self.assertIn("Remove-NetRoute",text)
         self.assertIn("AutomaticMetric Enabled",text)
-        self.assertIn("Dhcp Enabled",text)
         self.assertIn("IPEnableRouter -Value 0",text)
+
+    def test_apply_after_partial_failed_commit(self):
+        """Previous 1.6.0 commit may have removed LAN IP and disabled DHCP."""
+        self.data["ips"] = []
+        self.data["routes"] = [r for r in self.data["routes"]
+                               if r["InterfaceAlias"] != "Ethernet"]
+        self.data["interfaces"][0]["Dhcp"] = "Disabled"
+        fp = guide.fingerprint(self.profile, self.data)
+        with patch("network_guide.network.snapshot", return_value="x"), patch(
+                "network_guide.network.ps", return_value="") as call:
+            guide.execute("apply", self.profile, self.data, fp)
+        text = call.call_args.args[0]
+        self.assertIn('"source=static"', text)
+        self.assertIn("gateway=none", text)
+        self.assertNotIn("New-NetIPAddress", text)
+
+    def test_static_setup_with_non_default_subnet(self):
+        self.profile["prefix"] = "192.168.192.0/25"
+        self.profile["gateway"] = "192.168.192.126"
+        fp = guide.fingerprint(self.profile, self.data)
+        with patch("network_guide.network.snapshot", return_value="x"), patch(
+                "network_guide.network.ps", return_value="") as call:
+            guide.execute("apply", self.profile, self.data, fp)
+        text = call.call_args.args[0]
+        self.assertIn("255.255.255.128", text)
+        self.assertIn("192.168.192.126", text)
+        self.assertIn('"gateway=none"', text)
 
     def test_detect_conflicts_before_apply(self):
         self.data["nats"]=[{"Name":"HyperV","InternalIPInterfaceAddressPrefix":"172.20.0.0/16"}]
