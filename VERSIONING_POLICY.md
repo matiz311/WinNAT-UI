@@ -24,7 +24,7 @@ Il passaggio MINOR **non deriva dal numero di build** e non avviene automaticame
 Per la versione PATCH la pipeline può pubblicare automaticamente una release quando `version.py` aumenta di un solo PATCH e il changelog corrispondente è presente. A versione invariata produce esclusivamente artifact numerati.
 
 ## Eccezioni storiche
-Le release `v1.10.1` e altre versioni già distribuite non vanno rinominate né cancellate retroattivamente. La cronologia contiene un precedente salto improprio: il ramo funzionale corrente rimane nella serie 1.9.x secondo `CHANGELOG.md`. Nei prossimi rilasci non introdurre altri salti o numeri fittizi per compensarlo.
+Eccezione storica autorizzata: la release erronea `v1.10.1` e il relativo tag sono stati ritirati, mantenendo disponibile la versione corretta `v1.9.2`. I vecchi URL diretti non funzionano più. Nei prossimi rilasci evitare salti numerici non giustificati; non rinominare retroattivamente altre release senza un processo esplicito di migrazione.
 
 ## Consultare la build
 Aprire `BUILD_INFO.txt` nell'artifact per identificare versione, numero run, commit e workflow. Per le release pubbliche il riferimento permanente è il tag Git associato e il relativo hash SHA256.
