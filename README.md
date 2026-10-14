@@ -42,3 +42,9 @@ Windows mostra ProductName **WinNAT UI**, CompanyName **Matteo Cannizzo**, FileD
 
 ## Rimozione setup
 La funzione **Rimuovi setup gestito** è disponibile solo se il wizard ha registrato il proprio stato. Rimuove la regola `WinNAT-UI` dopo aver verificato nome e prefisso, e rimuove l'IP LAN soltanto se il wizard lo aveva aggiunto. Non disabilita genericamente l'IP forwarding, né rimuove NAT/ICS altrui. Il backup JSON è diagnostico, non un rollback automatico.
+
+## Modifiche pendenti e commit (v1.2.0)
+Le azioni di creazione, eliminazione NAT, configurazione iniziale e rimozione del setup **non vengono applicate al click del relativo comando**: sono registrate nella scheda **Modifiche pendenti**. Da qui è possibile scartarle oppure eseguire **Applica (Commit)** dopo un riepilogo e una conferma. Per ridurre operazioni parziali, il prototipo permette una modifica per commit. Prima del commit rileva nuovamente lo stato e salva un backup diagnostico. Non esiste ancora un rollback transazionale automatico.
+
+## Microsoft Defender
+Un utilizzatore ha segnalato il rilevamento `Trojan:Win32/Bearfoos.B!ml` su una build precedente. Il rilevamento **non va ignorato** e non possiamo certificare che sia un falso positivo. Non ripristinare dalla quarantena e non aggiungere esclusioni antivirus. Conservare l'ID del rilevamento, controllare la cronologia di protezione, verificare il codice sorgente e il processo di build e inviare il file a Microsoft per analisi qualora sia stato verificato come legittimo. Le nuove build usano distribuzione `--onedir` e richiedono uno scan Microsoft Defender prima dell'upload; questo non costituisce garanzia di assenza di malware. L'eseguibile rimane non firmato digitalmente.
