@@ -1,5 +1,4 @@
 """Windows network operations. Requires Windows PowerShell 5.1 and administrator for mutations."""
-import base64
 import ctypes
 import ipaddress
 import json
@@ -17,12 +16,10 @@ def admin():
         return False
 
 def ps(script):
-    # EncodeCommand avoids shell quoting and injection; all input is strictly validated.
-    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+    """Execute readable PowerShell commands, without Base64, packing or shell invocation."""
     process = subprocess.run(
-        [POWERSHELL, "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
-        capture_output=True, text=True, timeout=45,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        [POWERSHELL, "-NoProfile", "-NonInteractive", "-Command", script],
+        capture_output=True, text=True, timeout=60, shell=False)
     if process.returncode:
         raise RuntimeError((process.stderr or process.stdout).strip() or "PowerShell failed")
     return process.stdout.strip()
