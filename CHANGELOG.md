@@ -9,6 +9,13 @@ Regole del progetto:
 - La versione si cambia solo in `version.py`; ogni release ha qui una sezione `## [x.y.z]`, da cui la CI prende le note.
 - I tag già pubblicati non vengono mai spostati o rinominati (gli ZIP e gli SHA256 distribuiti resterebbero orfani): eventuali errori si correggono qui e nelle note della release.
 
+## [1.9.2] - 2026-10-14
+### Corretto
+- Impronta anteprima del gateway normalizzata anche con WAN dinamiche: ignora stato/velocità adattatori, AddressState, APIPA e route connesse generate automaticamente, preservando i controlli di sicurezza su IP LAN, gateway WAN, NAT, forwarding, metriche e interfacce.
+- In caso di modifica effettiva tra anteprima e commit, il Debug identifica i gruppi di configurazione cambiati.
+### Nota
+- Lo stesso contenuto (1.9.1 + 1.9.2) è stato pubblicato per errore come **v1.10.1**; il progetto resta sulla serie 1.9.x.
+
 ## [1.9.1] - 2026-10-14
 ### Cambiato
 - **WAN dinamiche**: la configurazione parte con una sola WAN (la WAN secondaria non è più richiesta). Con «+ Aggiungi WAN» se ne possono aggiungere fino a quante interfacce ha il PC, riordinarle per priorità e rimuoverle; le metriche devono crescere secondo la priorità e viene proposta automaticamente la successiva (+40).
