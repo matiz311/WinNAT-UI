@@ -183,7 +183,7 @@ class App(tk.Tk):
                         self.render_candidate()
                         messagebox.showerror(
                             "Commit non riuscito",
-                            value + "\\n\\nLa configurazione potrebbe essere stata applicata solo in parte."
+                            value + "\n\nLa configurazione potrebbe essere stata applicata solo in parte."
                             " Verrà riletta la configurazione Windows. Controlla lo stato"
                             " e prepara un nuovo Commit: non ripetere quello precedente."
                         )
