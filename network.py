@@ -23,8 +23,13 @@ def ps(script):
         startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startup.wShowWindow = 0
     process = subprocess.run(
-        [POWERSHELL, "-NoProfile", "-NonInteractive", "-Command", script],
-        capture_output=True, text=True, timeout=60, shell=False, startupinfo=startup)
+        # Force UTF-8 output: otherwise Windows uses the OEM code page (e.g. 850 on
+        # Italian systems) and accented adapter names or messages are garbled.
+        [POWERSHELL, "-NoProfile", "-NonInteractive", "-Command",
+         # Same line as the script's first line, so "In riga:X" still matches the numbering below.
+         "[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false; " + script],
+        capture_output=True, encoding="utf-8", errors="replace", timeout=60, shell=False,
+        startupinfo=startup)
     if process.returncode:
         # Diagnostic only: preserve all output and the exact executed script.
         # Line numbers allow matching "In riga:X" in localized PowerShell errors.
@@ -41,7 +46,7 @@ def ps(script):
             "Nota: lo script contiene configurazioni IP/NAT. Controllare i dati prima di condividerlo."
         ]
         raise RuntimeError("\n\n".join(parts))
-    return process.stdout.strip()
+    return process.stdout.lstrip("\ufeff").strip()
 
 def collect():
     """Collect independent configuration groups concurrently. Sessions are separate."""

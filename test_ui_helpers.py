@@ -31,6 +31,17 @@ class HelperTests(unittest.TestCase):
         except ValueError as exc:
             self.assertIn("Formato non valido", app.friendly_ip_error(exc, "10.10.10.0/24"))
 
+    def test_error_summary_skips_exit_code(self):
+        message = ("PowerShell exit code: 1\n\nSTDERR:\nNew-NetIPAddress : Inconsistent parameters "
+                   "PolicyStore PersistentStore and Dhcp Enabled\nIn riga:12 car:1")
+        self.assertTrue(app.error_summary(message).startswith("New-NetIPAddress : Inconsistent"))
+        self.assertIn("sconosciuto", app.error_summary("PowerShell exit code: 1\n\nSTDERR:"))
+        self.assertEqual(app.error_summary("Errore semplice"), "Errore semplice")
+        detailed = ("ESECUZIONE POWERSHELL NON RIUSCITA\n\nExit code: 1\n\nInterprete: powershell.exe\n\n"
+                    "STDERR (integrale):\nnetsh : L'oggetto esiste gi\u00e0.\nIn riga:7 car:1\n\n"
+                    "STDOUT (integrale):\n(vuoto)")
+        self.assertEqual(app.error_summary(detailed), "netsh : L'oggetto esiste gi\u00e0.")
+
     def test_service_status(self):
         self.assertEqual(app.service_status(4), "In esecuzione")
         self.assertEqual(app.service_status("Stopped"), "Arrestato")

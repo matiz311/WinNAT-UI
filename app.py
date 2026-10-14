@@ -13,9 +13,9 @@ import network
 import network_plan
 import network_guide
 import ui_theme as ui
+from version import VERSION
 from ui_theme import C, F, S1, S2, S3, S4, S5
 
-VERSION = "1.7.4"
 REPO_URL = "https://github.com/matiz311/WinNAT-UI"
 
 PAGES = [  # key, label, icon, subtitle
@@ -86,11 +86,14 @@ class Dialog(tk.Toplevel):
         self.result = True
         self.destroy()
 
-    def run(self, focus=None):
+    def recenter(self):
         self.update_idletasks()
         x = self.app.winfo_rootx() + (self.app.winfo_width() - self.winfo_reqwidth()) // 2
         y = self.app.winfo_rooty() + (self.app.winfo_height() - self.winfo_reqheight()) // 3
         self.geometry("+%d+%d" % (max(x, 0), max(y, 0)))
+
+    def run(self, focus=None):
+        self.recenter()
         self.grab_set()
         (focus or self.cancel_btn).focus_set()
         self.wait_window()
@@ -173,6 +176,22 @@ def format_error_debug(operation, message, traceback_text=""):
     return ("Operazione: " + str(operation) + "\n\n" +
             "Messaggio completo:\n" + str(message) + "\n\n" +
             "Traceback Python:\n" + (traceback_text or "Non disponibile"))
+
+
+def error_summary(message):
+    """First line a person can act on: prefer the PowerShell error text over headers."""
+    text = str(message)
+    for marker in ("STDERR (integrale):", "STDERR:"):
+        if marker in text:
+            text = text.split(marker, 1)[1]
+            break
+    skip = ("PowerShell exit code", "ESECUZIONE POWERSHELL", "Exit code:", "Interprete:", "Timeout configurato:",
+            "STDERR", "STDOUT", "SCRIPT ESEGUITO", "In riga:", "At line:", "+ ", "~", "(vuoto)")
+    for line in text.splitlines():
+        line = line.strip()
+        if line and not line.startswith(skip):
+            return line[:300] + ("\u2026" if len(line) > 300 else "")
+    return "Errore sconosciuto: apri i dettagli tecnici."
 
 
 class App(tk.Tk):
@@ -746,69 +765,50 @@ class App(tk.Tk):
 
     # ------------------------------------------------------------ tasks ---
     def show_error_dialog(self, title, operation, message, traceback_text="", commit=False):
-        """Compact default error with optional complete, read-only debug panel."""
-        dialog = tk.Toplevel(self)
-        dialog.title(title)
-        dialog.transient(self)
-        dialog.geometry("600x250")
-        dialog.minsize(520, 220)
-        dialog.configure(bg=C["bg"])
-        container = ttk.Frame(dialog, padding=S4)
-        container.pack(fill="both", expand=True)
-        ttk.Label(container, text=title, font=F["title"]).pack(anchor="w", pady=(0, S2))
-        short = str(message).splitlines()[0] if str(message).strip() else "Errore sconosciuto."
-        ttk.Label(container, text=short[:240] + ("…" if len(short) > 240 else ""),
-                  wraplength=550, justify="left").pack(fill="x", anchor="w")
-        if commit:
-            ttk.Label(container,
-                      text="Alcune modifiche potrebbero essere già state applicate. "
-                           "Lo stato verrà riletto da Windows: controllalo prima di riprovare.",
-                      wraplength=550, justify="left").pack(fill="x", anchor="w", pady=(S2, 0))
+        """Readable summary first; complete, copyable debug details on demand."""
+        dlg = Dialog(self, title, "Chiudi", cancel="Copia tutto")
+        dlg.ok.configure(command=dlg.destroy)
         details = format_error_debug(operation, message, traceback_text)
-        panel = ttk.Frame(container)
-        controls = ttk.Frame(container)
-        controls.pack(side="bottom", fill="x", pady=(S3, 0))
-        visible = [False]
 
         def copy_all():
-            dialog.clipboard_clear()
-            dialog.clipboard_append(details)
-            dialog.update()
-            copy_button.configure(text="Copiato")
-
-        def toggle_debug():
-            visible[0] = not visible[0]
-            if visible[0]:
-                panel.pack(fill="both", expand=True, pady=(S3, 0), before=controls)
-                dialog.geometry("850x610")
-                debug_button.configure(text="Nascondi debug")
-            else:
-                panel.pack_forget()
-                dialog.geometry("600x250")
-                debug_button.configure(text="Debug")
-
-        debug_button = ttk.Button(controls, text="Debug", command=toggle_debug)
-        debug_button.pack(side="left")
-        copy_button = ttk.Button(controls, text="Copia tutto", command=copy_all)
-        copy_button.pack(side="left", padx=(S2, 0))
-        ttk.Button(controls, text="Chiudi", command=dialog.destroy).pack(side="right")
-
-        scrollbar_y = ttk.Scrollbar(panel, orient="vertical")
-        scrollbar_x = ttk.Scrollbar(panel, orient="horizontal")
-        viewer = tk.Text(panel, wrap="none", height=18, font=("Consolas", 10),
-                         yscrollcommand=scrollbar_y.set, xscrollcommand=scrollbar_x.set,
-                         undo=False)
-        scrollbar_y.configure(command=viewer.yview)
-        scrollbar_x.configure(command=viewer.xview)
-        scrollbar_y.pack(side="right", fill="y")
-        scrollbar_x.pack(side="bottom", fill="x")
+            dlg.clipboard_clear()
+            dlg.clipboard_append(details)
+            dlg.update()
+            dlg.cancel_btn.configure(text="Copiato \u2713")
+        dlg.cancel_btn.configure(command=copy_all)
+        tk.Label(dlg.body, text=error_summary(message), font=F["body"], bg=C["surface"], fg=C["text"],
+                 wraplength=560, justify="left", anchor="w").pack(fill="x", anchor="w")
+        if commit:
+            ui.Callout(dlg.body, kind="warning", wraplength=520,
+                       text="Alcune modifiche potrebbero essere gi\u00e0 state applicate. Lo stato viene "
+                            "riletto da Windows: controllalo prima di preparare un nuovo Commit.").pack(fill="x", pady=(S3, 0))
+        panel = tk.Frame(dlg.body, bg=C["surface"], highlightthickness=1, highlightbackground=C["border"])
+        viewer = tk.Text(panel, wrap="none", height=16, width=92, font=F["mono_s"], bd=0, padx=S2, pady=S2,
+                         bg=C["surface_alt"], fg=C["text"], insertbackground=C["text"],
+                         selectbackground=C["select"], selectforeground=C["text"], undo=False)
+        sy = ttk.Scrollbar(panel, orient="vertical", command=viewer.yview)
+        sx = ttk.Scrollbar(panel, orient="horizontal", command=viewer.xview)
+        viewer.configure(yscrollcommand=sy.set, xscrollcommand=sx.set)
+        sy.pack(side="right", fill="y")
+        sx.pack(side="bottom", fill="x")
         viewer.pack(side="left", fill="both", expand=True)
         viewer.insert("1.0", details)
         viewer.configure(state="disabled")
         viewer.bind("<Control-a>", lambda e: (viewer.tag_add("sel", "1.0", "end-1c"), "break")[1])
-        dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
-        dialog.grab_set()
-        dialog.focus_set()
+        toggle = ttk.Button(dlg.body, text="Mostra dettagli tecnici", style="CardGhost.TButton")
+
+        def toggle_debug():
+            if panel.winfo_ismapped():
+                panel.pack_forget()
+                toggle.configure(text="Mostra dettagli tecnici")
+            else:
+                panel.pack(fill="both", expand=True, pady=(S2, 0))
+                toggle.configure(text="Nascondi dettagli tecnici")
+            dlg.recenter()
+        toggle.configure(command=toggle_debug)
+        toggle.pack(anchor="w", pady=(S3, 0))
+        dlg.resizable(True, True)
+        dlg.run(focus=dlg.ok)
 
     def run_task(self, key, fn, on_success):
         if key in self.tasks:
@@ -837,7 +837,7 @@ class App(tk.Tk):
                     callback(value)
                 else:
                     error_message, error_traceback = value
-                    self.notice.set("Errore: " + error_message[:120])
+                    self.notice.set("Errore: " + error_summary(error_message)[:80])
                     if key == "Commit":
                         # The script is not transactional: the previous steps may
                         # already have changed Windows even though one step failed.
