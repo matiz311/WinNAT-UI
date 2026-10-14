@@ -9,6 +9,13 @@ Regole del progetto:
 - La versione si cambia solo in `version.py`; ogni release ha qui una sezione `## [x.y.z]`, da cui la CI prende le note.
 - I tag già pubblicati non vengono mai spostati o rinominati (gli ZIP e gli SHA256 distribuiti resterebbero orfani): eventuali errori si correggono qui e nelle note della release.
 
+## [1.9.0] - 2026-10-14
+### Aggiunto
+- Rollback compensativo automatico su commit non riusciti: ripristina esclusivamente le risorse di rete coinvolte (IPv4, DHCP, route esplicite, forwarding, metriche, WinNAT, IPEnableRouter) secondo lo snapshot iniziale.
+- Verifica finale delle modifiche monitorate e report Debug con comandi eseguiti, errori e differenze residue. Se lo stato non è verificabile, segnala rollback incompleto.
+### Limitazioni
+- Non è una transazione di Windows: APIPA, sessioni NAT, mapping statici preesistenti, stato di rete esterno e modifiche contemporanee potrebbero non essere ripristinabili. Prima di ogni commit viene comunque salvato uno snapshot JSON.
+
 ## [1.8.0] - 2026-10-14
 ### Aggiunto
 - `tools/WinNAT-Diagnostica.ps1`: diagnostica di compatibilità in sola lettura (sistema, schede, IPv4, route, WinNAT, ICS, Hyper-V) con verdetto e indicazione delle schede utilizzabili come LAN/WAN; produce un report `.txt` e `.json` da allegare alle segnalazioni. Eseguito in CI come smoke test.
