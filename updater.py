@@ -167,7 +167,7 @@ try {
     }
     New-Item -ItemType Directory -Path $backup -Force | Out-Null
     # Copy old program before any destructive operation.
-    Copy-Item -LiteralPath (Join-Path $InstallDir '*') -Destination $backup -Recurse -Force -ErrorAction Stop
+    Copy-Item -Path (Join-Path $InstallDir '*') -Destination $backup -Recurse -Force -ErrorAction Stop
     try {
         Copy-Item -Path (Join-Path $source '*') -Destination $InstallDir -Recurse -Force -ErrorAction Stop
     } catch {
