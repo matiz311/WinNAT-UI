@@ -47,7 +47,7 @@ try {
     $connections += [pscustomobject]@{
       Name=$props.Name
       SharingEnabled=[bool]$config.SharingEnabled
-      SharingConnectionType=if($config.SharingEnabled){[int]$config.SharingConnectionType}else{$null}
+      SharingConnectionType=$(if($config.SharingEnabled){[int]$config.SharingConnectionType}else{$null})
     }
   }
 } catch { $connections += [pscustomobject]@{Name='ICS inspection error';Error=$_.Exception.Message} }
