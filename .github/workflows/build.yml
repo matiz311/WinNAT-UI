@@ -21,7 +21,7 @@ jobs:
       - name: Validate syntax
         run: python -m compileall -q app.py network.py
       - name: Package executable
-        run: pyinstaller --noconfirm --clean --onedir --windowed --uac-admin --version-file version_info.txt --name WinNAT-UI app.py
+        run: pyinstaller --noconfirm --clean --noupx --onedir --windowed --uac-admin --version-file version_info.txt --name WinNAT-UI app.py
       - name: Scan build with Microsoft Defender
         shell: pwsh
         run: |
