@@ -1,0 +1,9 @@
+name = "winnat-bug-gateway"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+# Create a Cloudflare KV namespace, set its ID here, deploy only after reviewing
+# a WAF rate limit and bot protection. No token in source or wrangler.toml.
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "REPLACE_WITH_REAL_KV_NAMESPACE_ID"
