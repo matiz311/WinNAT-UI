@@ -1114,7 +1114,9 @@ class App(tk.Tk):
                 label = ("Nuova versione disponibile con correzioni per "
                          + ", ".join("#" + str(i["number"]) for i in ready[:5]))
                 self.issue_status.set(label)
-                if not silent:
+                if silent:
+                    self.toast.show(label, "success")
+                else:
                     messagebox.showinfo("Correzione disponibile", label, parent=self)
             elif not silent:
                 self.toast.show("Stato delle Issue aggiornato.", "success")
@@ -1218,12 +1220,6 @@ class App(tk.Tk):
             dlg.cancel_btn.configure(text="Copiato")
 
         def report_bug():
-            if not messagebox.askyesno(
-                    "Segnala bug anonimo",
-                    "Il programma invierà soltanto categoria, operazione, versione, tipo di errore, "
-                    "codice di uscita e moduli coinvolti. Nessuna configurazione o log grezzo. "
-                    "Creare o collegare automaticamente una Issue pubblica?", parent=dlg):
-                return
             payload = issue_tracker.safe_payload(operation, message, traceback_text, VERSION)
             def send():
                 matches = issue_tracker.find_similar(payload, issue_tracker.public_issues())
