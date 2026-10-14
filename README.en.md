@@ -17,7 +17,7 @@ WinNAT UI is a Windows 10/11 desktop application for diagnosing and managing **W
 - Inspect Windows NAT rules and sessions, SharedAccess service status, and ICS sharing settings.
 - Infer the WAN from the default route, subject to manual verification; choose the LAN adapter.
 - Add or remove WinNAT rules with conflict warnings.
-- Guided Ethernet-to-Internet setup, default LAN `192.168.1.0/24` and PC address `192.168.1.254`.
+- Guided Ethernet-to-Internet setup, default LAN `10.10.10.0/24` and PC address `10.10.10.1`.
 - Remove the application-managed setup while preserving pre-existing LAN addresses.
 - Export diagnostic JSON and save local snapshots before changes.
 - Candidate configuration workflow: review and discard pending changes or **Apply (Commit)**. Currently one change per commit.
@@ -84,3 +84,17 @@ For safety, the commit currently applies **one operation at a time**, although m
 - The LAN interface address is preserved unless optional exact-address removal is explicitly selected. ICS, DHCP, VPN and unrelated settings are not touched.
 - Review **Modifiche**, then select **Commit**. Once the old NAT is removed, return to **Rete** to stage a clean setup.
 - Local console access is strongly recommended: removing networking configurations can terminate a remote management session.
+
+## Version 1.6.0 — Complete Windows 11 router/NAT setup
+
+**Rete → Configura** implements the supplied Windows 11 NAT and IPv4 routing procedure. Select LAN, primary WAN, optional secondary WAN, LAN network, PC gateway, NAT name and interface metrics. Suggested defaults are Ethernet / USB-C / Wi-Fi, LAN `10.10.10.0/24`, PC gateway `10.10.10.1`, NAT `NAT-Firewall`, WAN metrics 10/50. All settings are editable.
+
+- **Configura (Configure):** disables LAN DHCP, clears existing LAN IPv4 addresses and routes, assigns a static gateway without a LAN default route, sets `IPEnableRouter=1`, enables forwarding on selected LAN/WAN interfaces, sets WAN metrics and creates the NAT. WAN interfaces must already have connectivity and default routes. Existing WAN DHCP, DNS and IP settings are preserved.
+- **Disabilita (Disable):** removes **every WinNAT object**, regardless of which tool created it; disables forwarding on selected interfaces and sets `IPEnableRouter=0`. LAN IPs and WAN metrics are preserved.
+- **Ripristina (Reset):** additionally clears all IPv4 addresses and routes on the selected LAN, enables its DHCP client, and restores automatic interface metrics on selected WANs. This does not restore an earlier exact state or clear WAN configurations.
+- **Candidate → Commit:** shows an operation-by-operation preview, requires confirmation, and rechecks the live settings before execution. A JSON diagnostic snapshot is stored, but it is **not an automatic rollback**.
+- **Restart:** restart Windows after changing `IPEnableRouter` before full connectivity verification.
+
+**Warning:** removing all WinNAT objects can disrupt Hyper-V, WSL2 and containers. LAN IP/route changes can terminate remote access. Operate from the local console, verify interface selections and review the plan before committing. Operations are not transactional; partial changes can remain after an error.
+
+Automated planning tests: `test_network_guide.py`.
