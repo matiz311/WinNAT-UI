@@ -1086,7 +1086,7 @@ class App(tk.Tk):
             elif n > 1:
                 hint = "Applica una modifica per volta: rimuovi le altre dalla sezione Modifiche."
             else:
-                hint = "Verrà salvato uno snapshot JSON prima dell'applicazione (non è un rollback automatico)."
+                hint = "In caso di errore verrà tentato un rollback dalle configurazioni precedenti, senza garanzia di ripristino completo."
         if busy:
             title, hint = "Applicazione in corso…", "Non chiudere l'app finché l'operazione non termina."
         for w in self.cb_widgets:
