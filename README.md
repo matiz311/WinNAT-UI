@@ -95,3 +95,13 @@ Fonti ufficiali: https://signpath.org/terms.html ; https://learn.microsoft.com/e
 Consulta la [politica di firma](CODE_SIGNING_POLICY.it.md) ([English](CODE_SIGNING_POLICY.md)). L'attribuzione «Free code signing provided by SignPath.io, certificate by SignPath Foundation» sarà applicabile solo in caso di approvazione; l'eseguibile attuale è ancora non firmato.
 
 Per disinstallare il programma portatile, chiudilo e rimuovi la cartella estratta. Prima di farlo, se hai configurato la rete con il wizard, utilizza **Rimuovi setup gestito**.
+
+## Interfaccia v1.3.0
+- **Dashboard**: panoramica della configurazione reale, indipendente dalle sessioni NAT.
+- **NAT**: mostra regole applicate e modifiche candidate nello stesso elenco; le righe indicano se una regola sarà aggiunta o eliminata.
+- **Rete**: prepara configurazione o rimozione del setup guidato.
+- **Modifiche**: mostra il riepilogo prima del commit; **Scarta** annulla la configurazione candidata.
+- **Sessioni**: legge le sessioni con una chiamata indipendente, aggiornandole ogni 60 secondi quando la scheda è aperta; **Aggiorna** forza la lettura.
+- Durante le operazioni asincrone viene mostrata una barra di avanzamento. Il processo PowerShell non apre una finestra separata. La barra è indeterminata: mostra attività in corso, non la percentuale completata.
+
+Per prudenza il commit applica **una modifica alla volta**, anche se è possibile prepararne diverse. Non esiste un rollback automatico delle modifiche Windows.
