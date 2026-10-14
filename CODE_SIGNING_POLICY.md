@@ -1,5 +1,7 @@
 # Code signing policy
 
+**English** | [Italiano](CODE_SIGNING_POLICY.it.md)
+
 ## Status
 Code signing through SignPath Foundation is **not yet approved or enabled**. The executable is currently unsigned. This policy describes the intended release process, not an existing certificate.
 
