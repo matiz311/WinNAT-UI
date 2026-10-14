@@ -1,5 +1,6 @@
 """Windows network operations. Requires Windows PowerShell 5.1 and administrator for mutations."""
 import ctypes
+import contextvars
 import ipaddress
 import json
 import os
@@ -9,6 +10,19 @@ from datetime import datetime
 from pathlib import Path
 
 POWERSHELL = "powershell.exe"
+
+# Set in the Commit worker only; regular inventory refreshes never spam the UI.
+command_logger = contextvars.ContextVar("command_logger", default=None)
+
+
+def _emit_command_event(kind, value):
+    callback = command_logger.get()
+    if callback is not None:
+        try:
+            callback(kind, str(value))
+        except Exception:
+            pass  # A UI-log failure must never affect network mutations.
+
 
 def admin():
     try:
@@ -22,6 +36,7 @@ def ps(script):
     if startup is not None:
         startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startup.wShowWindow = 0
+    _emit_command_event("command", script)
     process = subprocess.run(
         # Force UTF-8 output: otherwise Windows uses the OEM code page (e.g. 850 on
         # Italian systems) and accented adapter names or messages are garbled.
@@ -30,6 +45,11 @@ def ps(script):
          "[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false; " + script],
         capture_output=True, encoding="utf-8", errors="replace", timeout=60, shell=False,
         startupinfo=startup)
+    if process.stdout:
+        _emit_command_event("stdout", process.stdout.lstrip("\ufeff"))
+    if process.stderr:
+        _emit_command_event("stderr", process.stderr)
+    _emit_command_event("status", "PowerShell terminato con codice " + str(process.returncode))
     if process.returncode:
         # Diagnostic only: preserve all output and the exact executed script.
         # Line numbers allow matching "In riga:X" in localized PowerShell errors.
