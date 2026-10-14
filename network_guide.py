@@ -239,7 +239,32 @@ def execute(action, profile, current, expected_fingerprint):
             ]
         script.append("Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters' -Name IPEnableRouter -Value 0 -ErrorAction Stop")
     # A single PowerShell invocation makes operation order clear, but not atomic.
-    result = network.ps("\n".join(script))
+    try:
+        result = network.ps("\n".join(script))
+    except Exception as error:
+        # The operation is not atomic; gather a NEW read-only inventory after
+        # failure without hiding the original error if diagnostics also fail.
+        try:
+            after = network.collect()
+            after_text = json.dumps(after, indent=2, ensure_ascii=False, default=str)
+        except Exception as inventory_error:
+            after_text = ("Impossibile rilevare lo stato successivo: "
+                          + repr(inventory_error))
+        details = (
+            "OPERAZIONE GUIDATA FALLITA\n"
+            "Azione: " + action + "\n"
+            "Interfaccia LAN: " + p["lan"] + "\n"
+            "WAN primaria: " + p["wan1"] + "\n"
+            "WAN secondaria: " + (p["wan2"] or "nessuna") + "\n"
+            "IPv4 atteso: " + p["gateway"] + "/" + p["prefix"].split("/")[1] + "\n"
+            "NAT atteso: " + p["nat"] + "\n\n"
+            "ERRORE ORIGINALE:\n" + str(error) + "\n\n"
+            "CONFIGURAZIONE RILEVATA PRIMA DEL COMMIT:\n"
+            + json.dumps(current, indent=2, ensure_ascii=False, default=str) + "\n\n"
+            "CONFIGURAZIONE RILEVATA DOPO L'ERRORE:\n" + after_text + "\n\n"
+            "ATTENZIONE: nessun rollback automatico; verificare lo stato prima di riprovare."
+        )
+        raise RuntimeError(details) from error
     if action == "reset" and network.managed_state():
         network.state_path().unlink(missing_ok=True)
     return {"backup": backup, "output": result, "action": action}
