@@ -13,6 +13,7 @@ import network
 import network_plan
 import network_guide
 import network_rollback
+import bug_report
 import updater
 import ui_theme as ui
 from version import VERSION
@@ -1138,16 +1139,30 @@ class App(tk.Tk):
     # ------------------------------------------------------------ tasks ---
     def show_error_dialog(self, title, operation, message, traceback_text="", commit=False):
         """Readable summary first; complete, copyable debug details on demand."""
-        dlg = Dialog(self, title, "Chiudi", cancel="Copia tutto")
+        dlg = Dialog(self, title, "Chiudi", cancel="Copia errore")
         dlg.ok.configure(command=dlg.destroy)
         details = format_error_debug(operation, message, traceback_text)
+        report_title, report_body = bug_report.make_report(operation, message, traceback_text, VERSION)
+        report_text = report_title + "\n\\n" + report_body
 
-        def copy_all():
+        def copy_anonymized():
             dlg.clipboard_clear()
-            dlg.clipboard_append(details)
+            dlg.clipboard_append(report_text)
             dlg.update()
-            dlg.cancel_btn.configure(text="Copiato \u2713")
-        dlg.cancel_btn.configure(command=copy_all)
+            dlg.cancel_btn.configure(text="Copiato")
+
+        def report_bug():
+            # GitHub opens a prefilled *draft*. The user must review and publish it.
+            url = bug_report.issue_link(operation, message, traceback_text, VERSION)
+            webbrowser.open(url)
+        dlg.cancel_btn.configure(command=copy_anonymized)
+        report_actions = tk.Frame(dlg.body, bg=C["surface"])
+        report_actions.pack(fill="x", pady=(0, S2))
+        ttk.Button(report_actions, text="Segnala bug su GitHub",
+                   command=report_bug).pack(side="left")
+        tk.Label(report_actions, text="Bozza anonimizzata: puoi rivederla prima di pubblicare.",
+                 font=F["caption"], bg=C["surface"], fg=C["text_muted"]).pack(
+                     side="left", padx=S2)
         tk.Label(dlg.body, text=error_summary(message), font=F["body"], bg=C["surface"], fg=C["text"],
                  wraplength=560, justify="left", anchor="w").pack(fill="x", anchor="w")
         if commit:
