@@ -12,6 +12,7 @@
 - [Informativa privacy](PRIVACY.it.md) ([English](PRIVACY.md))
 - [Politica di firma](CODE_SIGNING_POLICY.it.md) ([English](CODE_SIGNING_POLICY.md))
 - [Changelog](CHANGELOG.md)
+- [Politica di versioning e build](VERSIONING_POLICY.md)
 - [Licenza MIT](LICENSE)
 
 
