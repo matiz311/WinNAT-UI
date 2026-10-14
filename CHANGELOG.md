@@ -9,6 +9,11 @@ Regole del progetto:
 - La versione si cambia solo in `version.py`; ogni release ha qui una sezione `## [x.y.z]`, da cui la CI prende le note.
 - I tag già pubblicati non vengono mai spostati o rinominati (gli ZIP e gli SHA256 distribuiti resterebbero orfani): eventuali errori si correggono qui e nelle note della release.
 
+## [1.9.1] - 2026-10-14
+### Corretto
+- Impronta dell'anteprima del gateway basata solo su proprietà di rete rilevanti: ignora variazioni temporanee di link speed, stato adattatori, AddressState, APIPA e route connesse generate automaticamente.
+- I conflitti effettivi tra anteprima e commit mostrano nel pannello Debug i gruppi di configurazione cambiati senza disabilitare la verifica di sicurezza.
+
 ## [1.9.0] - 2026-10-14
 ### Aggiunto
 - Rollback compensativo automatico su commit non riusciti: ripristina esclusivamente le risorse di rete coinvolte (IPv4, DHCP, route esplicite, forwarding, metriche, WinNAT, IPEnableRouter) secondo lo snapshot iniziale.
