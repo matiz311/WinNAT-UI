@@ -160,7 +160,7 @@ $ip = Get-NetIPAddress -InterfaceAlias '%s' -AddressFamily IPv4 -IPAddress '%s' 
     Where-Object {$_.PrefixLength -eq %d}
 if($ip -and $removeIp){Remove-NetIPAddress -InputObject $ip -Confirm:$false -ErrorAction Stop}
 'Managed NAT removed. IP forwarding has been preserved.'
-""" % (name, prefix, name, alias, gateway, 'true' if remove_ip else 'false', ipaddress.IPv4Network(prefix).prefixlen)
+""" % (name, prefix, name, 'true' if remove_ip else 'false', alias, gateway, ipaddress.IPv4Network(prefix).prefixlen)
     result = ps(script)
     state_path().unlink(missing_ok=True)
     return result
