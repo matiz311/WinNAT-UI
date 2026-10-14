@@ -202,9 +202,15 @@ def execute(action, profile, current, expected_fingerprint):
             script += [
                 # Reset all manually configured addresses/default gateway
                 # while setting DHCP, without an intermediate inconsistent store.
-                "$netshOutput = & netsh.exe interface ipv4 set address "
+                "$lanDhcp = (Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop).Dhcp",
+                "if ($lanDhcp -ne 'Enabled') {",
+                "  $netshOutput = & netsh.exe interface ipv4 set address "
                 '("name=" + $lan) "source=dhcp" "store=persistent" 2>&1',
-                "if ($LASTEXITCODE -ne 0) { throw ('Impossibile ripristinare DHCP LAN tramite netsh (codice ' + $LASTEXITCODE + '): ' + ($netshOutput | Out-String)) }",
+                "  $netshExitCode = $LASTEXITCODE",
+                "  $lanDhcp = (Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop).Dhcp",
+                "  if ($lanDhcp -ne 'Enabled') { throw ('Impossibile ripristinare DHCP LAN tramite netsh (codice ' + $netshExitCode + '): ' + ($netshOutput | Out-String)) }",
+                "}",
+                "if ((Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop).Dhcp -ne 'Enabled') { throw 'LAN: DHCP IPv4 non attivo dopo il ripristino.' }",
                 "Get-NetRoute -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue | "
                 "Where-Object { $_.NextHop -notin @('0.0.0.0', '::') -and $_.DestinationPrefix -ne '0.0.0.0/0' } | "
                 "Remove-NetRoute -Confirm:$false -ErrorAction Stop",
