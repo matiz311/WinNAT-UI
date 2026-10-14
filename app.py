@@ -13,6 +13,7 @@ import network
 import network_plan
 import network_guide
 import network_rollback
+import updater
 import ui_theme as ui
 from version import VERSION
 from ui_theme import C, F, S1, S2, S3, S4, S5
@@ -238,6 +239,7 @@ class App(tk.Tk):
         self.show_page("dashboard")
         self.after(100, self.drain)
         self.after(60000, self.periodic_sessions)
+        self.after(2500, lambda: self.check_updates(silent=True))
         self.refresh()
 
     def set_window_icon(self):
@@ -978,6 +980,16 @@ class App(tk.Tk):
         link.bind("<Button-1>", lambda e: webbrowser.open(REPO_URL))
         tk.Label(card.body, text="I metadati dell'autore non equivalgono a una firma digitale: l'eseguibile non è firmato.",
                  font=F["caption"], bg=C["surface"], fg=C["text_muted"]).pack(anchor="w", pady=(S3, 0))
+        updates = ui.Card(page, padding=S4)
+        updates.pack(fill="x", pady=(S3, 0))
+        tk.Label(updates.body, text="Aggiornamenti da GitHub", font=F["strong"],
+                 bg=C["surface"], fg=C["text"]).pack(anchor="w")
+        tk.Label(updates.body, text="Verifica la release stabile ufficiale, scarica e verifica SHA256. "
+                 "L'installazione avviene dopo la chiusura, conservando un backup dei file precedenti.",
+                 wraplength=600, justify="left", font=F["body"],
+                 bg=C["surface"], fg=C["text_muted"]).pack(anchor="w", pady=(S1, S2))
+        ttk.Button(updates.body, text="Controlla aggiornamenti",
+                   command=self.check_updates).pack(anchor="w")
         self.section(page, "Scorciatoie da tastiera")
         keys = ui.Card(page, padding=S4)
         keys.pack(fill="x")
@@ -987,6 +999,64 @@ class App(tk.Tk):
             tk.Label(keys.body, text=k, font=F["mono_s"], bg=C["surface_alt"], fg=C["text"], padx=S2, pady=2).grid(
                 row=i, column=0, sticky="w", pady=2)
             tk.Label(keys.body, text=v, font=F["body"], bg=C["surface"], fg=C["text_muted"]).grid(row=i, column=1, sticky="w", padx=S4)
+
+    def check_updates(self, silent=False):
+        if "Aggiornamenti" in self.tasks or "Download aggiornamento" in self.tasks:
+            return
+        def found(info):
+            if info.get("error"):
+                return
+            if not info["available"]:
+                if not silent:
+                    messagebox.showinfo("WinNAT UI", "La versione " + VERSION
+                                        + " è già aggiornata.", parent=self)
+                return
+            if not getattr(sys, "frozen", False):
+                if not silent:
+                    messagebox.showinfo("Nuova versione " + info["version"],
+                                        "È disponibile una release ufficiale. "
+                                        "L'aggiornamento in-app richiede il pacchetto EXE Windows.",
+                                        parent=self)
+                return
+            if self.pending or "Commit" in self.tasks:
+                self.toast.show("Nuova versione " + info["version"] +
+                                " disponibile. Completa o annulla le modifiche prima di aggiornare.", "warning")
+                return
+            if not messagebox.askyesno(
+                    "Aggiornamento disponibile",
+                    "Versione installata: " + VERSION + "\\n"
+                    "Versione disponibile: " + info["version"] + "\\n\\n"
+                    "Scaricare da GitHub e verificare l'integrità SHA256? "
+                    "L'applicazione si chiuderà per completare l'aggiornamento.",
+                    parent=self):
+                return
+            if self.pending or self.tasks:
+                self.toast.show("Operazioni in corso: termina il lavoro prima di aggiornare.", "warning")
+                return
+            self.run_task("Download aggiornamento",
+                          lambda: updater.prepare(info), self._install_update)
+        def lookup():
+            if silent:
+                try:
+                    return updater.release_info(VERSION)
+                except Exception:
+                    # Offline/blocked access at startup must not interrupt networking work.
+                    return {"error": "Controllo automatico non disponibile."}
+            return updater.release_info(VERSION)
+        self.run_task("Aggiornamenti", lookup, found)
+
+    def _install_update(self, staging):
+        if self.pending or self.tasks:
+            messagebox.showwarning("Aggiornamento rinviato",
+                                   "Completa le modifiche prima di riavviare.", parent=self)
+            return
+        try:
+            updater.launch(staging)
+        except Exception as error:
+            self.show_error_dialog("Aggiornamento non avviato", "Update", str(error),
+                                   traceback.format_exc())
+            return
+        self.destroy()
 
     # ------------------------------------------------------- navigation ---
     def show_page(self, key):
