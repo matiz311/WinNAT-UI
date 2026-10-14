@@ -115,4 +115,49 @@ if($routes.Count -eq 0) { throw 'Nessuna route predefinita disponibile: impossib
 New-NetNat -Name 'WinNAT-UI' -InternalIPInterfaceAddressPrefix '%s' -ErrorAction Stop | Out-Null
 'Configuration complete'
 """ % (alias, gateway, subnet.prefixlen, prefix)
-    return ps(script)
+    result = ps(script)
+    # Registra solo ciò che il wizard ha predisposto. Il teardown è conservativo.
+    state = {
+        "lan": lan, "prefix": prefix, "gateway": gateway,
+        "nat": "WinNAT-UI",
+        "created": datetime.now().isoformat()
+    }
+    state_path().parent.mkdir(parents=True, exist_ok=True)
+    state_path().write_text(json.dumps(state, indent=2), encoding="utf-8")
+    return result
+
+def state_path():
+    return Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "WinNAT-UI" / "managed-setup.json"
+
+def managed_state():
+    path = state_path()
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+def teardown(data):
+    state = managed_state()
+    if not state:
+        raise ValueError("Non esiste un setup tracciato dall'applicazione. Rimuovi eventuali NAT manualmente.")
+    name = validate_name(state["nat"])
+    prefix = validate_prefix(state["prefix"])
+    gateway = validate_gateway(state["gateway"], ipaddress.IPv4Network(prefix))
+    alias = validate_alias(state["lan"], data)
+    matching = [n for n in data.get("nats", [])
+                if n.get("Name") == name and n.get("InternalIPInterfaceAddressPrefix") == prefix]
+    if len(matching) != 1:
+        raise ValueError("La regola NAT gestita non coincide con quella attuale. Operazione interrotta.")
+    # Non rimuovere altri IP, gateway, DHCP, ICS, VPN o NAT estranei.
+    script = """
+$ErrorActionPreference='Stop'
+$nat = Get-NetNat -Name '%s' -ErrorAction Stop
+if($nat.InternalIPInterfaceAddressPrefix -ne '%s'){throw 'Prefisso NAT cambiato'}
+Remove-NetNat -Name '%s' -Confirm:$false -ErrorAction Stop
+$ip = Get-NetIPAddress -InterfaceAlias '%s' -AddressFamily IPv4 -IPAddress '%s' -ErrorAction SilentlyContinue |
+    Where-Object {$_.PrefixLength -eq %d}
+if($ip){Remove-NetIPAddress -InputObject $ip -Confirm:$false -ErrorAction Stop}
+'Managed NAT removed. IP forwarding has been preserved.'
+""" % (name, prefix, name, alias, gateway, ipaddress.IPv4Network(prefix).prefixlen)
+    result = ps(script)
+    state_path().unlink(missing_ok=True)
+    return result
