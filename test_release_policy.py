@@ -14,6 +14,7 @@ class ReleasePolicyTests(unittest.TestCase):
 
     def test_one_build_does_not_require_new_version(self):
         self.assertEqual(release.release_kind("1.9.2", "1.9.2"), "same")
+        self.assertFalse(release.publication_gate("1.9.2", "1.9.2")[0])
 
     def test_minor_requires_summary_and_explicit_approval(self):
         summary = ("### Sintesi\n" + "Riepilogo significativo dei miglioramenti per il rilascio. " * 5
