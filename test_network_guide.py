@@ -62,8 +62,8 @@ class GuideTests(unittest.TestCase):
         self.data["nats"]=[{"Name":"NotManaged","InternalIPInterfaceAddressPrefix":"192.168.90.0/24"}]
         fp=guide.fingerprint(self.profile,self.data)
         with patch("network_guide.network.snapshot",return_value="x"),patch(
-                "network_guide.network.ps",return_value=""),patch(
-                "network_guide.network.managed_state",return_value=None) as call:
+                "network_guide.network.ps",return_value="") as call,patch(
+                "network_guide.network.managed_state",return_value=None):
             guide.execute("reset",self.profile,self.data,fp)
         text=call.call_args.args[0]
         self.assertIn("Remove-NetNat",text)
