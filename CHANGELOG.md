@@ -23,6 +23,8 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - Icona dell'applicazione: dispositivi della LAN che convergono nel gateway NAT e un'unica uscita verso Internet, nei colori dell'interfaccia. Usata per l'eseguibile, la barra del titolo, la barra delle applicazioni, le finestre di dialogo e il logo nella barra laterale.
 - File `.ico` con 10 risoluzioni (16–256 px) e disegni semplificati per le dimensioni piccole; sorgenti SVG in `assets/` e `tools/build_icon.py` per rigenerarle.
 - La build verifica che l'eseguibile abbia l'icona e che i file grafici siano inclusi.
+### Corretto
+- Controllo di pubblicazione: confronta la versione con l'ultima release pubblicata invece che con il commit precedente, che nella CI (checkout a profondità 1) non era disponibile e bloccava ogni release.
 
 ## [1.9.2] - 2026-10-14
 ### Corretto
