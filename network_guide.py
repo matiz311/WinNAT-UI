@@ -160,15 +160,37 @@ def execute(action, profile, current, expected_fingerprint):
             # in one operation, removing previous interface IPs/default gateway.
             "$lanIP = %s" % psquote(p["gateway"]),
             "$lanMask = %s" % psquote(str(ipaddress.IPv4Network(p["prefix"]).netmask)),
-            "$netshOutput = & netsh.exe interface ipv4 set address "
+            "$lanPrefix = %d" % ipaddress.IPv4Network(p["prefix"]).prefixlen,
+            # Detect actual address conflict, not just a localized netsh string.
+            "$duplicate = @(Get-NetIPAddress -AddressFamily IPv4 -IPAddress $lanIP -ErrorAction SilentlyContinue | "
+            "Where-Object { $_.InterfaceIndex -ne $lanIndex })",
+            "if ($duplicate.Count -gt 0) { throw ('IP LAN ' + $lanIP + ' già assegnato ad altre interfacce: ' + "
+            "(($duplicate | ForEach-Object { $_.InterfaceAlias + ' (ifIndex ' + $_.InterfaceIndex + ')' }) -join ', ')) }",
+            "$lanAddresses = @(Get-NetIPAddress -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue)",
+            "$iface = Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop",
+            # If LAN already has precisely the requested static IP, netsh is unnecessary.
+            "$alreadyConfigured = ($iface.Dhcp -eq 'Disabled' -and $lanAddresses.Count -eq 1 -and "
+            "@($lanAddresses | Where-Object { $_.IPAddress -eq $lanIP -and $_.PrefixLength -eq $lanPrefix }).Count -eq 1)",
+            "$netshExitCode = 0",
+            "$netshOutput = @()",
+            "if (-not $alreadyConfigured) {",
+            "  $netshOutput = & netsh.exe interface ipv4 set address "
             '("name=" + $lan) "source=static" ("address=" + $lanIP) '
             '("mask=" + $lanMask) "gateway=none" "store=persistent" 2>&1',
-            "if ($LASTEXITCODE -ne 0) { throw ('Impossibile impostare IP statico LAN tramite netsh (codice ' + $LASTEXITCODE + '): ' + ($netshOutput | Out-String)) }",
+            "  $netshExitCode = $LASTEXITCODE",
+            "}",
+            # A nonzero netsh status can coexist with an already-applied change:
+            # decide by inspecting effective state, never by error text.
             "$iface = Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop",
-            "if ($iface.Dhcp -ne 'Disabled') { throw 'LAN: DHCP risulta ancora attivo dopo la configurazione statica. Controlla lo stato della scheda e riprova solo dopo la verifica.' }",
-            "$configuredIP = @(Get-NetIPAddress -InterfaceAlias $lan -IPAddress $lanIP -AddressFamily IPv4 -ErrorAction SilentlyContinue)",
-            "if (-not ($configuredIP | Where-Object { $_.PrefixLength -eq %d })) { throw 'LAN: IPv4 statico non presente dopo la configurazione. Verifica la connessione fisica e lo stato di Windows.' }"
-            % ipaddress.IPv4Network(p["prefix"]).prefixlen,
+            "$lanAddresses = @(Get-NetIPAddress -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue)",
+            "$configuredIP = @($lanAddresses | Where-Object { $_.IPAddress -eq $lanIP -and $_.PrefixLength -eq $lanPrefix })",
+            "$validState = ($iface.Dhcp -eq 'Disabled' -and $configuredIP.Count -eq 1 -and $lanAddresses.Count -eq 1)",
+            "if (-not $validState) {",
+            "  $addressSummary = ($lanAddresses | ForEach-Object { $_.IPAddress + '/' + $_.PrefixLength }) -join ', '",
+            "  throw ('Impossibile impostare IP statico LAN tramite netsh (codice ' + $netshExitCode + '). ' + "
+            "'DHCP=' + $iface.Dhcp + '; IPv4 rilevati=[' + $addressSummary + ']; atteso=' + $lanIP + '/' + "
+            "$lanPrefix + '. Output: ' + ($netshOutput | Out-String))",
+            "}",
             # netsh clears previous IPs and default gateway; remove any leftover
             # routed entries while preserving the new connected/on-link route.
             "Get-NetRoute -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue | "
