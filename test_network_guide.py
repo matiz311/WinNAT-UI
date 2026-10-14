@@ -171,6 +171,44 @@ class GuideTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"WinNAT"):
             guide.validate(self.profile,self.data,"apply")
 
+    def test_dynamic_adapter_status_and_apipa_do_not_invalidate_preview(self):
+        old = copy.deepcopy(self.data)
+        newer = copy.deepcopy(old)
+        newer["adapters"][0]["Status"] = "Disconnected"
+        newer["adapters"][0]["LinkSpeed"] = "0 Mbps"
+        newer["ips"][0]["AddressState"] = "Tentative"
+        newer["ips"].append({"InterfaceAlias": "Ethernet", "InterfaceIndex": 5,
+                             "IPAddress": "169.254.77.23", "PrefixLength": 16,
+                             "AddressState": "Tentative"})
+        newer["routes"].append({"InterfaceAlias": "Ethernet", "InterfaceIndex": 5,
+                                "DestinationPrefix": "169.254.0.0/16",
+                                "NextHop": "0.0.0.0", "RouteMetric": 256})
+        newer["routes"].append({"InterfaceAlias": "USB-C", "InterfaceIndex": 10,
+                                "DestinationPrefix": "10.3.0.0/16",
+                                "NextHop": "0.0.0.0", "RouteMetric": 256})
+        self.assertEqual(guide.fingerprint(self.profile, old),
+                         guide.fingerprint(self.profile, newer))
+
+    def test_real_default_gateway_change_invalidates_preview(self):
+        newer = copy.deepcopy(self.data)
+        for route in newer["routes"]:
+            if route["InterfaceAlias"] == "USB-C" and route["DestinationPrefix"] == "0.0.0.0/0":
+                route["NextHop"] = "10.0.0.99"
+        original = guide.fingerprint(self.profile, self.data)
+        changed = guide.fingerprint(self.profile, newer)
+        self.assertNotEqual(original, changed)
+        self.assertTrue(any("routes:" in line for line in guide.fingerprint_differences(original, changed)))
+
+    def test_ip_or_nat_change_invalidates_preview(self):
+        newer = copy.deepcopy(self.data)
+        newer["ips"][0]["IPAddress"] = "192.168.90.1"
+        self.assertNotEqual(guide.fingerprint(self.profile, self.data),
+                            guide.fingerprint(self.profile, newer))
+        newer = copy.deepcopy(self.data)
+        newer["nats"].append({"Name": "existing", "InternalIPInterfaceAddressPrefix": "172.16.0.0/16"})
+        self.assertNotEqual(guide.fingerprint(self.profile, self.data),
+                            guide.fingerprint(self.profile, newer))
+
     def test_changes_since_preview_block_commit(self):
         fp=guide.fingerprint(self.profile,self.data)
         newer=copy.deepcopy(self.data)
