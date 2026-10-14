@@ -41,7 +41,7 @@ def fingerprint(payload):
     # Avoid volatile values (version, exit code) to match recurring errors.
     scope = {key: payload[key] for key in ("operation", "category", "exception")}
     scope["modules"] = sorted(payload["modules"])
-    return hashlib.sha256(json.dumps(scope, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:24]
+    return hashlib.sha256(json.dumps(scope, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()[:24]
 
 
 def _read_json(url, *, timeout=10):
