@@ -1,5 +1,17 @@
 # WinNAT UI
 
+[![Download Windows ZIP](https://img.shields.io/badge/Download-Windows%20ZIP-blue?logo=windows)](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)
+[![Latest release](https://img.shields.io/github/v/release/matiz311/WinNAT-UI)](https://github.com/matiz311/WinNAT-UI/releases/latest)
+[![Build Windows executable](https://github.com/matiz311/WinNAT-UI/actions/workflows/build.yml/badge.svg)](https://github.com/matiz311/WinNAT-UI/actions/workflows/build.yml)
+
+**[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)** — scarica lo ZIP della release pubblica, estrai completamente la cartella e avvia `WinNAT-UI.exe`. La prima release è **non firmata**; la candidatura SignPath Foundation è in preparazione. Il link diretto diventa attivo dopo la prima release riuscita.
+
+- [Release e changelog](https://github.com/matiz311/WinNAT-UI/releases)
+- [Privacy policy](PRIVACY.md)
+- [Code signing policy](CODE_SIGNING_POLICY.md)
+- [Licenza MIT](LICENSE)
+
+
 Applicazione desktop per Windows 10/11 dedicata alla diagnostica e gestione di **WinNAT**, interfacce LAN/WAN e condivisione Internet (ICS).
 
 ## Funzioni
@@ -7,12 +19,13 @@ Applicazione desktop per Windows 10/11 dedicata alla diagnostica e gestione di *
 - Riepilogo delle regole WinNAT, sessioni NAT e stato del servizio SharedAccess.
 - Identificazione *indicativa* della WAN tramite la default route e della LAN tramite la selezione manuale.
 - Creazione e rimozione di NAT con avvisi sui conflitti; un solo prefisso interno WinNAT è supportato ufficialmente.
-- Setup guidato LAN Ethernet -> Internet (IP LAN, prefisso, forwarding, WinNAT) con rete predefinita `192.168.1.0/24` e IP PC `192.168.1.254`.\n- Rimozione guidata del setup creato dall'app, mantenendo gli IP preesistenti.
+- Setup guidato LAN Ethernet -> Internet (IP LAN, prefisso, forwarding, WinNAT) con rete predefinita `192.168.1.0/24` e IP PC `192.168.1.254`.
+- Rimozione guidata del setup creato dall'app, mantenendo gli IP preesistenti.
 - Esportazione diagnostica JSON e backup di configurazione prima dei cambiamenti.
 - Conferme esplicite per ogni intervento potenzialmente distruttivo.
 
 ## Avvio
-Scarica l'artefatto `WinNAT-UI-Windows` dalla sezione **Actions** della build riuscita, estrai il file ZIP, avvia `WinNAT-UI.exe` come amministratore.
+Scarica il file ZIP dalla [pagina Download](https://github.com/matiz311/WinNAT-UI/releases/latest), estrai tutti i file e avvia `WinNAT-UI.exe` come amministratore. In alternativa gli artifact delle build sono disponibili dalla sezione Actions.
 
 Alternativa per sviluppo:
 ```powershell
