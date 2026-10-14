@@ -17,6 +17,7 @@ class App(tk.Tk):
         self.data = None
         self.q = queue.Queue()
         self.busy = False
+        self.pending = []
         self.configure(padx=16, pady=12)
         self.build()
         self.after(100, self.poll)
@@ -38,9 +39,23 @@ class App(tk.Tk):
         notebook.add(summary, text=" Panoramica ")
         notebook.add(manage, text=" Gestione WinNAT ")
         notebook.add(wizard, text=" Setup guidato ")
+        changes = ttk.Frame(notebook, padding=10)
+        notebook.add(changes, text=" Modifiche pendenti ")
+        ttk.Label(changes, text="Configurazione candidata: prepara le modifiche e poi Applica (Commit). Nessuna modifica alla rete avviene durante la preparazione.", wraplength=930).pack(anchor="w", pady=10)
+        self.pending_tree = ttk.Treeview(changes, columns=("action", "details"), show="headings", height=12)
+        self.pending_tree.heading("action", text="Operazione")
+        self.pending_tree.heading("details", text="Dettagli")
+        self.pending_tree.column("action", width=230)
+        self.pending_tree.column("details", width=640)
+        self.pending_tree.pack(fill="both", expand=True)
+        controls = ttk.Frame(changes)
+        controls.pack(fill="x", pady=12)
+        ttk.Button(controls, text="Rimuovi selezionata", command=self.unstage).pack(side="left", padx=4)
+        ttk.Button(controls, text="Scarta modifiche", command=self.discard).pack(side="left", padx=4)
+        ttk.Button(controls, text="Applica (Commit)", command=self.commit).pack(side="right", padx=4)
         about = ttk.Frame(notebook, padding=15)
         notebook.add(about, text=" Informazioni ")
-        ttk.Label(about, text="WinNAT UI - Versione 1.1.0", font=("Segoe UI", 16, "bold")).pack(anchor="w")
+        ttk.Label(about, text="WinNAT UI - Versione 1.2.0", font=("Segoe UI", 16, "bold")).pack(anchor="w")
         ttk.Label(about, justify="left", text="Autore: Matteo Cannizzo\nEditore dichiarato: Matteo Cannizzo\n"
                   "Repository: github.com/matiz311/WinNAT-UI\n\n"
                   "I metadati dell'eseguibile non sono una firma digitale.\n"
@@ -60,14 +75,14 @@ class App(tk.Tk):
             self.tree.heading(column, text=label)
             self.tree.column(column, width=width)
         self.tree.pack(fill="x", pady=8)
-        ttk.Button(manage, text="Rimuovi regola selezionata", command=self.remove).pack(anchor="w", pady=8)
+        ttk.Button(manage, text="Prepara rimozione", command=self.remove).pack(anchor="w", pady=8)
         ttk.Separator(manage).pack(fill="x", pady=12)
         ttk.Label(manage, text="Aggiungi regola", font=("Segoe UI", 12, "bold")).pack(anchor="w")
         self.nat_name = tk.StringVar(value="WinNAT-UI")
         self.nat_prefix = tk.StringVar(value="192.168.1.0/24")
         self.field(manage, "Nome regola:", self.nat_name)
         self.field(manage, "Prefisso interno CIDR:", self.nat_prefix)
-        ttk.Button(manage, text="Crea regola WinNAT", command=self.add).pack(anchor="w", pady=10)
+        ttk.Button(manage, text="Prepara creazione WinNAT", command=self.add).pack(anchor="w", pady=10)
         ttk.Label(manage, text="Limite Windows: un solo prefisso interno WinNAT supportato.\n"
                   "Non vengono rimosse regole esistenti senza selezione e conferma.",
                   foreground="#925e12").pack(anchor="w", pady=12)
@@ -83,11 +98,11 @@ class App(tk.Tk):
         self.lan_combo.pack(anchor="w", pady=(2, 12))
         self.field(wizard, "Rete LAN (CIDR):", self.prefix)
         self.field(wizard, "Indirizzo IPv4 Ethernet del PC:", self.gateway)
-        ttk.Button(wizard, text="Avvia setup iniziale", command=self.initial_setup).pack(anchor="w", pady=12)
+        ttk.Button(wizard, text="Prepara setup", command=self.initial_setup).pack(anchor="w", pady=12)
         ttk.Separator(wizard).pack(fill="x", pady=10)
         ttk.Label(wizard, text="Rimuovi il setup creato dall'applicazione", font=("Segoe UI", 12, "bold")).pack(anchor="w")
         ttk.Label(wizard, text="Rimuove il NAT gestito e l'IP aggiunto dal wizard, ma conserva gli IP gia presenti e le altre regole.", wraplength=900).pack(anchor="w", pady=5)
-        ttk.Button(wizard, text="Rimuovi setup gestito", command=self.remove_setup).pack(anchor="w", pady=5)
+        ttk.Button(wizard, text="Prepara rimozione setup", command=self.remove_setup).pack(anchor="w", pady=5)
         ttk.Label(wizard, text="WAN: rilevata tramite la rotta IPv4 predefinita; verifica la scelta nella Panoramica.\n"
                   "Il dispositivo collegato deve usare l'IP Ethernet del PC come default gateway.").pack(anchor="w")
 
@@ -178,9 +193,7 @@ class App(tk.Tk):
             return messagebox.showwarning("WinNAT esistente", "Esiste gia almeno una regola WinNAT. Rimuovi esplicitamente i NAT incompatibili prima di crearne altri.")
         if any(c.get("SharingEnabled") for c in self.data.get("icsConnections", [])):
             return messagebox.showwarning("ICS attivo", "ICS risulta abilitato su una connessione. Controlla e disabilita la condivisione concorrente prima di usare WinNAT.")
-        if not messagebox.askyesno("Conferma creazione", "Creare %s per %s?" % (name, prefix)):
-            return
-        self.mutate(lambda: network.create_nat(name, prefix))
+        self.stage("add", (name, prefix), "Crea NAT", name + " | " + prefix)
 
     def remove(self):
         if not self.authorized():
@@ -189,9 +202,7 @@ class App(tk.Tk):
         if not selected:
             return messagebox.showwarning("Selezione richiesta", "Seleziona una regola WinNAT.")
         name = self.tree.item(selected[0], "values")[0]
-        if not messagebox.askyesno("Rimozione NAT", "Rimuovere definitivamente la regola '%s'?\nLe connessioni esistenti potrebbero interrompersi." % name):
-            return
-        self.mutate(lambda: network.remove_nat(name))
+        self.stage("remove", (name,), "Rimuovi NAT", name)
 
     def initial_setup(self):
         if not self.authorized():
@@ -209,9 +220,7 @@ class App(tk.Tk):
             return messagebox.showwarning("ICS rilevato", "Setup interrotto: esiste almeno una condivisione ICS attiva. Verifica prima quali interfacce utilizza.")
         if not any(r.get("DestinationPrefix") == "0.0.0.0/0" for r in self.data.get("routes", [])):
             return messagebox.showerror("WAN assente", "Non esiste una default route IPv4.")
-        if not messagebox.askyesno("Conferma setup", "LAN: %s\nSubnet: %s\nIP PC: %s\n\nSara aggiunto l'IP LAN se assente, abilitato forwarding e creato WinNAT-UI. Nessuna configurazione esistente sara rimossa. Procedere?" % (lan, prefix, gateway)):
-            return
-        self.mutate(lambda: network.setup(lan, prefix, gateway, self.data))
+        self.stage("setup", (lan, prefix, gateway), "Setup Ethernet", "%s | %s | %s" % (lan,prefix,gateway))
 
     def remove_setup(self):
         if not self.authorized():
@@ -222,7 +231,60 @@ class App(tk.Tk):
         details = "LAN: {lan} | Rete: {prefix} | IP: {gateway} | NAT: {nat}".format(**state)
         if not messagebox.askyesno("Conferma rimozione", details + "\nLa connettivita dei dispositivi collegati potrebbe interrompersi. Procedere?"):
             return
-        self.mutate(lambda: network.teardown(self.data))
+        self.stage("teardown", (), "Rimuovi setup", details)
+
+    def stage(self, kind, args, label, detail):
+        if self.pending:
+            return messagebox.showwarning("Modifica pendente", "Esegui o scarta il commit precedente prima di preparare una nuova modifica.")
+        self.pending.append((kind, args, label, detail))
+        self.pending_tree.insert("", "end", values=(label, detail))
+        self.status.set("Modifica preparata. Apri Modifiche pendenti per applicarla.")
+
+    def unstage(self):
+        selected = self.pending_tree.selection()
+        if selected:
+            self.pending_tree.delete(selected[0])
+            self.pending.clear()
+
+    def discard(self):
+        if self.pending and messagebox.askyesno("Scarta", "Scartare la configurazione candidata?"):
+            self.pending_tree.delete(*self.pending_tree.get_children())
+            self.pending.clear()
+            self.status.set("Modifiche scartate.")
+
+    def commit(self):
+        if not self.authorized():
+            return
+        if not self.pending:
+            return messagebox.showinfo("Nessuna modifica", "Nessuna operazione da applicare.")
+        kind, args, label, detail = self.pending[0]
+        if not messagebox.askyesno("Conferma commit", "Applicare la modifica?\\n%s\\n%s\\nLa connettivita potrebbe interrompersi." % (label, detail)):
+            return
+        def execute():
+            current = network.collect()
+            network.snapshot(current)
+            nats = current.get("nats", [])
+            if kind == "add":
+                if nats or any(x.get("SharingEnabled") for x in current.get("icsConnections", [])):
+                    raise ValueError("Conflitto WinNAT/ICS: aggiornare e risolvere prima del commit.")
+                return network.create_nat(*args)
+            if kind == "remove":
+                if not any(x.get("Name") == args[0] for x in nats):
+                    raise ValueError("Il NAT selezionato non esiste piu.")
+                return network.remove_nat(*args)
+            if kind == "setup":
+                if nats or any(x.get("SharingEnabled") for x in current.get("icsConnections", [])):
+                    raise ValueError("Setup bloccato: NAT o ICS gia esistente.")
+                return network.setup(*args, current)
+            if kind == "teardown":
+                return network.teardown(current)
+            raise ValueError("Operazione non supportata")
+        def success(_):
+            self.pending_tree.delete(*self.pending_tree.get_children())
+            self.pending.clear()
+            messagebox.showinfo("Commit", "Modifica applicata. Ricarico lo stato di Windows.")
+            self.refresh()
+        self.run_async(execute, success)
 
     def mutate(self, operation):
         try:
