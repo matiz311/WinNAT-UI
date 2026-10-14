@@ -56,3 +56,21 @@ La documentazione pubblica Microsoft del rilevamento Bearfoos non pubblica patte
 
 ## Gate antivirus obbligatorio (CI)
 Ogni push su `main` e ogni avvio manuale del workflow compila il programma e richiede la scansione della directory di output con Microsoft Defender. La CI controlla che il motore antivirus risulti disponibile, esegue `Start-MpScan`, consulta le rilevazioni riferite alla build e verifica che l'EXE non sia sparito. In caso di rilevamento o errore di scansione, la build fallisce e **l'artefatto non viene pubblicato**. Non viene più eseguito `Update-MpSignature`: il runner mostra versione e data delle firme già presenti. Lo scan non equivale a una prova che il programma sia innocuo e non sostituisce test locali con firme aggiornate. Un rilevamento non deve essere aggirato cambiando codice per eludere firme; bisogna individuare la componente segnalata, verificare il sorgente e chiedere una revisione Microsoft dove appropriato.
+
+## Provenienza, autore e firma digitale
+Il progetto pubblica versione, autore e descrizione nelle risorse Windows dell'eseguibile. Questi metadati NON attestano l'identità dell'autore. La pipeline verifica con `Get-AuthenticodeSignature` se l'eseguibile è firmato, e non lo dichiara firmato in assenza di una firma valida.
+
+### Politica di distribuzione
+- Il progetto è attualmente privato: nessuna dichiarazione di eleggibilità per un certificato open source.
+- Una build viene pubblicata come artefatto soltanto quando supera compilazione, controlli metadati e verifica Defender.
+- Sono pubblicati SHA256 e versione delle definizioni antivirus adoperate.
+- Non vengono applicate eccezioni o esclusioni antivirus.
+- Il certificato di code signing dovrà provenire da una CA riconosciuta oppure da un servizio di firma ufficiale con identità verificata.
+- Il fatto che un binario sia firmato non garantisce che sia privo di vulnerabilità o malware.
+
+### Opzioni di firma esaminate (ottobre 2026)
+- **SignPath Foundation**: servizio gratuito per progetti open source pubblici e idonei, con certificato emesso alla Foundation. Il repository privato attuale non soddisfa questo requisito.
+- **Microsoft Artifact Signing**: servizio a pagamento con verifica dell'identità.
+- **Microsoft Store (MSIX)**: percorso di firma/distribuzione tramite Store con requisiti di pubblicazione.
+
+Fonti ufficiali: https://signpath.org/terms.html ; https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options ; https://azure.microsoft.com/en-us/products/artifact-signing
