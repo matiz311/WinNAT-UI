@@ -1225,24 +1225,30 @@ class App(tk.Tk):
             dlg.cancel_btn.configure(text="Copiato")
 
         def report_bug():
+            if "Segnala bug" in self.tasks:
+                return
             payload = issue_tracker.safe_payload(operation, message, traceback_text, VERSION)
             def send():
+                # Remote availability check runs on a worker, not the Tk thread.
+                endpoint = issue_tracker.service_endpoint()
+                if endpoint is None:
+                    raise RuntimeError("Servizio per la creazione anonima delle Issue non configurato.")
                 matches = issue_tracker.find_similar(payload, issue_tracker.public_issues())
                 active = [m for m in matches if m.get("state") == "open"]
                 if active:
                     result = {"number": active[0]["number"], "url": active[0]["url"],
                               "already_exists": True}
                 else:
-                    result = issue_tracker.submit(payload)
+                    result = issue_tracker.submit(payload, endpoint=endpoint)
                 issue_tracker.save_entry(payload, result)
                 return result
             def sent(result):
+                dlg.destroy()
                 text = ("Bug già segnalato" if result["already_exists"] else "Bug segnalato")
                 messagebox.showinfo(text, "Issue #" + str(result["number"]) + "\n"
                                     + result["url"] + "\n\nTracciamento locale attivato.",
                                     parent=self)
                 self.render_issue_tracker()
-            dlg.destroy()
             self.run_task("Segnala bug", send, sent)
         dlg.cancel_btn.configure(command=copy_anonymized)
         report_actions = tk.Frame(dlg.body, bg=C["surface"])
@@ -1326,6 +1332,16 @@ class App(tk.Tk):
                         self.show_error_dialog("Commit non riuscito", key,
                                                error_message, error_traceback, commit=True)
                         self.refresh()
+                    elif key == "Segnala bug":
+                        # Failure of the reporting facility must never become
+                        # another reportable bug (infinite reporting loop).
+                        messagebox.showwarning(
+                            "Segnalazione non inviata",
+                            "Non è stato possibile creare la Issue su GitHub.\n"
+                            + error_message
+                            + "\n\nL'errore originale resta consultabile: puoi copiarne "
+                              "il report anonimizzato e riprovare più tardi.",
+                            parent=self)
                     else:
                         self.show_error_dialog("Operazione non riuscita", key, error_message, error_traceback)
                 self.render_changebar()

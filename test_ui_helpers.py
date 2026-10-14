@@ -42,6 +42,25 @@ class HelperTests(unittest.TestCase):
         self.assertEqual([name for name, _ in events], ["command", "stdout", "stderr", "status"])
         self.assertEqual(events[2][1], "failed")
 
+    def test_reporting_error_does_not_open_another_bug_dialog(self):
+        from pathlib import Path
+        source = Path(__file__).with_name("app.py").read_text(encoding="utf-8")
+        start = source.index("    def drain(self):")
+        segment = source[start:start + 2500]
+        self.assertIn('elif key == "Segnala bug":', segment)
+        self.assertIn('"Segnalazione non inviata"', segment)
+        self.assertIn('self.show_error_dialog("Operazione non riuscita"', segment)
+
+    def test_original_error_dialog_survives_failed_submission(self):
+        from pathlib import Path
+        source = Path(__file__).with_name("app.py").read_text(encoding="utf-8")
+        start = source.index("        def report_bug():")
+        end = source.index("        dlg.cancel_btn.configure(command=copy_anonymized)", start)
+        body = source[start:end]
+        self.assertIn('self.run_task("Segnala bug", send, sent)', body)
+        self.assertIn('            def sent(result):\n                dlg.destroy()', body)
+        self.assertNotIn('            dlg.destroy()\n            self.run_task(', body)
+
     def test_debug_retains_multiline_output(self):
         message = "PowerShell exit code: 1\n\nSTDERR:\nErrore di rete\n\nSTDOUT:\nL'oggetto esiste già."
         trace = 'Traceback (most recent call last):\n  File "app.py", line 50'
