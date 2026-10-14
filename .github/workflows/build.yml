@@ -26,6 +26,14 @@ jobs:
           python -m PyInstaller --version
       - name: Validate syntax
         run: python -m compileall -q app.py network.py network_plan.py network_guide.py ui_theme.py test_network_guide.py test_ui_helpers.py
+      - name: Run read-only diagnostic script (smoke test)
+        shell: powershell
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'diag'
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/WinNAT-Diagnostica.ps1 -OutputFolder $out
+          if (-not (Get-ChildItem $out -Filter 'WinNAT-Diagnostica-*.json')) { throw 'Diagnostic JSON not produced.' }
+          Get-Content (Get-ChildItem $out -Filter '*.json' | Select-Object -First 1).FullName -Raw | ConvertFrom-Json | Out-Null
       - name: Run profile planning tests
         run: python -m unittest -v test_network_guide test_ui_helpers
       - name: Package executable
