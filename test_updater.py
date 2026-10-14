@@ -1,0 +1,80 @@
+"""GitHub updater tests run without writing to Windows installation directories."""
+import hashlib
+import io
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+import zipfile
+import updater
+
+
+class UpdaterTests(unittest.TestCase):
+    def test_version_comparison_is_numeric(self):
+        self.assertTrue(updater.newer("v1.9.11", "1.9.2"))
+        self.assertFalse(updater.newer("v1.9.2", "1.9.2"))
+        self.assertFalse(updater.newer("v1.9.1", "1.9.2"))
+        with self.assertRaises(ValueError):
+            updater.newer("v1.9.3-rc1", "1.9.2")
+
+    def test_latest_release_requires_verified_official_asset(self):
+        digest = "a" * 64
+        data = {"tag_name": "v1.9.3", "draft": False, "prerelease": False,
+                "assets": [{"name": updater.ASSET_NAME, "size": 123,
+                            "digest": "sha256:" + digest,
+                            "browser_download_url": "https://github.com/" + updater.REPOSITORY
+                            + "/releases/download/v1.9.3/" + updater.ASSET_NAME}]}
+        class Response:
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def read(self, n=-1): return json.dumps(data).encode()
+        with patch("updater.urllib.request.urlopen", return_value=Response()):
+            release = updater.release_info("1.9.2")
+        self.assertTrue(release["available"])
+        self.assertEqual(release["sha256"], digest)
+
+    def test_release_without_digest_is_rejected(self):
+        data = {"tag_name": "v1.9.3", "assets": [
+            {"name": updater.ASSET_NAME, "browser_download_url":
+             "https://github.com/" + updater.REPOSITORY + "/releases/download/v1.9.3/"
+             + updater.ASSET_NAME}]}
+        class Response:
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def read(self, n=-1): return json.dumps(data).encode()
+        with patch("updater.urllib.request.urlopen", return_value=Response()):
+            with self.assertRaisesRegex(ValueError, "digest"):
+                updater.release_info("1.9.2")
+
+    def test_archive_traversal_and_symlinks_rejected(self):
+        for filename in ["../escape.exe", "/absolute.exe", "C:/file.exe"]:
+            with self.subTest(filename=filename):
+                blob = io.BytesIO()
+                with zipfile.ZipFile(blob, "w") as archive:
+                    archive.writestr(filename, "bad")
+                blob.seek(0)
+                with zipfile.ZipFile(blob) as archive:
+                    with self.assertRaises(ValueError):
+                        updater._safe_members(archive)
+
+    def test_download_rejects_corruption(self):
+        class Response(io.BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "asset.zip"
+            with patch("updater.urllib.request.urlopen", return_value=Response(b"invalid")):
+                with self.assertRaisesRegex(ValueError, "SHA256"):
+                    updater._download("https://github.com/" + updater.REPOSITORY +
+                                      "/releases/download/v1.9.3/" + updater.ASSET_NAME,
+                                      target, "a" * 64)
+
+    def test_update_only_packaged_windows_exe(self):
+        with patch.object(updater.sys, "platform", "linux"):
+            with self.assertRaisesRegex(RuntimeError, "Windows"):
+                updater.launch("not-staged")
+
+
+if __name__ == "__main__":
+    unittest.main()
