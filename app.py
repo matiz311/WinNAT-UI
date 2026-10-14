@@ -764,7 +764,22 @@ class App(tk.Tk):
                     callback(value)
                 else:
                     self.notice.set("Errore: " + value[:120])
-                    messagebox.showerror("Operazione non riuscita", key + "\n\n" + value, parent=self)
+                    if key == "Commit":
+                        # The script is not transactional: the previous steps may
+                        # already have changed Windows even though one step failed.
+                        # Do not allow a stale candidate to be re-committed.
+                        self.pending.clear()
+                        self.render_candidate()
+                        messagebox.showerror(
+                            "Commit non riuscito",
+                            value + "\n\n"
+                            "Una parte della configurazione potrebbe essere già stata modificata. "
+                            "La configurazione verrà riletta da Windows. "
+                            "Controlla lo stato e prepara nuovamente le modifiche.",
+                            parent=self)
+                        self.refresh()
+                    else:
+                        messagebox.showerror("Operazione non riuscita", key + "\n\n" + value, parent=self)
                 self.render_changebar()
         except queue.Empty:
             pass
