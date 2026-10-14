@@ -9,7 +9,7 @@ Regole del progetto:
 - La versione si cambia solo in `version.py`; ogni release ha qui una sezione `## [x.y.z]`, da cui la CI prende le note.
 - I tag già pubblicati non vengono mai spostati o rinominati (gli ZIP e gli SHA256 distribuiti resterebbero orfani): eventuali errori si correggono qui e nelle note della release.
 
-## [1.9.0] - 2026-10-14
+## [1.10.0] - 2026-10-14
 ### Cambiato
 - **WAN dinamiche**: la configurazione parte con una sola WAN (la WAN secondaria non è più richiesta). Con «+ Aggiungi WAN» se ne possono aggiungere fino a quante interfacce ha il PC, riordinarle per priorità e rimuoverle; le metriche devono crescere secondo la priorità e viene proposta automaticamente la successiva (+40).
 - **Subnet LAN automatica**: scegliendo l'interfaccia LAN viene rilevato l'IPv4 già presente (preferiti gli indirizzi manuali, ignorati APIPA 169.254.x.x): diventa statico, senza gateway, e il NAT usa quella subnet. Se la scheda non ha un IPv4 utilizzabile si usa 10.10.10.0/24 con IP 10.10.10.1. Un'etichetta indica se i valori sono rilevati, predefiniti o modificati a mano.
@@ -18,7 +18,14 @@ Regole del progetto:
 - Blocco se la subnet LAN si sovrappone alla rete di una WAN.
 - Schema topologico con N WAN (primaria piena, riserve tratteggiate).
 ### Compatibilità
-- I profili con `wan1`/`wan2`/`metric1`/`metric2` restano accettati.
+- I profili con `wan1`/`wan2`/`metric1`/`metric2` restano accettati; il rollback introdotto nella 1.9.0 copre tutte le WAN configurate.
+
+## [1.9.0] - 2026-10-14
+### Aggiunto
+- Rollback compensativo automatico su commit non riusciti: ripristina esclusivamente le risorse di rete coinvolte (IPv4, DHCP, route esplicite, forwarding, metriche, WinNAT, IPEnableRouter) secondo lo snapshot iniziale.
+- Verifica finale delle modifiche monitorate e report Debug con comandi eseguiti, errori e differenze residue. Se lo stato non è verificabile, segnala rollback incompleto.
+### Limitazioni
+- Non è una transazione di Windows: APIPA, sessioni NAT, mapping statici preesistenti, stato di rete esterno e modifiche contemporanee potrebbero non essere ripristinabili. Prima di ogni commit viene comunque salvato uno snapshot JSON.
 
 ## [1.8.0] - 2026-10-14
 ### Aggiunto

@@ -12,6 +12,7 @@ from tkinter import ttk, messagebox, filedialog
 import network
 import network_plan
 import network_guide
+import network_rollback
 import ui_theme as ui
 from version import VERSION
 from ui_theme import C, F, S1, S2, S3, S4, S5
@@ -568,7 +569,7 @@ class App(tk.Tk):
              ["Tutto ciò che fa «Disabilita», in più:",
               "Rimuove tutti gli IPv4 e le route della LAN e riattiva il suo DHCP",
               "Riporta le WAN selezionate alle metriche automatiche",
-              "Non ripristina automaticamente uno snapshot precedente"], "Prepara ripristino")):
+              "Se il commit fallisce, tenta il rollback delle sole risorse coinvolte"], "Prepara ripristino")):
             card = ui.Card(tear, edge=edge, padding=S4)
             card.pack(fill="x", pady=(0, S3))
             ttk.Label(card.body, text=title, style="Card.Strong.TLabel").pack(anchor="w")
@@ -1312,7 +1313,7 @@ class App(tk.Tk):
             elif n > 1:
                 hint = "Applica una modifica per volta: rimuovi le altre dalla sezione Modifiche."
             else:
-                hint = "Verrà salvato uno snapshot JSON prima dell'applicazione (non è un rollback automatico)."
+                hint = "In caso di errore verrà tentato un rollback dalle configurazioni precedenti, senza garanzia di ripristino completo."
         if busy:
             title, hint = "Applicazione in corso…", "Non chiudere l'app finché l'operazione non termina."
         for w in self.cb_widgets:
@@ -1478,8 +1479,8 @@ class App(tk.Tk):
                 tk.Label(box, text="•  " + line, font=F["caption"], bg=C["surface_alt"], fg=C["text_muted"],
                          anchor="w", justify="left", wraplength=500).pack(anchor="w", padx=S3, pady=1)
         ui.Callout(dlg.body, kind="warning", wraplength=470,
-                   text="La connessione può interrompersi. Uno snapshot JSON viene salvato prima, ma non esiste "
-                        "un rollback automatico.").pack(fill="x", pady=(0, S3))
+                   text="La connessione può interrompersi. In caso di errore sarà tentato un rollback "
+                        "delle risorse coinvolte; Windows non garantisce il ripristino completo.").pack(fill="x", pady=(0, S3))
         ack = tk.BooleanVar(value=False)
         ttk.Checkbutton(dlg.body, text="Sto usando il PC in locale e accetto l'interruzione della rete",
                         variable=ack, style="Card.TCheckbutton").pack(anchor="w")
@@ -1504,40 +1505,53 @@ class App(tk.Tk):
         def execute():
             # Not an atomic transaction: a failure keeps remaining operations candidate.
             current = network.collect()
-            network.snapshot(current)
+            backup_path = network.snapshot(current)
             completed = []
             for p in changes:
                 kind, args = p["kind"], p["args"]
-                nats = current.get("nats", [])
-                if kind == "add":
-                    if nats or any(c.get("SharingEnabled") for c in current.get("icsConnections", [])):
-                        raise ValueError("WinNAT/ICS presente: rimuovi prima la configurazione concorrente.")
-                    network.create_nat(*args)
-                elif kind == "remove":
-                    if not any(n.get("Name") == args[0] for n in nats):
-                        raise ValueError("NAT non presente: " + args[0])
-                    network.remove_nat(*args)
-                elif kind == "setup":
-                    if nats or any(c.get("SharingEnabled") for c in current.get("icsConnections", [])):
-                        raise ValueError("Setup bloccato da WinNAT/ICS esistente.")
-                    network.setup(*args, current)
-                elif kind == "guide":
-                    network_guide.execute(args[0], args[1], current, args[2])
-                elif kind == "profile":
-                    network_plan.apply_profile(args[0], current)
-                elif kind == "reset":
-                    # Recompute the exact resources at commit time; abort if the inventory changed.
-                    expected = network_plan.matching_resources(self.data, args[0])
-                    actual = network_plan.matching_resources(current, args[0])
-                    if expected != actual:
-                        raise ValueError("La configurazione è cambiata dopo l'anteprima: aggiorna e prepara di nuovo il ripristino.")
-                    network_plan.remove_selected(args[0], current)
-                elif kind == "teardown":
-                    network.teardown(current)
-                elif kind == "external_teardown":
-                    network.remove_existing_configuration(args[0], args[1], args[2], args[3], current, args[4])
-                completed.append(p)
-                current = network.collect()
+                scope = network_rollback.scope_for(kind, args, current)
+                try:
+                    nats = current.get("nats", [])
+                    if kind == "add":
+                        if nats or any(c.get("SharingEnabled") for c in current.get("icsConnections", [])):
+                            raise ValueError("WinNAT/ICS presente: rimuovi prima la configurazione concorrente.")
+                        network.create_nat(*args)
+                    elif kind == "remove":
+                        if not any(n.get("Name") == args[0] for n in nats):
+                            raise ValueError("NAT non presente: " + args[0])
+                        network.remove_nat(*args)
+                    elif kind == "setup":
+                        if nats or any(c.get("SharingEnabled") for c in current.get("icsConnections", [])):
+                            raise ValueError("Setup bloccato da WinNAT/ICS esistente.")
+                        network.setup(*args, current)
+                    elif kind == "guide":
+                        network_guide.execute(args[0], args[1], current, args[2])
+                    elif kind == "profile":
+                        network_plan.apply_profile(args[0], current)
+                    elif kind == "reset":
+                        # Recompute the exact resources at commit time; abort if the inventory changed.
+                        expected = network_plan.matching_resources(self.data, args[0])
+                        actual = network_plan.matching_resources(current, args[0])
+                        if expected != actual:
+                            raise ValueError("La configurazione è cambiata dopo l'anteprima: aggiorna e prepara di nuovo il ripristino.")
+                        network_plan.remove_selected(args[0], current)
+                    elif kind == "teardown":
+                        network.teardown(current)
+                    elif kind == "external_teardown":
+                        network.remove_existing_configuration(args[0], args[1], args[2], args[3], current, args[4])
+                    completed.append(p)
+                    current = network.collect()
+                except Exception as original:
+                    try:
+                        report = network_rollback.rollback(current, scope, backup_path)
+                    except Exception as rollback_error:
+                        raise RuntimeError(
+                            "COMMIT FALLITO: " + str(original) + "\n\n"
+                            "ROLLBACK INCOMPLETO O NON VERIFICABILE:\n" + str(rollback_error)
+                            + "\nSnapshot: " + str(backup_path)) from original
+                    raise RuntimeError(
+                        "COMMIT FALLITO: " + str(original) + "\n\n" + report
+                        + "\nSnapshot: " + str(backup_path)) from original
             return completed
 
         def success(applied):
