@@ -10,6 +10,12 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
 
 
+## [1.9.7] - 2026-10-15
+### Corretto
+- Gli errori durante «Segnala bug» non generano più una seconda finestra generica con possibilità di segnalare nuovamente il medesimo errore.
+- Se il servizio anonimo non è configurato oppure non è disponibile, viene mostrata una spiegazione specifica e il report originale anonimizzato rimane copiabile nella finestra iniziale.
+- Controllo dell'endpoint eseguito in background per non bloccare l'interfaccia.
+
 ## [1.9.6] - 2026-10-15
 ### Aggiunto
 - Archiviazione locale delle segnalazioni bug e identificazione delle Issue simili mediante firma stabile anonimizzata.
