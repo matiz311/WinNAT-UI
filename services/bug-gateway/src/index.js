@@ -48,7 +48,7 @@ async function github(env, endpoint, init={}) {
 async function lookup(env, sig) {
   // GitHub Issue listing avoids search indexing delay for recently created bugs.
   const issues = await github(env, "/repos/"+REPO+"/issues?state=all&labels=bug-report&per_page=100");
-  return issues.find(x=>!x.pull_request &&
+  return issues.find(x=>!x.pull_request && x.state==="open" &&
     (x.body||"").includes("<!-- winnat-fingerprint:"+sig+" -->"))||null;
 }
 export default {
