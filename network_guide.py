@@ -187,21 +187,71 @@ def preview(action, profile, data):
     return items
 
 
+def fingerprint_state(profile, data):
+    """Stable, safety-relevant properties of the selected gateway profile."""
+    aliases = {profile["lan"], *_wan_aliases(profile)}
+    def ordered(rows):
+        return sorted(rows, key=lambda row: json.dumps(row, sort_keys=True, default=str))
+    adapters = ordered([
+        {"Name": a.get("Name"), "InterfaceIndex": a.get("InterfaceIndex")}
+        for a in data.get("adapters", []) if a.get("Name") in aliases
+    ])
+    ips = ordered([
+        {"InterfaceAlias": ip.get("InterfaceAlias"), "InterfaceIndex": ip.get("InterfaceIndex"),
+         "IPAddress": ip.get("IPAddress"), "PrefixLength": ip.get("PrefixLength")}
+        for ip in data.get("ips", [])
+        if ip.get("InterfaceAlias") == profile["lan"]
+        and not str(ip.get("IPAddress", "")).startswith("169.254.")
+    ])
+    routes = ordered([
+        {"InterfaceAlias": r.get("InterfaceAlias"), "InterfaceIndex": r.get("InterfaceIndex"),
+         "DestinationPrefix": r.get("DestinationPrefix"), "NextHop": r.get("NextHop"),
+         "RouteMetric": r.get("RouteMetric")}
+        for r in data.get("routes", [])
+        if ((r.get("InterfaceAlias") == profile["lan"] and
+             (r.get("DestinationPrefix") == "0.0.0.0/0" or
+              r.get("NextHop") not in ("0.0.0.0", "::", None)))
+            or (r.get("InterfaceAlias") in aliases - {profile["lan"]}
+                and r.get("DestinationPrefix") == "0.0.0.0/0"))
+    ])
+    interfaces = ordered([
+        {"InterfaceAlias": i.get("InterfaceAlias"), "InterfaceIndex": i.get("InterfaceIndex"),
+         "Dhcp": i.get("Dhcp"), "Forwarding": i.get("Forwarding"),
+         "AutomaticMetric": i.get("AutomaticMetric"), "InterfaceMetric": i.get("InterfaceMetric")}
+        for i in data.get("interfaces", []) if i.get("InterfaceAlias") in aliases
+    ])
+    nats = ordered([
+        {"Name": n.get("Name"), "InternalIPInterfaceAddressPrefix": n.get("InternalIPInterfaceAddressPrefix"),
+         "ExternalIPInterfaceAddressPrefix": n.get("ExternalIPInterfaceAddressPrefix")}
+        for n in data.get("nats", [])
+    ])
+    ics = ordered([
+        {"Name": c.get("Name"), "SharingEnabled": c.get("SharingEnabled"),
+         "SharingConnectionType": c.get("SharingConnectionType"), "Error": c.get("Error")}
+        for c in data.get("icsConnections", [])
+    ])
+    return {"adapters": adapters, "ips": ips, "routes": routes, "ifaces": interfaces,
+            "nats": nats, "global": data.get("globalRouter"), "ics": ics}
+
+
 def fingerprint(profile, data):
-    """Optimistic concurrency check on exactly the settings this profile changes."""
-    p = profile
-    aliases = {p["lan"], *_wan_aliases(p)}
-    def order(values):
-        return sorted(values, key=lambda item: json.dumps(item, sort_keys=True, default=str))
-    return json.dumps({
-        "adapters": order([i for i in data.get("adapters", []) if i.get("Name") in aliases]),
-        "ips": order([i for i in data.get("ips", []) if i.get("InterfaceAlias") == p["lan"]]),
-        "routes": order([i for i in data.get("routes", []) if i.get("InterfaceAlias") in aliases]),
-        "ifaces": order([i for i in data.get("interfaces", []) if i.get("InterfaceAlias") in aliases]),
-        "nats": order(data.get("nats", [])),
-        "global": data.get("globalRouter"),
-        "ics": order(data.get("icsConnections", []))
-    }, sort_keys=True, default=str)
+    """Optimistic concurrency on properties relevant to the requested change."""
+    return json.dumps(fingerprint_state(profile, data), sort_keys=True, default=str)
+
+
+def fingerprint_differences(expected, actual):
+    """Enumerate changed groups for the expandable diagnostics panel."""
+    try:
+        before = json.loads(expected)
+        after = json.loads(actual)
+    except (ValueError, TypeError):
+        return ["Impronta precedente non valida."]
+    return [
+        key + ": anteprima=" + json.dumps(before.get(key), ensure_ascii=False, default=str)
+        + "; attuale=" + json.dumps(after.get(key), ensure_ascii=False, default=str)
+        for key in sorted(set(before) | set(after)) if before.get(key) != after.get(key)
+    ]
+
 
 
 def _guard_script(p):
@@ -220,8 +270,13 @@ def _guard_script(p):
 
 def execute(action, profile, current, expected_fingerprint):
     p = validate(profile, current, action)
-    if fingerprint(p, current) != expected_fingerprint:
-        raise ValueError("Configurazione modificata dopo l'anteprima. Aggiorna e prepara nuovamente.")
+    actual_fingerprint = fingerprint(p, current)
+    if actual_fingerprint != expected_fingerprint:
+        differences = fingerprint_differences(expected_fingerprint, actual_fingerprint)
+        raise ValueError("Configurazione rilevante modificata dopo l'anteprima. "
+                         "Aggiorna e prepara nuovamente.\nDifferenze:\n"
+                         + "\n".join(differences))
+
     # Save a diagnostic snapshot (not a transactional rollback).
     backup = network.snapshot(current)
     script = [_guard_script(p)]
