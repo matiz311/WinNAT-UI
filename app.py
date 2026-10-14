@@ -10,7 +10,7 @@ import network
 import network_plan
 import network_guide
 
-VERSION = "1.6.0"
+VERSION = "1.6.1"
 
 class App(tk.Tk):
     def __init__(self):
@@ -176,7 +176,20 @@ class App(tk.Tk):
                     callback(value)
                 else:
                     self.notice.set("Errore: " + value[:160])
-                    messagebox.showerror("Errore", value)
+                    if key == "Commit":
+                        # A failed PowerShell script may have changed settings before
+                        # the error. Never present a stale candidate as safe to retry.
+                        self.pending.clear()
+                        self.render_candidate()
+                        messagebox.showerror(
+                            "Commit non riuscito",
+                            value + "\\n\\nLa configurazione potrebbe essere stata applicata solo in parte."
+                            " Verrà riletta la configurazione Windows. Controlla lo stato"
+                            " e prepara un nuovo Commit: non ripetere quello precedente."
+                        )
+                        self.refresh()
+                    else:
+                        messagebox.showerror("Operazione non riuscita", value)
         except queue.Empty:
             pass
         self.after(100, self.drain)
