@@ -10,6 +10,14 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
 
 
+## [1.9.3] - 2026-10-15
+### Aggiunto
+- Verifica automatica in avvio dell'ultima release stabile pubblicata sul repository ufficiale GitHub.
+- Nella sezione Informazioni: «Controlla aggiornamenti» e aggiornamento guidato su conferma, con download diretto ZIP e verifica SHA256 rispetto al digest del GitHub Releases API.
+- Installazione al riavvio mediante PowerShell esterno, conservazione di un backup dei file precedenti e tentativo di ripristino in caso di errore. Disponibile solo per l'EXE confezionato per Windows; nessun aggiornamento automatico con modifiche non salvate.
+### Sicurezza
+- Accetta solo asset ufficiale WinNAT-UI-Windows.zip, rifiuta prerelease, URL e archivi non validi, file non sicuri e SHA256 divergenti. Gli aggiornamenti non sono una firma digitale e non costituiscono una garanzia di autenticità contro la compromissione dell'account GitHub.
+
 ## [1.9.2] - 2026-10-14
 ### Corretto
 - Impronta anteprima del gateway normalizzata anche con WAN dinamiche: ignora stato/velocità adattatori, AddressState, APIPA e route connesse generate automaticamente, preservando i controlli di sicurezza su IP LAN, gateway WAN, NAT, forwarding, metriche e interfacce.
