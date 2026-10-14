@@ -74,3 +74,9 @@ Il progetto pubblica versione, autore e descrizione nelle risorse Windows dell'e
 - **Microsoft Store (MSIX)**: percorso di firma/distribuzione tramite Store con requisiti di pubblicazione.
 
 Fonti ufficiali: https://signpath.org/terms.html ; https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options ; https://azure.microsoft.com/en-us/products/artifact-signing
+
+## Code signing policy
+
+[Code signing policy](CODE_SIGNING_POLICY.md). Free code signing provided by SignPath.io, certificate by SignPath Foundation **only if and after the project is approved**. No signing certificate has been granted yet. Project roles, manual approval, and privacy commitments are described in the policy. The executable is currently unsigned.
+
+To uninstall the portable application, close it and remove the extracted application directory. To remove any networking changes created by the setup wizard, use **Rimuovi setup gestito** before deleting the directory.
