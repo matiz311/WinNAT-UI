@@ -46,11 +46,11 @@ def collect():
         command = "$ErrorActionPreference='Stop'; @(" + expression + ") | ConvertTo-Json -Compress -Depth 6"
         raw = ps(command)
         value = json.loads(raw) if raw else []
-        return key, value if isinstance(value, list) else [value]
+        return key, value if isinstance(value, list) else ([] if value is None else [value])
     with ThreadPoolExecutor(max_workers=4) as pool:
         result = dict(pool.map(run_group, scripts.items()))
     result["ics"] = result["ics"][0] if result["ics"] else {}
-    result["globalRouter"] = int(result["globalRouter"][0]) if result["globalRouter"] else 0
+    result["globalRouter"] = int(result["globalRouter"][0] or 0) if result["globalRouter"] else 0
     # ICS COM discovery is separated so COM errors don't hide the other results.
     try:
         raw = ps(r"""
@@ -65,7 +65,7 @@ foreach($connection in $manager.EnumEveryConnection()){
 ) | ConvertTo-Json -Compress -Depth 5
 """)
         value = json.loads(raw) if raw else []
-        result["icsConnections"] = value if isinstance(value, list) else [value]
+        result["icsConnections"] = value if isinstance(value, list) else ([] if value is None else [value])
     except Exception as exc:
         result["icsConnections"] = [{"Name": "ICS inspection error", "Error": str(exc)}]
     return result
