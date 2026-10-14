@@ -28,20 +28,37 @@ jobs:
           $exe = "dist/WinNAT-UI/WinNAT-UI.exe"
           $hash = (Get-FileHash $exe -Algorithm SHA256).Hash
           "SHA256: $hash" | Out-File -FilePath "dist/WinNAT-UI/SHA256.txt" -Encoding utf8
-          "Security review: NOT VERIFIED. Prior build reported Defender Bearfoos.B!ml detection. Do not run until locally scanned and investigated." | Out-File -FilePath "dist/WinNAT-UI/SECURITY.txt" -Encoding utf8
-      - name: Attempt Defender scan (informational)
+          "Prior build reported Defender Bearfoos.B!ml detection. This build must pass the required GitHub Defender scan; verify again locally." | Out-File -FilePath "dist/WinNAT-UI/SECURITY.txt" -Encoding utf8
+      - name: Microsoft Defender verification (required)
         shell: pwsh
-        continue-on-error: true
         run: |
-          try {
-            Start-MpScan -ScanType CustomScan -ScanPath "$env:GITHUB_WORKSPACE\\dist\\WinNAT-UI" -ErrorAction Stop
-            $found = @(Get-MpThreatDetection | Where-Object { $_.Resources -match 'WinNAT-UI' })
-            if ($found.Count -gt 0) { throw 'Threat detected in package' }
-            Write-Host "Defender completed scan; verify locally before execution."
-          } catch {
-            Write-Error "Defender scan not completed / detected threat: $_"
-            exit 1
+          $ErrorActionPreference = 'Stop'
+          $scanPath = Join-Path $env:GITHUB_WORKSPACE 'dist/WinNAT-UI'
+          $exePath = Join-Path $scanPath 'WinNAT-UI.exe'
+          if (-not (Test-Path $exePath)) { throw 'EXE not found' }
+          $status = Get-MpComputerStatus -ErrorAction Stop
+          $status | Select-Object AMServiceEnabled, AntivirusEnabled, RealTimeProtectionEnabled, AntivirusSignatureVersion, AntivirusSignatureLastUpdated | Format-List
+          if (-not $status.AMServiceEnabled -or -not $status.AntivirusEnabled) {
+            throw 'Defender is not operational. Build is not approved.'
           }
+          $start = Get-Date
+          try {
+            Start-MpScan -ScanType CustomScan -ScanPath $scanPath -ErrorAction Stop
+          } catch {
+            throw "Defender scan failed or is unavailable: $($_.Exception.Message)"
+          }
+          $detections = @(Get-MpThreatDetection -ErrorAction Stop | Where-Object {
+            ($_.InitialDetectionTime -ge $start.AddMinutes(-1)) -and
+            (($_.Resources | Out-String) -match 'WinNAT-UI|dist')
+          })
+          if ($detections.Count -gt 0) {
+            $detections | Format-List ThreatID,InitialDetectionTime,Resources,ActionSuccess | Out-String | Write-Host
+            throw 'Defender found a threat in this build. Publication blocked.'
+          }
+          if (-not (Test-Path $exePath)) { throw 'Executable is missing after scan; possible quarantine.' }
+          "Defender scan completed: $(Get-Date -Format o)" | Out-File -FilePath (Join-Path $scanPath 'DEFENDER_SCAN.txt') -Encoding utf8
+          "Signature version: $($status.AntivirusSignatureVersion)" | Add-Content (Join-Path $scanPath 'DEFENDER_SCAN.txt')
+          Write-Host 'Defender scan completed without reported detections for this build.'
       - name: Upload executable
         uses: actions/upload-artifact@v4
         with:
