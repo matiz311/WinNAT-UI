@@ -1233,13 +1233,10 @@ class App(tk.Tk):
                 endpoint = issue_tracker.service_endpoint()
                 if endpoint is None:
                     raise RuntimeError("Servizio per la creazione anonima delle Issue non configurato.")
-                matches = issue_tracker.find_similar(payload, issue_tracker.public_issues())
-                active = [m for m in matches if m.get("state") == "open"]
-                if active:
-                    result = {"number": active[0]["number"], "url": active[0]["url"],
-                              "already_exists": True}
-                else:
-                    result = issue_tracker.submit(payload, endpoint=endpoint)
+                # The gateway itself handles deduplication. Do not make a
+                # separate GitHub Issues API lookup: it may be rate-limited
+                # or unavailable, even while the gateway is operational.
+                result = issue_tracker.submit(payload, endpoint=endpoint)
                 issue_tracker.save_entry(payload, result)
                 return result
             def sent(result):
