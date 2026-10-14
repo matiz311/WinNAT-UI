@@ -8,8 +8,9 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, simpledialog
 import network
 import network_plan
+import network_guide
 
-VERSION = "1.5.0"
+VERSION = "1.6.0"
 
 class App(tk.Tk):
     def __init__(self):
@@ -69,44 +70,49 @@ class App(tk.Tk):
         ttk.Button(actions, text="Elimina", command=self.remove).pack(side="left", padx=3)
         ttk.Label(rules, text="Windows WinNAT supporta un solo prefisso interno. Non aggiungere regole concorrenti a quelle esistenti.").pack(anchor="w", pady=8)
 
-        ttk.Label(wizard, text="Setup Ethernet -> Internet", font=("Segoe UI", 13, "bold")).pack(anchor="w")
-        ttk.Label(wizard, text="Configura l'IP gateway della scheda LAN e crea una regola WinNAT. Non viene creato un server DHCP o DNS.").pack(anchor="w", pady=8)
+        ttk.Label(wizard, text="Gateway Windows 11: LAN → NAT → WAN", font=("Segoe UI", 13, "bold")).pack(anchor="w")
+        ttk.Label(wizard, text="Profilo basato sulla guida NAT e Routing IPv4: modifica candidata, controllo e Commit. Non modifica le impostazioni DHCP/DNS delle WAN.", wraplength=940).pack(anchor="w", pady=(4,8))
         self.lan = tk.StringVar(value="Ethernet")
-        self.prefix = tk.StringVar(value="192.168.1.0/24")
-        self.gateway = tk.StringVar(value="192.168.1.254")
-        ttk.Label(wizard, text="Interfaccia WAN (deve avere una default route)").pack(anchor="w")
-        self.wan = tk.StringVar(value="")
-        self.wan_box = ttk.Combobox(wizard, textvariable=self.wan, width=44, state="readonly")
-        self.wan_box.pack(anchor="w", pady=5)
-        ttk.Label(wizard, text="Interfaccia LAN").pack(anchor="w")
-        self.lan_box = ttk.Combobox(wizard, textvariable=self.lan, width=44, state="readonly")
-        self.lan_box.pack(anchor="w", pady=5)
-        self.field(wizard, "Subnet LAN (CIDR)", self.prefix)
-        self.field(wizard, "IP gateway sul PC", self.gateway)
-        ttk.Button(wizard, text="Configura", command=self.setup).pack(anchor="w", pady=12)
-        ttk.Separator(wizard).pack(fill="x", pady=12)
-        ttk.Label(wizard, text="Rimozione configurazione gestita", font=("Segoe UI", 12, "bold")).pack(anchor="w")
-        ttk.Label(wizard, text="Rimuove il NAT gestito dal wizard e, se aggiunto dall'app, il suo IP LAN. Non rimuove configurazioni estranee.").pack(anchor="w", pady=5)
-        ttk.Button(wizard, text="Rimuovi", command=self.teardown).pack(anchor="w", pady=9)
-        ttk.Separator(wizard).pack(fill="x", pady=10)
-        ttk.Label(wizard, text="Rimuovi una configurazione preesistente", font=("Segoe UI", 12, "bold")).pack(anchor="w")
-        ttk.Label(wizard, text="Per configurazioni create esternamente: rimuove solo il NAT che corrisponde alla subnet inserita. Non modifica ICS, DHCP, VPN o altri NAT.").pack(anchor="w", pady=4)
-        self.remove_address = tk.BooleanVar(value=False)
-        ttk.Checkbutton(wizard, text="Rimuovi anche l'IP LAN specificato (solo se corrisponde esattamente)", variable=self.remove_address).pack(anchor="w", pady=4)
-        ttk.Button(wizard, text="Rimuovi esistente", command=self.external_teardown).pack(anchor="w", pady=7)
-        ttk.Separator(wizard).pack(fill="x", pady=10)
-        ttk.Label(wizard, text="Ripristino selettivo (qualsiasi origine)", font=("Segoe UI", 12, "bold")).pack(anchor="w")
-        ttk.Label(wizard, text="Elimina tutte le regole WinNAT selezionate e, se richiesto, IP, route e forwarding IPv4 delle interfacce LAN selezionate. La WAN non viene inclusa.").pack(anchor="w", pady=5)
-        self.cleanup_all_nat=tk.BooleanVar(value=True)
-        self.cleanup_ips=tk.BooleanVar(value=False)
-        self.cleanup_routes=tk.BooleanVar(value=False)
-        self.cleanup_forward=tk.BooleanVar(value=False)
-        for label,var in [("Elimina tutte le regole WinNAT",self.cleanup_all_nat),
-                          ("Elimina tutti gli indirizzi IPv4 della LAN",self.cleanup_ips),
-                          ("Elimina le route IPv4 non predefinite sulla LAN",self.cleanup_routes),
-                          ("Disabilita forwarding IPv4 sulla LAN",self.cleanup_forward)]:
-            ttk.Checkbutton(wizard,text=label,variable=var).pack(anchor="w")
-        ttk.Button(wizard,text="Prepara ripristino",command=self.stage_reset).pack(anchor="w",pady=8)
+        self.wan1 = tk.StringVar(value="USB-C")
+        self.wan2 = tk.StringVar(value="Wi-Fi")
+        self.wan = self.wan1
+        self.prefix = tk.StringVar(value="10.10.10.0/24")
+        self.gateway = tk.StringVar(value="10.10.10.1")
+        self.profile_nat = tk.StringVar(value="NAT-Firewall")
+        self.metric1 = tk.StringVar(value="10")
+        self.metric2 = tk.StringVar(value="50")
+        panels = ttk.Notebook(wizard)
+        panels.pack(fill="both", expand=True)
+        setup_panel = ttk.Frame(panels, padding=12)
+        remove_panel = ttk.Frame(panels, padding=12)
+        panels.add(setup_panel, text="Configura")
+        panels.add(remove_panel, text="Disabilita / Ripristina")
+        form = ttk.Frame(setup_panel)
+        form.pack(anchor="w", fill="x")
+        def field(row, title, variable, combo=False):
+            ttk.Label(form, text=title).grid(row=row, column=0, sticky="w", pady=5, padx=(0,14))
+            control = (ttk.Combobox(form, textvariable=variable, width=43, state="readonly")
+                       if combo else ttk.Entry(form, textvariable=variable, width=45))
+            control.grid(row=row, column=1, sticky="w", pady=5)
+            return control
+        self.lan_box = field(0, "LAN Ethernet (verso firewall)", self.lan, True)
+        self.wan_box = field(1, "WAN primaria", self.wan1, True)
+        self.wan2_box = field(2, "WAN secondaria (opzionale)", self.wan2, True)
+        field(3, "Rete LAN (CIDR)", self.prefix)
+        field(4, "IP gateway del PC", self.gateway)
+        field(5, "Nome NAT", self.profile_nat)
+        field(6, "Metrica primaria", self.metric1)
+        field(7, "Metrica secondaria", self.metric2)
+        ttk.Label(setup_panel, text="La LAN verrà ripulita da vecchi IPv4 e route; IPEnableRouter e forwarding saranno abilitati. Le WAN richiedono già connettività e gateway, acquisiti normalmente con DHCP.", wraplength=880).pack(anchor="w", pady=(10,6))
+        ttk.Button(setup_panel, text="Configura", command=lambda: self.prepare_guide("apply")).pack(anchor="w", pady=5)
+        ttk.Label(remove_panel, text="Disabilita il gateway", font=("Segoe UI", 12, "bold")).pack(anchor="w")
+        ttk.Label(remove_panel, text="Rimuove TUTTI gli oggetti WinNAT, disabilita forwarding su LAN/WAN selezionate e routing globale. Mantiene IP, DHCP, route e metriche.", wraplength=860).pack(anchor="w", pady=7)
+        ttk.Button(remove_panel, text="Disabilita", command=lambda: self.prepare_guide("disable")).pack(anchor="w", pady=8)
+        ttk.Separator(remove_panel).pack(fill="x", pady=13)
+        ttk.Label(remove_panel, text="Ripristina la configurazione di rete", font=("Segoe UI", 12, "bold")).pack(anchor="w")
+        ttk.Label(remove_panel, text="Oltre alla disabilitazione, rimuove TUTTI gli IPv4 e le route della LAN scelta, riabilita il suo client DHCP e riporta le WAN selezionate alle metriche automatiche. Non importa chi aveva creato le impostazioni.", wraplength=860).pack(anchor="w", pady=7)
+        ttk.Label(remove_panel, text="Attenzione: può interrompere accesso remoto, Hyper-V/WSL e connessioni attive. Usa il PC localmente. L'operazione NON ripristina uno snapshot automaticamente.", wraplength=860, foreground="#9b4d19").pack(anchor="w", pady=9)
+        ttk.Button(remove_panel, text="Ripristina", command=lambda: self.prepare_guide("reset")).pack(anchor="w", pady=8)
         self.wizard_notice = tk.StringVar(value="Nessuna modifica preparata")
         ttk.Label(wizard, textvariable=self.wizard_notice).pack(anchor="w", pady=7)
 
@@ -182,12 +188,13 @@ class App(tk.Tk):
         self.data = data
         adapter_names = [a["Name"] for a in data.get("adapters",[]) if str(a.get("Status")).lower() == "up"]
         self.lan_box["values"] = adapter_names
+        self.wan2_box["values"] = [""] + adapter_names
         self.wan_box["values"] = adapter_names
         if adapter_names and self.lan.get() not in adapter_names:
             self.lan.set("Ethernet" if "Ethernet" in adapter_names else adapter_names[0])
         routes = [r for r in data.get("routes",[]) if r.get("DestinationPrefix") == "0.0.0.0/0"]
         routes.sort(key=lambda r: int(r.get("RouteMetric") or 0)+int(r.get("InterfaceMetric") or 0))
-        if routes and (not self.wan.get() or self.wan.get() not in adapter_names):
+        if routes and (not self.wan1.get() or self.wan1.get() not in adapter_names):
             self.wan.set(routes[0].get("InterfaceAlias",""))
         lines = ["WAN prevista: " + (routes[0].get("InterfaceAlias","?") if routes else "nessuna default route"),"",
                  "Interfacce e indirizzi IPv4:"]
@@ -211,6 +218,15 @@ class App(tk.Tk):
         for name,n in nats.items():
             self.nat_table.insert("", "end", values=("- Da eliminare" if name in removals else "Attiva",name,n.get("InternalIPInterfaceAddressPrefix",""),str(n.get("Active",""))))
         for p in self.pending:
+            if p["kind"]=="guide":
+                act, profile, _fingerprint = p["args"]
+                if act == "apply":
+                    self.nat_table.insert("", "end", values=("+ Da creare", profile["nat"], profile["prefix"], "Non applicata"))
+                else:
+                    for item in self.nat_table.get_children():
+                        v = list(self.nat_table.item(item, "values"))
+                        v[0] = "- Da eliminare"
+                        self.nat_table.item(item, values=v)
             if p["kind"]=="add":
                 self.nat_table.insert("","end",values=("+ Da creare",p["args"][0],p["args"][1],"Non applicata"))
             if p["kind"]=="setup":
@@ -247,7 +263,16 @@ class App(tk.Tk):
         self.summary.delete("1.0","end")
         self.summary.insert("end","\n".join(lines))
         self.summary.configure(state="disabled")
-        self.wizard_notice.set("Modifiche da applicare: "+str(len(self.pending)))
+        self.wizard_notice.set("Modifiche da applicare: " + str(len(self.pending)))
+        if hasattr(self, "dashboard_base"):
+            shown = self.dashboard_base
+            if self.pending:
+                shown += "\\n\\n=== CONFIGURAZIONE CANDIDATA (NON APPLICATA) ===\\n"
+                shown += "\\n".join(p["label"] + ": " + p["details"] for p in self.pending)
+            self.dashboard.configure(state="normal")
+            self.dashboard.delete("1.0", "end")
+            self.dashboard.insert("end", shown)
+            self.dashboard.configure(state="disabled")
         self.commit_button.configure(text="Commit ("+str(len(self.pending))+")" if self.pending else "Commit")
 
     def stage(self, kind, args, label, details):
@@ -344,6 +369,28 @@ class App(tk.Tk):
         self.stage("reset",(scope,),"Ripristino selettivo","; ".join(lines))
         self.tabs.select(3)
 
+    def prepare_guide(self, action):
+        if not self.data:
+            return messagebox.showwarning("Configurazione", "Attendi il caricamento della configurazione.")
+        if "Commit" in self.tasks:
+            return messagebox.showwarning("Commit", "Attendi che l'operazione sia terminata.")
+        try:
+            profile = {"lan": self.lan.get(), "wan1": self.wan1.get(),
+                       "wan2": self.wan2.get(), "prefix": self.prefix.get(),
+                       "gateway": self.gateway.get(), "nat": self.profile_nat.get(),
+                       "metric1": self.metric1.get(), "metric2": self.metric2.get()}
+            lines = network_guide.preview(action, profile, self.data)
+            normalized = network_guide.validate(profile, self.data, action)
+            signature = network_guide.fingerprint(normalized, self.data)
+        except Exception as exc:
+            return messagebox.showerror("Configurazione non valida", str(exc))
+        if self.pending and not messagebox.askyesno("Sostituisci", "Sostituire le modifiche candidate già presenti?"):
+            return
+        self.pending.clear()
+        labels = {"apply":"Configura gateway", "disable":"Disabilita gateway", "reset":"Ripristina gateway"}
+        self.stage("guide", (action, normalized, signature), labels[action], "\\n".join(lines))
+        self.tabs.select(3)
+
     def unstage(self):
         selected=self.pending_table.selection()
         if not selected:return
@@ -359,6 +406,7 @@ class App(tk.Tk):
     def commit(self):
         if not network.admin():return messagebox.showwarning("Permessi","Avvia come amministratore per applicare modifiche.")
         if not self.pending:return messagebox.showinfo("Commit","Nessuna modifica da applicare.")
+        if self.tasks:return messagebox.showwarning("Operazione in corso","Attendi che le operazioni correnti siano terminate.")
         changes=list(self.pending)
         summary="\n".join(f"{i+1}. {p['label']}\n   {p['details']}" for i,p in enumerate(changes))
         if not messagebox.askyesno("Conferma Commit","Modifiche previste:\n\n"+summary+"\n\nApplicare ora? La rete potrebbe interrompersi."):
@@ -383,6 +431,8 @@ class App(tk.Tk):
                     if nats or any(c.get("SharingEnabled") for c in current.get("icsConnections",[])):
                         raise ValueError("Setup bloccato da WinNAT/ICS esistente.")
                     network.setup(*args,current)
+                elif kind=="guide":
+                    network_guide.execute(args[0], args[1], current, args[2])
                 elif kind=="profile":
                     network_plan.apply_profile(args[0],current)
                 elif kind=="reset":
@@ -401,7 +451,7 @@ class App(tk.Tk):
             return completed
         def success(applied):
             self.pending=[p for p in self.pending if p not in applied]
-            messagebox.showinfo("Commit","Modifiche applicate: "+str(len(applied)))
+            messagebox.showinfo("Commit","Modifiche applicate: "+str(len(applied))+"\\nSe hai cambiato IPEnableRouter, riavvia Windows prima dei test end-to-end.")
             self.refresh()
         if len(changes)!=1:
             return messagebox.showwarning("Commit","Le modifiche possono essere preparate insieme, ma applicale una per volta: Windows non offre rollback atomico per queste operazioni. Seleziona una modifica nella scheda Modifiche per annullare quelle non necessarie.")
