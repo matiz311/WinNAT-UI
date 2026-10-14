@@ -4,6 +4,7 @@ import json
 import queue
 import sys
 import threading
+import traceback
 import time
 import tkinter as tk
 import webbrowser
@@ -14,7 +15,7 @@ import network_guide
 import ui_theme as ui
 from ui_theme import C, F, S1, S2, S3, S4, S5
 
-VERSION = "1.8.0"
+VERSION = "1.7.2"
 REPO_URL = "https://github.com/matiz311/WinNAT-UI"
 
 PAGES = [  # key, label, icon, subtitle
@@ -165,6 +166,13 @@ class Topology(tk.Canvas):
         self.create_text(w / 2, self.H - 16, fill=C["text_muted"], font=F["caption"], width=w - 40,
                          text="I client usano " + gateway + " come gateway e un DNS raggiungibile: "
                               "WinNAT non fornisce DHCP n\u00e9 DNS.")
+
+
+def format_error_debug(operation, message, traceback_text=""):
+    """Retain the complete error and Python traceback for copying/debugging."""
+    return ("Operazione: " + str(operation) + "\n\n" +
+            "Messaggio completo:\n" + str(message) + "\n\n" +
+            "Traceback Python:\n" + (traceback_text or "Non disponibile"))
 
 
 class App(tk.Tk):
@@ -737,6 +745,71 @@ class App(tk.Tk):
             self.bind("<Control-Key-%d>" % (i + 1), lambda e, k=key: self.show_page(k))
 
     # ------------------------------------------------------------ tasks ---
+    def show_error_dialog(self, title, operation, message, traceback_text="", commit=False):
+        """Compact default error with optional complete, read-only debug panel."""
+        dialog = tk.Toplevel(self)
+        dialog.title(title)
+        dialog.transient(self)
+        dialog.geometry("600x250")
+        dialog.minsize(520, 220)
+        dialog.configure(bg=C["bg"])
+        container = ttk.Frame(dialog, padding=S4)
+        container.pack(fill="both", expand=True)
+        ttk.Label(container, text=title, font=F["title"]).pack(anchor="w", pady=(0, S2))
+        short = str(message).splitlines()[0] if str(message).strip() else "Errore sconosciuto."
+        ttk.Label(container, text=short[:240] + ("…" if len(short) > 240 else ""),
+                  wraplength=550, justify="left").pack(fill="x", anchor="w")
+        if commit:
+            ttk.Label(container,
+                      text="Alcune modifiche potrebbero essere già state applicate. "
+                           "Lo stato verrà riletto da Windows: controllalo prima di riprovare.",
+                      wraplength=550, justify="left").pack(fill="x", anchor="w", pady=(S2, 0))
+        details = format_error_debug(operation, message, traceback_text)
+        panel = ttk.Frame(container)
+        controls = ttk.Frame(container)
+        controls.pack(side="bottom", fill="x", pady=(S3, 0))
+        visible = [False]
+
+        def copy_all():
+            dialog.clipboard_clear()
+            dialog.clipboard_append(details)
+            dialog.update()
+            copy_button.configure(text="Copiato")
+
+        def toggle_debug():
+            visible[0] = not visible[0]
+            if visible[0]:
+                panel.pack(fill="both", expand=True, pady=(S3, 0), before=controls)
+                dialog.geometry("850x610")
+                debug_button.configure(text="Nascondi debug")
+            else:
+                panel.pack_forget()
+                dialog.geometry("600x250")
+                debug_button.configure(text="Debug")
+
+        debug_button = ttk.Button(controls, text="Debug", command=toggle_debug)
+        debug_button.pack(side="left")
+        copy_button = ttk.Button(controls, text="Copia tutto", command=copy_all)
+        copy_button.pack(side="left", padx=(S2, 0))
+        ttk.Button(controls, text="Chiudi", command=dialog.destroy).pack(side="right")
+
+        scrollbar_y = ttk.Scrollbar(panel, orient="vertical")
+        scrollbar_x = ttk.Scrollbar(panel, orient="horizontal")
+        viewer = tk.Text(panel, wrap="none", height=18, font=("Consolas", 10),
+                         yscrollcommand=scrollbar_y.set, xscrollcommand=scrollbar_x.set,
+                         undo=False)
+        scrollbar_y.configure(command=viewer.yview)
+        scrollbar_x.configure(command=viewer.xview)
+        scrollbar_y.pack(side="right", fill="y")
+        scrollbar_x.pack(side="bottom", fill="x")
+        viewer.pack(side="left", fill="both", expand=True)
+        viewer.insert("1.0", details)
+        viewer.configure(state="disabled")
+        viewer.bind("<Control-a>", lambda e: (viewer.tag_add("sel", "1.0", "end-1c"), "break")[1])
+        dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
+        dialog.grab_set()
+        dialog.focus_set()
+
     def run_task(self, key, fn, on_success):
         if key in self.tasks:
             return
@@ -748,7 +821,7 @@ class App(tk.Tk):
             try:
                 self.work.put((key, True, fn(), on_success))
             except Exception as error:
-                self.work.put((key, False, str(error), on_success))
+                self.work.put((key, False, (str(error), traceback.format_exc()), on_success))
         threading.Thread(target=runner, daemon=True).start()
         self.render_changebar()
 
@@ -763,20 +836,19 @@ class App(tk.Tk):
                 if ok:
                     callback(value)
                 else:
-                    self.notice.set("Errore: " + value[:120])
+                    error_message, error_traceback = value
+                    self.notice.set("Errore: " + error_message[:120])
                     if key == "Commit":
-                        # A failed PowerShell script may have changed settings before
-                        # the error. Never present a stale candidate as safe to retry.
+                        # The script is not transactional: the previous steps may
+                        # already have changed Windows even though one step failed.
+                        # Do not allow a stale candidate to be re-committed.
                         self.pending.clear()
                         self.render_candidate()
-                        messagebox.showerror(
-                            "Commit non riuscito",
-                            value + "\n\nLa configurazione potrebbe essere stata applicata solo in parte."
-                            " Verr\u00e0 riletta la configurazione Windows. Controlla lo stato"
-                            " e prepara un nuovo Commit: non ripetere quello precedente.", parent=self)
+                        self.show_error_dialog("Commit non riuscito", key,
+                                               error_message, error_traceback, commit=True)
                         self.refresh()
                     else:
-                        messagebox.showerror("Operazione non riuscita", key + "\n\n" + value, parent=self)
+                        self.show_error_dialog("Operazione non riuscita", key, error_message, error_traceback)
                 self.render_changebar()
         except queue.Empty:
             pass

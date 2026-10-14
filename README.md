@@ -136,7 +136,7 @@ La configurazione candidata e il Commit restano invariati. Se un Commit fallisce
 
 Il comando `netsh` è documentato da Microsoft: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/netsh-interface.
 
-## Interfaccia v1.8.0 — redesign UX
+## Interfaccia v1.7.1 — redesign UX
 - **Navigazione laterale** con sezioni Panoramica, Regole NAT, Gateway, Modifiche, Sessioni (Ctrl+1…6) e indicatore permanente *Amministratore / Sola lettura*.
 - **Panoramica** con verdetto unico sullo stato del gateway, riquadri WAN/WinNAT/Routing/ICS con badge testuali (mai solo colore), tabelle interfacce e default route; il testo diagnostico grezzo resta in *Dettagli tecnici*.
 - **Gateway**: schema topologico LAN → PC → WAN → Internet aggiornato in tempo reale, campi raggruppati in 3 passi con validazione inline e anteprima numerata di cosa farà il Commit; il pulsante si abilita solo con dati validi.

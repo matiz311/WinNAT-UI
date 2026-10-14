@@ -106,7 +106,7 @@ The candidate/commit process is unchanged. After a failed commit, the GUI discar
 
 Official Microsoft reference: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/netsh-interface.
 
-## Interface v1.8.0 — UX redesign
+## Interface v1.7.1 — UX redesign
 - Sidebar navigation (Ctrl+1…6) with a permanent *Administrator / Read-only* indicator.
 - Overview with a single gateway verdict, WAN/WinNAT/Routing/ICS cards with text badges, interface and default-route tables; raw diagnostics under *Technical details*.
 - Gateway page: live LAN → PC → WAN → Internet diagram, 3-step form with inline validation and a numbered preview of what Commit will do.

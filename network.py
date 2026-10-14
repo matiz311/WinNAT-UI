@@ -26,7 +26,12 @@ def ps(script):
         [POWERSHELL, "-NoProfile", "-NonInteractive", "-Command", script],
         capture_output=True, text=True, timeout=60, shell=False, startupinfo=startup)
     if process.returncode:
-        raise RuntimeError((process.stderr or process.stdout).strip() or "PowerShell failed")
+        parts = ["PowerShell exit code: " + str(process.returncode)]
+        if process.stderr.strip():
+            parts.extend(["STDERR:", process.stderr.rstrip()])
+        if process.stdout.strip():
+            parts.extend(["STDOUT:", process.stdout.rstrip()])
+        raise RuntimeError("\n\n".join(parts))
     return process.stdout.strip()
 
 def collect():
