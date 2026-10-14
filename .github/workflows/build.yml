@@ -21,10 +21,19 @@ jobs:
       - name: Validate syntax
         run: python -m compileall -q app.py network.py
       - name: Package executable
-        run: pyinstaller --noconfirm --clean --onefile --windowed --uac-admin --version-file version_info.txt --name WinNAT-UI app.py
+        run: pyinstaller --noconfirm --clean --onedir --windowed --uac-admin --version-file version_info.txt --name WinNAT-UI app.py
+      - name: Scan build with Microsoft Defender
+        shell: pwsh
+        run: |
+          $defender = Get-Command Start-MpScan -ErrorAction SilentlyContinue
+          if (-not $defender) { throw "Microsoft Defender scanning is unavailable; do not publish artifact." }
+          Update-MpSignature
+          Start-MpScan -ScanType CustomScan -ScanPath "$env:GITHUB_WORKSPACE\\dist\\WinNAT-UI"
+          $found = @(Get-MpThreatDetection | Where-Object { $_.Resources -match 'WinNAT-UI' })
+          if ($found.Count -gt 0) { $found | Format-List | Out-String | Write-Host; throw "Threat detected in build artifact." }
       - name: Upload executable
         uses: actions/upload-artifact@v4
         with:
           name: WinNAT-UI-Windows
-          path: dist/WinNAT-UI.exe
+          path: dist/WinNAT-UI/
           if-no-files-found: error
