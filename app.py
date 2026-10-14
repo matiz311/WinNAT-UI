@@ -11,7 +11,7 @@ import network
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("WinNAT UI | Windows NAT Manager")
+        self.title("WinNAT UI 1.1.0 | Windows NAT Manager")
         self.geometry("1040x740")
         self.minsize(850, 600)
         self.data = None
@@ -38,11 +38,22 @@ class App(tk.Tk):
         notebook.add(summary, text=" Panoramica ")
         notebook.add(manage, text=" Gestione WinNAT ")
         notebook.add(wizard, text=" Setup guidato ")
+        about = ttk.Frame(notebook, padding=15)
+        notebook.add(about, text=" Informazioni ")
+        ttk.Label(about, text="WinNAT UI - Versione 1.1.0", font=("Segoe UI", 16, "bold")).pack(anchor="w")
+        ttk.Label(about, justify="left", text="Autore: Matteo Cannizzo\nEditore dichiarato: Matteo Cannizzo\n"
+                  "Repository: github.com/matiz311/WinNAT-UI\n\n"
+                  "I metadati dell'eseguibile non sono una firma digitale.\n"
+                  "Per un editore Windows verificato serve un certificato Authenticode valido.").pack(anchor="w", pady=15)
 
+        ttk.Label(summary, text="WAN: uscita Internet, stimata dalla default route. LAN: rete dei dispositivi.", wraplength=930).pack(anchor="w")
+        ttk.Label(summary, text="WinNAT traduce gli IP dei client LAN. ICS e un'altra funzione Windows: servizio attivo non significa condivisione attiva.", wraplength=930).pack(anchor="w", pady=(0, 10))
         self.output = tk.Text(summary, font=("Consolas", 10), wrap="none", state="disabled")
         self.output.pack(fill="both", expand=True)
         ttk.Button(summary, text="Esporta diagnostica JSON", command=self.export).pack(anchor="e", pady=6)
 
+        ttk.Label(manage, text="WinNAT traduce il traffico delle subnet interne verso la rete esterna, ma non fornisce DHCP o DNS.", wraplength=900).pack(anchor="w")
+        ttk.Label(manage, text="Windows supporta un solo prefisso interno WinNAT. Se esistono altre regole, occorre valutarle prima di crearne una nuova.", wraplength=900).pack(anchor="w", pady=(0, 12))
         ttk.Label(manage, text="Regole NAT rilevate", font=("Segoe UI", 12, "bold")).pack(anchor="w")
         self.tree = ttk.Treeview(manage, columns=("name", "prefix", "active"), show="headings", height=9)
         for column, label, width in (("name", "Nome", 180), ("prefix", "Prefisso interno", 240), ("active", "Attiva", 100)):
@@ -53,7 +64,7 @@ class App(tk.Tk):
         ttk.Separator(manage).pack(fill="x", pady=12)
         ttk.Label(manage, text="Aggiungi regola", font=("Segoe UI", 12, "bold")).pack(anchor="w")
         self.nat_name = tk.StringVar(value="WinNAT-UI")
-        self.nat_prefix = tk.StringVar(value="192.168.192.0/24")
+        self.nat_prefix = tk.StringVar(value="192.168.1.0/24")
         self.field(manage, "Nome regola:", self.nat_name)
         self.field(manage, "Prefisso interno CIDR:", self.nat_prefix)
         ttk.Button(manage, text="Crea regola WinNAT", command=self.add).pack(anchor="w", pady=10)
@@ -65,14 +76,18 @@ class App(tk.Tk):
         ttk.Label(wizard, text="L'app non fornisce DHCP e non rimuove configurazioni preesistenti.\n"
                   "Se esistono NAT o condivisioni ICS, il setup viene bloccato.").pack(anchor="w", pady=10)
         self.lan = tk.StringVar(value="Ethernet")
-        self.prefix = tk.StringVar(value="192.168.192.0/24")
-        self.gateway = tk.StringVar(value="192.168.192.254")
+        self.prefix = tk.StringVar(value="192.168.1.0/24")
+        self.gateway = tk.StringVar(value="192.168.1.254")
         ttk.Label(wizard, text="Interfaccia LAN").pack(anchor="w")
         self.lan_combo = ttk.Combobox(wizard, textvariable=self.lan, state="readonly", width=50)
         self.lan_combo.pack(anchor="w", pady=(2, 12))
         self.field(wizard, "Rete LAN (CIDR):", self.prefix)
         self.field(wizard, "Indirizzo IPv4 Ethernet del PC:", self.gateway)
-        ttk.Button(wizard, text="Avvia setup iniziale", command=self.initial_setup).pack(anchor="w", pady=18)
+        ttk.Button(wizard, text="Avvia setup iniziale", command=self.initial_setup).pack(anchor="w", pady=12)
+        ttk.Separator(wizard).pack(fill="x", pady=10)
+        ttk.Label(wizard, text="Rimuovi il setup creato dall'applicazione", font=("Segoe UI", 12, "bold")).pack(anchor="w")
+        ttk.Label(wizard, text="Rimuove il NAT gestito e l'IP aggiunto dal wizard, ma conserva gli IP gia presenti e le altre regole.", wraplength=900).pack(anchor="w", pady=5)
+        ttk.Button(wizard, text="Rimuovi setup gestito", command=self.remove_setup).pack(anchor="w", pady=5)
         ttk.Label(wizard, text="WAN: rilevata tramite la rotta IPv4 predefinita; verifica la scelta nella Panoramica.\n"
                   "Il dispositivo collegato deve usare l'IP Ethernet del PC come default gateway.").pack(anchor="w")
 
@@ -197,6 +212,17 @@ class App(tk.Tk):
         if not messagebox.askyesno("Conferma setup", "LAN: %s\nSubnet: %s\nIP PC: %s\n\nSara aggiunto l'IP LAN se assente, abilitato forwarding e creato WinNAT-UI. Nessuna configurazione esistente sara rimossa. Procedere?" % (lan, prefix, gateway)):
             return
         self.mutate(lambda: network.setup(lan, prefix, gateway, self.data))
+
+    def remove_setup(self):
+        if not self.authorized():
+            return
+        state = network.managed_state()
+        if not state:
+            return messagebox.showinfo("Setup non rilevato", "Nessun setup tracciato dall'app. Le regole manuali sono gestibili nella scheda WinNAT.")
+        details = "LAN: {lan} | Rete: {prefix} | IP: {gateway} | NAT: {nat}".format(**state)
+        if not messagebox.askyesno("Conferma rimozione", details + "\nLa connettivita dei dispositivi collegati potrebbe interrompersi. Procedere?"):
+            return
+        self.mutate(lambda: network.teardown(self.data))
 
     def mutate(self, operation):
         try:
