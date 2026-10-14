@@ -10,6 +10,15 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
 
 
+## [1.9.6] - 2026-10-15
+### Aggiunto
+- Archiviazione locale delle segnalazioni bug e identificazione delle Issue simili mediante firma stabile anonimizzata.
+- Creazione anonima delle Issue senza account GitHub tramite gateway HTTPS con credenziali custodite esclusivamente sul server, previa attivazione da parte del manutentore.
+- Nella pagina Informazioni, elenco dei bug segnalati, stato di apertura e versione di correzione; confronto con le release ufficiali all'avvio per avvisare quando una correzione diventa disponibile.
+### Sicurezza e distribuzione
+- Il client invia soltanto un payload limitato a campi predefiniti e non include alcun token GitHub, output grezzo, comando o configurazione. Il gateway convalida il payload, deduplica e limita le richieste; richiede comunque protezione WAF.
+- Il servizio anonimo resta inattivo finché il maintainer non distribuisce il Worker Cloudflare e pubblica il suo endpoint nel manifesto `bug-service.json`. Nessuna Issue può essere creata automaticamente prima di tale configurazione.
+
 ## [1.9.5] - 2026-10-15
 ### Aggiunto
 - Gli errori mostrano le azioni «Copia errore» e «Segnala bug su GitHub»: la seconda apre una bozza di Issue con dati anonimizzati, senza pubblicare nulla automaticamente.

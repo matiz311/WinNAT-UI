@@ -14,6 +14,7 @@ import network_plan
 import network_guide
 import network_rollback
 import bug_report
+import issue_tracker
 import updater
 import ui_theme as ui
 from version import VERSION
@@ -241,6 +242,7 @@ class App(tk.Tk):
         self.after(100, self.drain)
         self.after(60000, self.periodic_sessions)
         self.after(2500, lambda: self.check_updates(silent=True))
+        self.after(7000, lambda: self.refresh_issue_tracker(silent=True))
         self.refresh()
 
     def set_window_icon(self):
@@ -1044,6 +1046,25 @@ class App(tk.Tk):
                  bg=C["surface"], fg=C["text_muted"]).pack(anchor="w", pady=(S1, S2))
         ttk.Button(updates.body, text="Controlla aggiornamenti",
                    command=self.check_updates).pack(anchor="w")
+        issues = ui.Card(page, padding=S4)
+        issues.pack(fill="x", pady=(S3, 0))
+        heading = tk.Frame(issues.body, bg=C["surface"])
+        heading.pack(fill="x")
+        tk.Label(heading, text="Bug segnalati e correzioni", font=F["strong"],
+                 bg=C["surface"], fg=C["text"]).pack(side="left")
+        ttk.Button(heading, text="Verifica stato Issue", command=self.refresh_issue_tracker).pack(side="right")
+        self.issue_status = tk.StringVar(value="Archivio locale delle segnalazioni.")
+        tk.Label(issues.body, textvariable=self.issue_status, bg=C["surface"],
+                 fg=C["text_muted"], font=F["caption"]).pack(anchor="w", pady=(S2, 0))
+        self.issue_table = ttk.Treeview(issues.body, columns=("number","category","state","fix"),
+                                        show="headings", height=5)
+        for field, label, width in (("number","Issue",70), ("category","Problema",330),
+                                    ("state","Stato",100), ("fix","Correzione",150)):
+            self.issue_table.heading(field, text=label)
+            self.issue_table.column(field, width=width)
+        self.issue_table.pack(fill="x", pady=(S2, 0))
+        self.issue_table.bind("<Double-1>", self.open_tracked_issue)
+        self.render_issue_tracker()
         self.section(page, "Scorciatoie da tastiera")
         keys = ui.Card(page, padding=S4)
         keys.pack(fill="x")
@@ -1053,6 +1074,58 @@ class App(tk.Tk):
             tk.Label(keys.body, text=k, font=F["mono_s"], bg=C["surface_alt"], fg=C["text"], padx=S2, pady=2).grid(
                 row=i, column=0, sticky="w", pady=2)
             tk.Label(keys.body, text=v, font=F["body"], bg=C["surface"], fg=C["text_muted"]).grid(row=i, column=1, sticky="w", padx=S4)
+
+    def render_issue_tracker(self):
+        if not hasattr(self, "issue_table"):
+            return
+        self.issue_table.delete(*self.issue_table.get_children())
+        entries = issue_tracker.history()
+        for i, issue in enumerate(entries):
+            fixed = issue.get("fixed_in")
+            state = "Chiuso" if issue.get("state") == "closed" else "Aperto"
+            self.issue_table.insert("", "end", iid=str(i),
+                values=("#" + str(issue["number"]), issue["category"],
+                        state, ("Disponibile: " if issue.get("fix_available") else "") +
+                        (fixed or "Da definire")))
+        self.issue_status.set(str(len(entries)) + " segnalazioni. Doppio clic per aprire GitHub.")
+
+    def open_tracked_issue(self, _event=None):
+        chosen = self.issue_table.selection()
+        if chosen:
+            entries = issue_tracker.history()
+            index = int(chosen[0])
+            if index < len(entries):
+                webbrowser.open(entries[index]["url"])
+
+    def refresh_issue_tracker(self, silent=False):
+        if "Stato bug" in self.tasks:
+            return
+        def check():
+            try:
+                latest = updater.release_info(VERSION)["version"]
+            except Exception:
+                latest = None
+            try:
+                return issue_tracker.synchronize(VERSION, latest_version=latest)
+            except Exception:
+                if silent:
+                    return issue_tracker.history(), {}
+                raise
+        def finished(result):
+            entries, _ = result
+            self.render_issue_tracker()
+            ready = [i for i in entries if i.get("fix_available")]
+            if ready:
+                label = ("Nuova versione disponibile con correzioni per "
+                         + ", ".join("#" + str(i["number"]) for i in ready[:5]))
+                self.issue_status.set(label)
+                if silent:
+                    self.toast.show(label, "success")
+                else:
+                    messagebox.showinfo("Correzione disponibile", label, parent=self)
+            elif not silent:
+                self.toast.show("Stato delle Issue aggiornato.", "success")
+        self.run_task("Stato bug", check, finished)
 
     def check_updates(self, silent=False):
         if "Aggiornamenti" in self.tasks or "Download aggiornamento" in self.tasks:
@@ -1152,9 +1225,25 @@ class App(tk.Tk):
             dlg.cancel_btn.configure(text="Copiato")
 
         def report_bug():
-            # GitHub opens a prefilled *draft*. The user must review and publish it.
-            url = bug_report.issue_link(operation, message, traceback_text, VERSION)
-            webbrowser.open(url)
+            payload = issue_tracker.safe_payload(operation, message, traceback_text, VERSION)
+            def send():
+                matches = issue_tracker.find_similar(payload, issue_tracker.public_issues())
+                active = [m for m in matches if m.get("state") == "open"]
+                if active:
+                    result = {"number": active[0]["number"], "url": active[0]["url"],
+                              "already_exists": True}
+                else:
+                    result = issue_tracker.submit(payload)
+                issue_tracker.save_entry(payload, result)
+                return result
+            def sent(result):
+                text = ("Bug già segnalato" if result["already_exists"] else "Bug segnalato")
+                messagebox.showinfo(text, "Issue #" + str(result["number"]) + "\n"
+                                    + result["url"] + "\n\nTracciamento locale attivato.",
+                                    parent=self)
+                self.render_issue_tracker()
+            dlg.destroy()
+            self.run_task("Segnala bug", send, sent)
         dlg.cancel_btn.configure(command=copy_anonymized)
         report_actions = tk.Frame(dlg.body, bg=C["surface"])
         report_actions.pack(fill="x", pady=(0, S2))
