@@ -1105,7 +1105,12 @@ class App(tk.Tk):
                 latest = updater.release_info(VERSION)["version"]
             except Exception:
                 latest = None
-            return issue_tracker.synchronize(VERSION, latest_version=latest)
+            try:
+                return issue_tracker.synchronize(VERSION, latest_version=latest)
+            except Exception:
+                if silent:
+                    return issue_tracker.history(), {}
+                raise
         def finished(result):
             entries, _ = result
             self.render_issue_tracker()
