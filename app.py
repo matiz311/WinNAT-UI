@@ -179,12 +179,18 @@ def format_error_debug(operation, message, traceback_text=""):
 
 
 def error_summary(message):
-    """First line a person can act on, skipping exit codes and section headers."""
-    skip = ("PowerShell exit code", "STDERR:", "STDOUT:", "In riga:", "At line:", "+ ", "~")
-    for line in str(message).splitlines():
-        text = line.strip()
-        if text and not text.startswith(skip):
-            return text[:300] + ("\u2026" if len(text) > 300 else "")
+    """First line a person can act on: prefer the PowerShell error text over headers."""
+    text = str(message)
+    for marker in ("STDERR (integrale):", "STDERR:"):
+        if marker in text:
+            text = text.split(marker, 1)[1]
+            break
+    skip = ("PowerShell exit code", "ESECUZIONE POWERSHELL", "Exit code:", "Interprete:", "Timeout configurato:",
+            "STDERR", "STDOUT", "SCRIPT ESEGUITO", "In riga:", "At line:", "+ ", "~", "(vuoto)")
+    for line in text.splitlines():
+        line = line.strip()
+        if line and not line.startswith(skip):
+            return line[:300] + ("\u2026" if len(line) > 300 else "")
     return "Errore sconosciuto: apri i dettagli tecnici."
 
 

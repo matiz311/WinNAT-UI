@@ -37,6 +37,10 @@ class HelperTests(unittest.TestCase):
         self.assertTrue(app.error_summary(message).startswith("New-NetIPAddress : Inconsistent"))
         self.assertIn("sconosciuto", app.error_summary("PowerShell exit code: 1\n\nSTDERR:"))
         self.assertEqual(app.error_summary("Errore semplice"), "Errore semplice")
+        detailed = ("ESECUZIONE POWERSHELL NON RIUSCITA\n\nExit code: 1\n\nInterprete: powershell.exe\n\n"
+                    "STDERR (integrale):\nnetsh : L'oggetto esiste gi\u00e0.\nIn riga:7 car:1\n\n"
+                    "STDOUT (integrale):\n(vuoto)")
+        self.assertEqual(app.error_summary(detailed), "netsh : L'oggetto esiste gi\u00e0.")
 
     def test_service_status(self):
         self.assertEqual(app.service_status(4), "In esecuzione")

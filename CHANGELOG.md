@@ -12,11 +12,15 @@ Regole del progetto:
 ### Aggiunto
 - `tools/WinNAT-Diagnostica.ps1`: diagnostica di compatibilità in sola lettura (sistema, schede, IPv4, route, WinNAT, ICS, Hyper-V) con verdetto e indicazione delle schede utilizzabili come LAN/WAN; produce un report `.txt` e `.json` da allegare alle segnalazioni. Eseguito in CI come smoke test.
 
-## [1.7.4] - 2026-10-14
+## [1.7.5] - 2026-10-14
 ### Corretto
-- Finestra d'errore: il riepilogo mostra il primo messaggio utile invece di "PowerShell exit code: 1"; finestra centrata, coerente con il tema chiaro/scuro, dettagli tecnici a scomparsa, Esc per chiudere. Anche il messaggio di stato nella barra laterale mostra una sola riga leggibile.
+- Finestra d'errore: il riepilogo mostra il primo messaggio utile dello stderr invece delle intestazioni ("ESECUZIONE POWERSHELL NON RIUSCITA", exit code); finestra centrata, coerente con il tema chiaro/scuro, dettagli tecnici a scomparsa, Esc per chiudere. Anche il messaggio di stato nella barra laterale mostra una sola riga leggibile.
 - Output PowerShell letto in UTF-8: nomi di schede e messaggi con lettere accentate non risultano più corrotti (code page OEM 850 su Windows in italiano).
 - Versioning: unica fonte in `version.py`; versione file Windows, tag e note di release derivati automaticamente e verificati dai test. Le note di release non sono più scritte a mano nel workflow (in passato v1.3.0 e v1.6.1 avevano note copiate da altre versioni).
+
+## [1.7.4] - 2026-10-14
+### Cambiato
+- Errori PowerShell più completi: exit code, interprete, timeout, stderr e stdout integrali e script eseguito con righe numerate (per confrontare «In riga:X»).
 
 ## [1.7.3] - 2026-10-14
 ### Corretto

@@ -29,6 +29,33 @@ class GuideTests(unittest.TestCase):
         self.profile = dict(guide.DEFAULTS)
         self.data = inventory()
 
+    def test_failed_commit_includes_inventory_before_and_after(self):
+        fp = guide.fingerprint(self.profile, self.data)
+        post = dict(self.data)
+        post["globalRouter"] = 1
+        with patch("network_guide.network.snapshot", return_value="x"), patch(
+                "network_guide.network.ps", side_effect=RuntimeError("netsh exit 1")), patch(
+                "network_guide.network.collect", return_value=post):
+            with self.assertRaisesRegex(RuntimeError, "OPERAZIONE GUIDATA FALLITA") as caught:
+                guide.execute("apply", self.profile, self.data, fp)
+        message = str(caught.exception)
+        self.assertIn("ERRORE ORIGINALE:", message)
+        self.assertIn("netsh exit 1", message)
+        self.assertIn("CONFIGURAZIONE RILEVATA PRIMA", message)
+        self.assertIn("CONFIGURAZIONE RILEVATA DOPO", message)
+        self.assertIn('"globalRouter": 1', message)
+        self.assertIn("IPv4 atteso: 10.10.10.1/24", message)
+
+    def test_inventory_failure_preserves_original_error(self):
+        fp = guide.fingerprint(self.profile, self.data)
+        with patch("network_guide.network.snapshot", return_value="x"), patch(
+                "network_guide.network.ps", side_effect=RuntimeError("original failure")), patch(
+                "network_guide.network.collect", side_effect=RuntimeError("inventory failure")):
+            with self.assertRaises(RuntimeError) as caught:
+                guide.execute("apply", self.profile, self.data, fp)
+        self.assertIn("original failure", str(caught.exception))
+        self.assertIn("inventory failure", str(caught.exception))
+
     def test_apply_from_existing_lan(self):
         lines = guide.preview("apply", self.profile, self.data)
         self.assertTrue(any("DHCP IPv4 disabilitato" in line for line in lines))

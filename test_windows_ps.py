@@ -16,6 +16,13 @@ class PowerShellTests(unittest.TestCase):
             network.ps("$ErrorActionPreference='Stop'; Get-Item 'C:\\percorso-inesistente-winnat'")
         self.assertIn("STDERR", str(ctx.exception))
 
+    def test_error_line_matches_numbered_script(self):
+        with self.assertRaises(RuntimeError) as ctx:
+            network.ps("$ErrorActionPreference='Stop'\n$x = 1\nthrow 'errore-di-prova'")
+        text = str(ctx.exception)
+        self.assertRegex(text, r"(riga|line):\s*3\b")
+        self.assertIn("0003 | throw 'errore-di-prova'", text)
+
 
 if __name__ == "__main__":
     unittest.main()
