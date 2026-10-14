@@ -27,8 +27,15 @@ PAGES = [  # key, label, icon, subtitle
     ("sessions", "Sessioni", "sessions", "Traduzioni NAT attive in questo momento."),
     ("about", "Informazioni", "info", "Versione, scorciatoie e note di sicurezza."),
 ]
-FIELD_TITLES = {"lan": "LAN", "wan1": "WAN primaria", "wan2": "WAN di riserva", "prefix": "Subnet LAN",
-                "gateway": "IP del PC", "nat": "Nome NAT", "metric1": "Metrica primaria", "metric2": "Metrica di riserva"}
+FIELD_TITLES = {"lan": "LAN", "prefix": "Subnet LAN", "gateway": "IP del PC", "nat": "Nome NAT"}
+
+
+def field_title(key):
+    """Readable name for static fields and dynamic WAN rows ("wan:0", "metric:1")."""
+    if ":" in key:
+        kind, index = key.split(":")
+        return ("WAN " if kind == "wan" else "Metrica WAN ") + str(int(index) + 1)
+    return FIELD_TITLES.get(key, key)
 ADAPTER_STATUS = {"Up": "Connessa", "Disconnected": "Disconnessa", "Disabled": "Disabilitata",
                   "Not Present": "Assente", "Down": "Inattiva"}
 PROTOCOLS = {1: "ICMP", 6: "TCP", 17: "UDP", "1": "ICMP", "6": "TCP", "17": "UDP"}
@@ -131,14 +138,19 @@ class Topology(tk.Canvas):
         self.delete("all")
         w = max(self.winfo_width(), 560)
         a = self.app
-        lan, wan1, wan2 = a.lan.get() or "LAN ?", a.wan1.get() or "WAN ?", a.wan2.get()
+        wans = [(row["alias"].get(), row["metric"].get()) for row in a.wan_rows] or [("", "")]
+        lan = a.lan.get() or "LAN ?"
         prefix, gateway = a.prefix.get() or "?", a.gateway.get() or "?"
+        n = len(wans)
+        gap = 52
+        height = max(self.H, 92 + n * gap)
+        self.configure(height=height)
         col = [w * 0.11, w * 0.40, w * 0.69, w * 0.90]
         nw = min(170, w * 0.17)
-        mid, top = 96, 18
+        top = 18
+        mid = (height - 34) / 2 + 8
         for x, text in ((col[0], "RETE LAN"), (col[1], "QUESTO PC"), ((col[2] + col[3]) / 2, "USCITA INTERNET")):
             self.create_text(x, top, text=text, fill=C["text_faint"], font=F["overline"])
-        # LAN side
         self.create_line(col[0] + nw / 2, mid, col[1] - nw / 2 - 6, mid, fill=C["accent"], width=3, arrow="last",
                          arrowshape=(10, 12, 5))
         bad = getattr(self, "errors", {})
@@ -148,15 +160,20 @@ class Topology(tk.Canvas):
                   C["danger"] if "gateway" in bad else C["accent"],
                   fill=C["danger_soft"] if "gateway" in bad else C["accent_soft"])
         self.chip((col[0] + col[1]) / 2, mid - 18, lan, C["accent"])
-        # WAN side
-        y1, y2 = (mid - 38, mid + 38) if wan2 else (mid, mid)
         x_out = col[1] + (nw + 20) / 2
-        self.create_line(x_out, mid, col[2] - nw / 2, y1, fill=C["info"], width=3)
-        self.node(col[2], y1, nw, 46, wan1, "primaria \u00b7 metrica " + (a.metric1.get() or "?"), C["info"])
-        if wan2:
-            self.create_line(x_out, mid, col[2] - nw / 2, y2, fill=C["text_faint"], width=2, dash=(6, 4))
-            self.node(col[2], y2, nw, 46, wan2, "riserva \u00b7 metrica " + (a.metric2.get() or "?"), C["text_faint"], dashed=True)
         cx, r = col[3], min(44, w * 0.05)
+        ys = [mid + (i - (n - 1) / 2) * gap for i in range(n)]
+        for i, ((alias, metric), y) in enumerate(zip(wans, ys)):
+            primary = i == 0
+            color = C["danger"] if ("wan:%d" % i) in bad or ("metric:%d" % i) in bad else (
+                C["info"] if primary else C["text_faint"])
+            dash = None if primary else (6, 4)
+            self.create_line(x_out, mid, col[2] - nw / 2, y, fill=color, width=3 if primary else 2, dash=dash)
+            self.node(col[2], y, nw, 44, alias or "WAN ?",
+                      ("primaria" if primary else "riserva %d" % i) + " \u00b7 metrica " + (metric or "?"),
+                      color, dashed=not primary)
+            self.create_line(col[2] + nw / 2, y, cx - r, mid, fill=color, width=3 if primary else 2, dash=dash,
+                             arrow="last" if primary else None, arrowshape=(10, 12, 5))
         for dx, dy, k in ((-0.5, 0.15, 0.7), (0.05, -0.25, 0.85), (0.55, 0.12, 0.65), (0, 0.35, 0.7)):
             self.create_oval(cx + dx * r - k * r, mid + dy * r - k * r, cx + dx * r + k * r, mid + dy * r + k * r,
                              fill=C["surface_alt"], outline=C["border_strong"])
@@ -164,10 +181,7 @@ class Topology(tk.Canvas):
             self.create_oval(cx + dx * r - k * r + 2, mid + dy * r - k * r + 2, cx + dx * r + k * r - 2,
                              mid + dy * r + k * r - 2, fill=C["surface_alt"], outline="")
         self.create_text(cx, mid + 4, text="Internet", fill=C["text"], font=F["caption"])
-        self.create_line(col[2] + nw / 2, y1, cx - r, mid, fill=C["info"], width=3, arrow="last", arrowshape=(10, 12, 5))
-        if wan2:
-            self.create_line(col[2] + nw / 2, y2, cx - r, mid, fill=C["text_faint"], width=2, dash=(6, 4))
-        self.create_text(w / 2, self.H - 16, fill=C["text_muted"], font=F["caption"], width=w - 40,
+        self.create_text(w / 2, height - 16, fill=C["text_muted"], font=F["caption"], width=w - 40,
                          text="I client usano " + gateway + " come gateway e un DNS raggiungibile: "
                               "WinNAT non fornisce DHCP n\u00e9 DNS.")
 
@@ -425,14 +439,11 @@ class App(tk.Tk):
     # ---------------------------------------------------------- gateway ---
     def build_network(self, page):
         self.lan = tk.StringVar(value="Ethernet")
-        self.wan1 = tk.StringVar(value="USB-C")
-        self.wan2 = tk.StringVar(value="Wi-Fi")
-        self.wan = self.wan1
-        self.prefix = tk.StringVar(value="10.10.10.0/24")
-        self.gateway = tk.StringVar(value="10.10.10.1")
+        self.prefix = tk.StringVar(value=network_guide.DEFAULT_PREFIX)
+        self.gateway = tk.StringVar(value=network_guide.DEFAULT_GATEWAY)
         self.profile_nat = tk.StringVar(value="NAT-Firewall")
-        self.metric1 = tk.StringVar(value="10")
-        self.metric2 = tk.StringVar(value="50")
+        self.wan_rows = []
+        self.subnet_detected_for = None
 
         seg = ttk.Frame(page)
         seg.pack(fill="x", pady=(0, S3))
@@ -480,8 +491,11 @@ class App(tk.Tk):
             control = (ttk.Combobox(form, textvariable=variable, state="readonly")
                        if combo else ttk.Entry(form, textvariable=variable))
             control.grid(row=r + 1, column=col, columnspan=span, sticky="ew", padx=pad)
-            msg = ttk.Label(form, text=hint, style="Card.Caption.TLabel")
+            msg = ttk.Label(form, text=hint, style="Card.Caption.TLabel", justify="left",
+                            wraplength=200 if span == 1 else 420)
             msg.grid(row=r + 2, column=col, columnspan=span, sticky="w", pady=(2, 0), padx=pad)
+            form.bind("<Configure>", lambda e, m=msg, s=span: m.configure(
+                wraplength=max(120, (e.width - 16) // (2 if s == 1 else 1))), add="+")
             if newrow:
                 row[0] += 3
             self.field_errors[key] = (msg, hint)
@@ -489,17 +503,41 @@ class App(tk.Tk):
             variable.trace_add("write", lambda *a: self.validate_form())
             return control
 
-        heading("1", "Interfacce")
-        self.lan_box = field("lan", "LAN \u2014 verso i client", self.lan, True, "Scheda collegata al firewall o allo switch")
-        self.wan_box = field("wan1", "WAN primaria", self.wan1, True, "Gi\u00e0 connessa a Internet", col=0, span=1, newrow=False)
-        self.wan2_box = field("wan2", "WAN di riserva", self.wan2, True, "Opzionale", col=1, span=1)
-        heading("2", "Indirizzamento LAN")
-        field("prefix", "Subnet LAN (CIDR)", self.prefix, hint="Es. 10.10.10.0/24", col=0, span=1, newrow=False)
-        field("gateway", "IP del PC sulla LAN", self.gateway, hint="Gateway per i client", col=1, span=1)
+        heading("1", "Rete LAN")
+        self.lan_box = field("lan", "Interfaccia LAN \u2014 verso i client", self.lan, True,
+                             "Scheda collegata al firewall o allo switch")
+        self.lan.trace_add("write", lambda *a: self.on_lan_changed())
+        self.subnet_badge = ui.Badge(form, "", "neutral")
+        self.subnet_badge.grid(row=row[0], column=0, columnspan=2, sticky="w", pady=(S3, 0))
+        row[0] += 1
+        field("prefix", "Subnet LAN (CIDR)", self.prefix, hint="", col=0, span=1, newrow=False)
+        self.prefix.trace_add("write", lambda *a: self.follow_prefix())
+        field("gateway", "IP del PC sulla LAN", self.gateway, hint="Statico, senza gateway", col=1, span=1)
+        self.subnet_hint = ttk.Label(form, text="", style="Card.Caption.TLabel", wraplength=420, justify="left")
+        self.subnet_hint.grid(row=row[0], column=0, columnspan=2, sticky="w", pady=(0, S1))
+        row[0] += 1
         field("nat", "Nome regola NAT", self.profile_nat, hint="Lettere, numeri, - e _")
-        heading("3", "Priorit\u00e0 WAN")
-        field("metric1", "Metrica primaria", self.metric1, hint="Pi\u00f9 bassa = preferita", col=0, span=1, newrow=False)
-        field("metric2", "Metrica di riserva", self.metric2, hint="Maggiore della primaria", col=1, span=1)
+        heading("2", "Uscite Internet (WAN)")
+        wan_intro = ttk.Label(form, text="In ordine di priorit\u00e0: la prima \u00e8 la primaria, le altre "
+                                         "subentrano se cade quella sopra. Metrica pi\u00f9 bassa = preferita.",
+                              style="Card.Caption.TLabel", wraplength=420, justify="left")
+        wan_intro.grid(row=row[0], column=0, columnspan=2, sticky="w")
+        form.bind("<Configure>", lambda e: [lbl.configure(wraplength=max(200, e.width - 8))
+                                            for lbl in (wan_intro, self.subnet_hint)], add="+")
+        row[0] += 1
+        self.wan_frame = tk.Frame(form, bg=C["surface"])
+        self.wan_frame.grid(row=row[0], column=0, columnspan=2, sticky="ew", pady=(S2, 0))
+        self.wan_frame.columnconfigure(1, weight=1)
+        row[0] += 1
+        add_bar = tk.Frame(form, bg=C["surface"])
+        add_bar.grid(row=row[0], column=0, columnspan=2, sticky="w", pady=(S2, 0))
+        row[0] += 1
+        self.add_wan_button = ttk.Button(add_bar, text="+  Aggiungi WAN", style="CardGhost.TButton",
+                                         command=self.add_wan_row)
+        self.add_wan_button.pack(side="left")
+        self.add_wan_hint = ttk.Label(add_bar, text="", style="Card.Caption.TLabel")
+        self.add_wan_hint.pack(side="left", padx=S2)
+        self.add_wan_row("USB-C", "10", validate=False)
         ttk.Button(form, text="Ripristina valori consigliati", style="CardGhost.TButton",
                    command=self.reset_form).grid(row=row[0], column=0, columnspan=2, sticky="w", pady=(S4, 0))
 
@@ -553,33 +591,216 @@ class App(tk.Tk):
         self.modes[key].pack(fill="both", expand=True)
         self.update_scope()
 
+    # ---- WAN rows (1..N, bounded by the adapters on this PC) ----
+    def adapter_names(self):
+        return [ad["Name"] for ad in (self.data or {}).get("adapters", [])]
+
+    def default_route_aliases(self):
+        return [r.get("InterfaceAlias") for r in self.default_routes()]
+
+    def free_wan_candidates(self, exclude_row=None):
+        used = {self.lan.get()} | {r["alias"].get() for r in self.wan_rows if r is not exclude_row}
+        names = [n for n in self.adapter_names() if n not in used]
+        online = [n for n in self.default_route_aliases() if n in names]
+        return online + [n for n in names if n not in online]
+
+    def add_wan_row(self, alias=None, metric=None, validate=True):
+        if alias is None:
+            free = self.free_wan_candidates()
+            if self.data is not None and not free:
+                return
+            alias = free[0] if free else ""
+        if metric is None:
+            metric = str(network_guide.suggest_metric(
+                [{"alias": r["alias"].get(), "metric": r["metric"].get()} for r in self.wan_rows]))
+        row = {"alias": tk.StringVar(value=alias), "metric": tk.StringVar(value=metric)}
+        self.wan_rows.append(row)
+        for var in (row["alias"], row["metric"]):
+            var.trace_add("write", lambda *a: self.validate_form())
+        self.layout_wan_rows()
+        if validate:
+            self.validate_form()
+
+    def remove_wan_row(self, row):
+        if len(self.wan_rows) > 1:
+            self.wan_rows.remove(row)
+            self.layout_wan_rows()
+            self.validate_form()
+
+    def move_wan_row(self, row, delta):
+        i = self.wan_rows.index(row)
+        j = i + delta
+        if 0 <= j < len(self.wan_rows):
+            self.wan_rows[i], self.wan_rows[j] = self.wan_rows[j], self.wan_rows[i]
+            # Keep metrics in priority order: swap the values along with the rows.
+            mi, mj = self.wan_rows[i]["metric"].get(), self.wan_rows[j]["metric"].get()
+            self.wan_rows[i]["metric"].set(mj)
+            self.wan_rows[j]["metric"].set(mi)
+            self.layout_wan_rows()
+            self.validate_form()
+
+    def layout_wan_rows(self):
+        for child in self.wan_frame.winfo_children():
+            child.destroy()
+        for key in [k for k in self.field_errors if ":" in k]:
+            del self.field_errors[key]
+            del self.field_widgets[key]
+        single = len(self.wan_rows) == 1
+        for i, row in enumerate(self.wan_rows):
+            r = i * 2
+            tk.Label(self.wan_frame, text=str(i + 1), font=F["overline"], width=2,
+                     bg=C["info"] if i == 0 else C["surface_alt"],
+                     fg="#FFFFFF" if i == 0 else C["text_muted"]).grid(row=r, column=0, sticky="w", padx=(0, S2))
+            combo = ttk.Combobox(self.wan_frame, textvariable=row["alias"], state="readonly")
+            combo.grid(row=r, column=1, sticky="ew")
+            combo.configure(postcommand=lambda row=row, combo=combo: combo.configure(
+                values=self.free_wan_candidates(exclude_row=row)))
+            combo["values"] = self.free_wan_candidates(exclude_row=row)
+            entry = ttk.Entry(self.wan_frame, textvariable=row["metric"], width=6, justify="center")
+            entry.grid(row=r, column=2, padx=(S2, 0))
+            tools = tk.Frame(self.wan_frame, bg=C["surface"])
+            tools.grid(row=r, column=3, padx=(S1, 0))
+            up = ttk.Button(tools, text="\u2191", width=2, style="CardGhost.TButton",
+                            command=lambda row=row: self.move_wan_row(row, -1))
+            up.pack(side="left")
+            if i == 0:
+                up.state(["disabled"])
+            remove = ttk.Button(tools, text="\u2715", width=2, style="CardGhost.TButton",
+                                command=lambda row=row: self.remove_wan_row(row))
+            remove.pack(side="left")
+            if single:
+                remove.state(["disabled"])
+            hint = ("Primaria \u00b7 deve essere gi\u00e0 connessa a Internet" if i == 0
+                    else "Riserva \u00b7 subentra se cadono le WAN sopra")
+            msg = ttk.Label(self.wan_frame, text=hint, style="Card.Caption.TLabel")
+            msg.grid(row=r + 1, column=1, columnspan=3, sticky="w", pady=(2, S2))
+            self.field_errors["wan:%d" % i] = (msg, hint)
+            self.field_widgets["wan:%d" % i] = combo
+            self.field_errors["metric:%d" % i] = (msg, hint)
+            self.field_widgets["metric:%d" % i] = entry
+        self.update_add_wan()
+
+    def update_add_wan(self):
+        if not hasattr(self, "add_wan_button"):
+            return
+        free = self.free_wan_candidates() if self.data is not None else ["?"]
+        self.add_wan_button.state(["!disabled"] if free else ["disabled"])
+        total = len(self.adapter_names())
+        self.add_wan_hint.configure(
+            text="" if free else "Tutte le interfacce disponibili sono gi\u00e0 in uso" if total
+            else "")
+
+    def on_lan_changed(self):
+        """Selecting a LAN adopts the subnet already on that adapter, else 10.10.10.0/24."""
+        if self.data is None or not hasattr(self, "subnet_badge"):
+            return
+        lan = self.lan.get()
+        clash = [r for r in self.wan_rows if r["alias"].get() == lan]
+        for row in clash:   # an adapter cannot be LAN and WAN: the LAN choice wins
+            if len(self.wan_rows) > 1:
+                self.wan_rows.remove(row)
+            else:
+                free = self.free_wan_candidates(exclude_row=row)
+                row["alias"].set(free[0] if free else "")
+        if clash:
+            self.layout_wan_rows()
+            self.toast.show(lan + " ora \u00e8 la LAN: rimossa dalle WAN.", "info")
+        if lan != self.subnet_detected_for:
+            self.subnet_detected_for = lan
+            self.apply_detected_subnet()
+        self.update_add_wan()
+
+    def follow_prefix(self):
+        """Typing a new subnet moves the PC address to its first host if it no longer fits."""
+        try:
+            subnet = ipaddress.IPv4Network(network.validate_prefix(self.prefix.get().strip()))
+            ip = ipaddress.IPv4Address(self.gateway.get().strip())
+            if ip in subnet and ip not in (subnet.network_address, subnet.broadcast_address):
+                return
+        except ValueError:
+            try:
+                subnet = ipaddress.IPv4Network(network.validate_prefix(self.prefix.get().strip()))
+            except ValueError:
+                return
+        self.gateway.set(str(next(subnet.hosts())))
+
+    def apply_detected_subnet(self):
+        found = network_guide.detect_lan_subnet(self.data or {}, self.lan.get())
+        self.prefix.set(found["prefix"])
+        self.gateway.set(found["gateway"])
+        self.subnet_source = found
+        self.show_subnet_source()
+
+    def show_subnet_source(self):
+        found = getattr(self, "subnet_source", None)
+        if not found:
+            self.subnet_badge.grid_remove()
+            return
+        self.subnet_badge.grid()
+        lan = self.lan.get()
+        if found["prefix"] != self.prefix.get().strip() or found["gateway"] != self.gateway.get().strip():
+            self.subnet_badge.set("MODIFICATA A MANO", "accent")
+            text = ("Valori personalizzati. Rilevati su " + lan + ": " + found["gateway"] + " in " + found["prefix"]
+                    if found["source"] == "rilevata" else "Valori personalizzati al posto di quelli predefiniti.")
+        elif found["source"] == "rilevata":
+            self.subnet_badge.set("RILEVATA SU " + lan.upper(), "success")
+            text = ("L'indirizzo attuale di " + lan + " diventa statico e senza gateway; il NAT usa questa subnet.")
+            if found.get("origin") == "Dhcp":
+                text += (" Era assegnato via DHCP: se sulla LAN c'\u00e8 ancora un server DHCP, "
+                         "valuta una subnet diversa per evitare conflitti.")
+        else:
+            self.subnet_badge.set("PREDEFINITA", "neutral")
+            text = lan + " non ha un IPv4 utilizzabile: verr\u00e0 configurata la subnet predefinita."
+        self.subnet_hint.configure(text=text)
+
     def reset_form(self):
         d = network_guide.DEFAULTS
-        names = [a["Name"] for a in (self.data or {}).get("adapters", [])]
-        for var, key in ((self.lan, "lan"), (self.wan1, "wan1"), (self.wan2, "wan2")):
-            if not names or d[key] in names:
-                var.set(d[key])
-        for var, key in ((self.prefix, "prefix"), (self.gateway, "gateway"), (self.profile_nat, "nat"),
-                         (self.metric1, "metric1"), (self.metric2, "metric2")):
-            var.set(str(d[key]))
+        names = self.adapter_names()
+        if not names or d["lan"] in names:
+            self.lan.set(d["lan"])
+        self.wan_rows.clear()
+        online = [n for n in self.default_route_aliases() if n != self.lan.get()]
+        first = online[0] if online else d["wans"][0]["alias"]
+        self.add_wan_row(first, str(d["wans"][0]["metric"]), validate=False)
+        self.profile_nat.set(d["nat"])
+        self.subnet_detected_for = None
+        if self.data is not None:
+            self.on_lan_changed()
+        else:
+            self.prefix.set(d["prefix"])
+            self.gateway.set(d["gateway"])
+        self.validate_form()
 
     def form_profile(self):
-        return {"lan": self.lan.get(), "wan1": self.wan1.get(), "wan2": self.wan2.get(),
+        return {"lan": self.lan.get(),
+                "wans": [{"alias": r["alias"].get(), "metric": r["metric"].get().strip()} for r in self.wan_rows],
                 "prefix": self.prefix.get().strip(), "gateway": self.gateway.get().strip(),
-                "nat": self.profile_nat.get().strip(), "metric1": self.metric1.get().strip(),
-                "metric2": self.metric2.get().strip()}
+                "nat": self.profile_nat.get().strip()}
 
     def field_problems(self):
         """Inline, per-field validation (error prevention before any PowerShell call)."""
         p, errors = self.form_profile(), {}
         if not p["lan"]:
             errors["lan"] = "Seleziona la scheda LAN."
-        if not p["wan1"]:
-            errors["wan1"] = "Seleziona la WAN primaria."
-        elif p["wan1"] == p["lan"]:
-            errors["wan1"] = "Deve essere diversa dalla LAN."
-        if p["wan2"] and p["wan2"] in (p["lan"], p["wan1"]):
-            errors["wan2"] = "Deve essere diversa da LAN e WAN primaria."
+        seen = {p["lan"]}
+        previous = 0
+        for i, w in enumerate(p["wans"]):
+            if not w["alias"]:
+                errors["wan:%d" % i] = "Seleziona un'interfaccia."
+            elif w["alias"] in seen:
+                errors["wan:%d" % i] = ("Deve essere diversa dalla LAN." if w["alias"] == p["lan"]
+                                        else "Interfaccia gi\u00e0 usata da un'altra WAN.")
+            seen.add(w["alias"])
+            try:
+                metric = int(w["metric"])
+                if not 1 <= metric <= 9999:
+                    raise ValueError
+            except ValueError:
+                errors["metric:%d" % i] = "Metrica: numero intero da 1 a 9999."
+                continue
+            if metric <= previous:
+                errors["metric:%d" % i] = "Metrica: deve essere maggiore di " + str(previous) + " (WAN sopra)."
+            previous = metric
         subnet = None
         try:
             subnet = ipaddress.IPv4Network(network.validate_prefix(p["prefix"]))
@@ -590,33 +811,35 @@ class App(tk.Tk):
                 network.validate_gateway(p["gateway"], subnet)
             except ValueError as exc:
                 errors["gateway"] = friendly_ip_error(exc, str(next(subnet.hosts(), "10.10.10.1")))
+            for alias, net in network_guide.wan_networks(self.data or {}, [w["alias"] for w in p["wans"]]):
+                if net.overlaps(subnet):
+                    errors["prefix"] = "Si sovrappone alla rete di " + alias + " (" + str(net) + ")."
         try:
             network.validate_name(p["nat"])
         except ValueError as exc:
             errors["nat"] = str(exc)
-        metrics = {}
-        for key in ("metric1", "metric2"):
-            try:
-                metrics[key] = int(p[key])
-                if not 1 <= metrics[key] <= 9999:
-                    raise ValueError
-            except ValueError:
-                errors[key] = "Numero intero da 1 a 9999."
-        if p["wan2"] and len(metrics) == 2 and metrics["metric1"] >= metrics["metric2"]:
-            errors["metric2"] = "Deve essere maggiore della metrica primaria (" + str(metrics["metric1"]) + ")."
         return errors
 
     def validate_form(self):
         if not hasattr(self, "plan_list"):
             return
         errors = self.field_problems()
+        shown = set()
         for key, (label, hint) in self.field_errors.items():
             err = errors.get(key)
-            label.configure(text="⚠  " + err if err else hint,
-                            style="Card.Error.TLabel" if err else "Card.Caption.TLabel")
+            if ":" in key:  # WAN rows share one message line for alias + metric
+                index = key.split(":")[1]
+                err = errors.get("wan:" + index) or errors.get("metric:" + index)
+            if id(label) not in shown or err:
+                label.configure(text="⚠  " + err if err else hint,
+                                style="Card.Error.TLabel" if err else "Card.Caption.TLabel")
+                shown.add(id(label))
             widget = self.field_widgets[key]
             if isinstance(widget, ttk.Entry) and not isinstance(widget, ttk.Combobox):
-                widget.configure(style="Invalid.TEntry" if err else "TEntry")
+                widget.configure(style="Invalid.TEntry" if errors.get(key) else "TEntry")
+        if hasattr(self, "subnet_badge"):
+            self.show_subnet_source()
+            self.update_add_wan()
         for child in self.plan_list.winfo_children():
             child.destroy()
         issue = None
@@ -624,7 +847,7 @@ class App(tk.Tk):
         if self.data is None:
             issue = "Attendi il caricamento della configurazione di rete…"
         elif errors:
-            issue = "Da correggere: " + ", ".join(FIELD_TITLES[k] for k in errors if k in FIELD_TITLES) + "."
+            issue = "Da correggere: " + ", ".join(field_title(k) for k in errors) + "."
         else:
             try:
                 lines = network_guide.preview("apply", self.form_profile(), self.data)
@@ -651,7 +874,7 @@ class App(tk.Tk):
     def update_scope(self):
         if not hasattr(self, "scope_label"):
             return
-        wans = ", ".join(w for w in (self.wan1.get(), self.wan2.get()) if w) or "—"
+        wans = ", ".join(r["alias"].get() for r in self.wan_rows if r["alias"].get()) or "—"
         self.scope_label.set("Interfacce interessate (dalla scheda Configura):  LAN " + (self.lan.get() or "—")
                              + "   ·   WAN " + wans, "info")
 
@@ -868,15 +1091,19 @@ class App(tk.Tk):
         self.data = data
         adapter_names = [a["Name"] for a in data.get("adapters", [])]
         self.lan_box["values"] = adapter_names
-        self.wan2_box["values"] = [""] + adapter_names
-        if self.wan2.get() not in adapter_names:
-            self.wan2.set("Wi-Fi" if "Wi-Fi" in adapter_names else "")
-        self.wan_box["values"] = adapter_names
-        if adapter_names and self.lan.get() not in adapter_names:
-            self.lan.set("Ethernet" if "Ethernet" in adapter_names else adapter_names[0])
         routes = self.default_routes()
-        if routes and (not self.wan1.get() or self.wan1.get() not in adapter_names):
-            self.wan.set(routes[0].get("InterfaceAlias", ""))
+        online = [r.get("InterfaceAlias") for r in routes]
+        if adapter_names and self.lan.get() not in adapter_names:
+            offline = [n for n in adapter_names if n not in online]
+            self.lan.set("Ethernet" if "Ethernet" in adapter_names else (offline or adapter_names)[0])
+        # Drop WAN rows whose adapter disappeared; keep at least one row.
+        self.wan_rows[:] = [r for r in self.wan_rows if r["alias"].get() in adapter_names] or self.wan_rows[:1]
+        first = self.wan_rows[0]["alias"]
+        if first.get() not in adapter_names or first.get() == self.lan.get():
+            choice = [n for n in online if n != self.lan.get()]
+            first.set(choice[0] if choice else "")
+        self.layout_wan_rows()
+        self.on_lan_changed()
 
         lines = ["WAN prevista: " + (routes[0].get("InterfaceAlias", "?") if routes else "nessuna default route"), "",
                  "Interfacce e indirizzi IPv4:"]
@@ -957,7 +1184,7 @@ class App(tk.Tk):
         else:
             self.hero_cta.pack_forget()
 
-        lan, wans = self.lan.get(), [self.wan1.get(), self.wan2.get()]
+        lan, wans = self.lan.get(), [r["alias"].get() for r in self.wan_rows]
         default_alias = routes[0].get("InterfaceAlias") if routes else None
         t = self.iface_table
         t.delete(*t.get_children())
@@ -966,7 +1193,7 @@ class App(tk.Tk):
             ips = ", ".join(f"{p['IPAddress']}/{p['PrefixLength']}" for p in data.get("ips", [])
                             if p.get("InterfaceIndex") == a.get("InterfaceIndex")) or "—"
             info = ifaces.get(name, {})
-            role = "LAN" if name == lan else ("WAN 1" if name == wans[0] else "WAN 2" if name and name == wans[1] else "")
+            role = "LAN" if name == lan else ("WAN %d" % (wans.index(name) + 1) if name in wans else "")
             up = str(a.get("Status")) == "Up"
             status = ("●  " if up else "○  ") + ADAPTER_STATUS.get(str(a.get("Status")), str(a.get("Status") or "?"))
             if name == default_alias:
@@ -1176,7 +1403,7 @@ class App(tk.Tk):
             network.validate_alias(lan, self.data)
         except Exception as exc:
             return messagebox.showerror("Dati non validi", str(exc))
-        plan = {"lan": lan, "wan": self.wan.get(), "prefix": prefix, "gateway": gateway}
+        plan = {"lan": lan, "wan": self.wan_rows[0]["alias"].get(), "prefix": prefix, "gateway": gateway}
         try:
             network_plan.preflight(plan, self.data)
         except Exception as exc:

@@ -7,9 +7,71 @@ import ipaddress
 import json
 import network
 
-DEFAULTS = {"lan": "Ethernet", "wan1": "USB-C", "wan2": "Wi-Fi",
-            "prefix": "10.10.10.0/24", "gateway": "10.10.10.1",
-            "nat": "NAT-Firewall", "metric1": 10, "metric2": 50}
+DEFAULTS = {"lan": "Ethernet", "wans": [{"alias": "USB-C", "metric": 10}],
+            "prefix": "10.10.10.0/24", "gateway": "10.10.10.1", "nat": "NAT-Firewall"}
+DEFAULT_PREFIX, DEFAULT_GATEWAY = "10.10.10.0/24", "10.10.10.1"
+METRIC_STEP = 40   # suggested metric gap between consecutive WANs
+
+
+def wan_list(profile):
+    """WANs in priority order as [{"alias", "metric"}]. Accepts the legacy
+    wan1/metric1 + wan2/metric2 keys used by profiles saved before v1.9."""
+    if "wans" in profile:
+        raw = profile.get("wans") or []
+    else:
+        raw = [{"alias": profile.get("wan1", ""), "metric": profile.get("metric1", 10)},
+               {"alias": profile.get("wan2", ""), "metric": profile.get("metric2", 50)}]
+    wans = []
+    for item in raw:
+        alias = str(item.get("alias", "")).strip()
+        if alias:
+            wans.append({"alias": alias, "metric": item.get("metric", "")})
+    return wans
+
+
+def suggest_metric(wans):
+    metrics = [int(w["metric"]) for w in wans if str(w.get("metric", "")).strip().isdigit()]
+    return min(9999, (max(metrics) + METRIC_STEP) if metrics else 10)
+
+
+def detect_lan_subnet(data, alias):
+    """Subnet currently on the LAN adapter, kept as the static LAN network.
+
+    Returns {"prefix", "gateway", "source", "origin"}: source is "rilevata" when
+    a usable IPv4 exists on the interface (manual addresses preferred over DHCP),
+    otherwise "predefinita" with 10.10.10.0/24 and 10.10.10.1.
+    """
+    candidates = []
+    for ip in data.get("ips", []):
+        if ip.get("InterfaceAlias") != alias:
+            continue
+        try:
+            iface = ipaddress.IPv4Interface("%s/%s" % (ip.get("IPAddress"), ip.get("PrefixLength")))
+        except (ValueError, TypeError):
+            continue
+        net = iface.network
+        if iface.ip.is_link_local or iface.ip.is_loopback or not 8 <= net.prefixlen <= 30:
+            continue
+        if iface.ip in (net.network_address, net.broadcast_address):
+            continue
+        origin = str(ip.get("PrefixOrigin") or "")
+        candidates.append((0 if origin == "Manual" else 1, str(net), str(iface.ip), origin))
+    if candidates:
+        _rank, prefix, gateway, origin = sorted(candidates)[0]
+        return {"prefix": prefix, "gateway": gateway, "source": "rilevata", "origin": origin}
+    return {"prefix": DEFAULT_PREFIX, "gateway": DEFAULT_GATEWAY, "source": "predefinita", "origin": ""}
+
+
+def wan_networks(data, aliases):
+    nets = []
+    for ip in data.get("ips", []):
+        if ip.get("InterfaceAlias") in aliases:
+            try:
+                nets.append((ip.get("InterfaceAlias"), ipaddress.IPv4Interface(
+                    "%s/%s" % (ip.get("IPAddress"), ip.get("PrefixLength"))).network))
+            except (ValueError, TypeError):
+                pass
+    return nets
 
 
 def psquote(value):
@@ -31,11 +93,14 @@ def validate(profile, data, action):
     if action not in ("apply", "disable", "reset"):
         raise ValueError("Operazione sconosciuta.")
     lan = str(profile.get("lan", "")).strip()
-    wan1 = str(profile.get("wan1", "")).strip()
-    wan2 = str(profile.get("wan2", "")).strip()
-    if not lan or not wan1 or len({lan, wan1, wan2} - {""}) != len([x for x in (lan, wan1, wan2) if x]):
+    wans = wan_list(profile)
+    if not lan:
+        raise ValueError("Seleziona l'interfaccia LAN.")
+    if not wans:
+        raise ValueError("Seleziona almeno una WAN.")
+    aliases = [lan] + [w["alias"] for w in wans]
+    if len(set(aliases)) != len(aliases):
         raise ValueError("Seleziona interfacce LAN e WAN distinte.")
-    aliases = [lan, wan1] + ([wan2] if wan2 else [])
     if any(a not in _names(data) for a in aliases):
         raise ValueError("Almeno un'interfaccia non è presente sul PC.")
     for a in aliases:
@@ -43,11 +108,23 @@ def validate(profile, data, action):
     prefix = ipaddress.IPv4Network(network.validate_prefix(profile.get("prefix", "")))
     gateway = network.validate_gateway(profile.get("gateway", ""), prefix)
     nat = network.validate_name(profile.get("nat", "NAT-Firewall"))
-    m1, m2 = int(profile.get("metric1", 10)), int(profile.get("metric2", 50))
-    if not 1 <= m1 <= 9999 or not 1 <= m2 <= 9999 or (wan2 and m1 >= m2):
-        raise ValueError("Le metriche devono essere 1-9999, con primaria inferiore alla secondaria.")
-    normalized = dict(lan=lan, wan1=wan1, wan2=wan2, prefix=str(prefix),
-                      gateway=gateway, nat=nat, metric1=m1, metric2=m2)
+    previous = 0
+    for i, w in enumerate(wans):
+        try:
+            w["metric"] = int(w["metric"])
+        except (TypeError, ValueError):
+            raise ValueError("Metrica non valida per la WAN " + w["alias"] + ".")
+        if not 1 <= w["metric"] <= 9999:
+            raise ValueError("Le metriche devono essere comprese tra 1 e 9999.")
+        if w["metric"] <= previous:
+            raise ValueError("Le metriche devono crescere secondo la priorità: " + w["alias"]
+                             + " deve avere una metrica maggiore di " + str(previous) + ".")
+        previous = w["metric"]
+    for alias, net in (wan_networks(data, [w["alias"] for w in wans]) if action == "apply" else []):
+        if net.overlaps(prefix):
+            raise ValueError("La subnet LAN " + str(prefix) + " si sovrappone alla rete della WAN "
+                             + alias + " (" + str(net) + "): scegli un'altra subnet.")
+    normalized = dict(lan=lan, wans=wans, prefix=str(prefix), gateway=gateway, nat=nat)
     if action == "apply":
         if data.get("nats"):
             raise ValueError("WinNAT esistente: usa Ripristina o elimina le regole prima di applicare il profilo.")
@@ -55,14 +132,16 @@ def validate(profile, data, action):
             raise ValueError("ICS attivo: disabilita la condivisione prima di usare WinNAT.")
         if any(c.get("Error") for c in data.get("icsConnections", [])):
             raise ValueError("Stato ICS non verificabile: operazione bloccata.")
-        if not any(r.get("InterfaceAlias") == wan1 and r.get("DestinationPrefix") == "0.0.0.0/0"
-                   for r in data.get("routes", [])):
-            raise ValueError("WAN primaria senza default route. Collega la WAN a Internet prima del commit.")
-        for w in [wan2] if wan2 else []:
-            if not any(r.get("InterfaceAlias") == w and r.get("DestinationPrefix") == "0.0.0.0/0"
+        for i, w in enumerate(wans):
+            if not any(r.get("InterfaceAlias") == w["alias"] and r.get("DestinationPrefix") == "0.0.0.0/0"
                        for r in data.get("routes", [])):
-                raise ValueError("WAN secondaria senza default route. Deselezionala oppure collegala.")
+                raise ValueError(("WAN primaria " if i == 0 else "WAN ") + w["alias"] +
+                                 " senza default route: collegala a Internet o rimuovila dalla configurazione.")
     return normalized
+
+
+def _wan_aliases(p):
+    return [w["alias"] for w in wan_list(p)]
 
 
 def _on_lan(data, profile):
@@ -74,7 +153,7 @@ def _on_lan(data, profile):
 def preview(action, profile, data):
     p = validate(profile, data, action)
     lan_ips, lan_routes = _on_lan(data, p)
-    involved = [p["lan"], p["wan1"]] + ([p["wan2"]] if p["wan2"] else [])
+    involved = [p["lan"]] + _wan_aliases(p)
     names = [n.get("Name") for n in data.get("nats", [])]
     if action == "apply":
         items = [
@@ -84,10 +163,10 @@ def preview(action, profile, data):
             "LAN: configura " + p["gateway"] + "/" + p["prefix"].split("/")[1] + " senza gateway",
             "Routing globale: IPEnableRouter = 1 (riavvio raccomandato)",
             "Forwarding IPv4: abilita su " + ", ".join(involved),
-            "WAN primaria " + p["wan1"] + ": metrica " + str(p["metric1"]),
         ]
-        if p["wan2"]:
-            items.append("WAN secondaria " + p["wan2"] + ": metrica " + str(p["metric2"]))
+        for i, w in enumerate(p["wans"]):
+            items.append(("WAN primaria " if i == 0 else "WAN " + str(i + 1) + " ") + w["alias"]
+                         + ": metrica " + str(w["metric"]))
         items.append("Crea NAT " + p["nat"] + " per " + p["prefix"])
         items.append("WAN: DHCP, gateway e DNS esistenti NON vengono modificati.")
     elif action == "disable":
@@ -111,7 +190,7 @@ def preview(action, profile, data):
 def fingerprint(profile, data):
     """Optimistic concurrency check on exactly the settings this profile changes."""
     p = profile
-    aliases = {p["lan"], p["wan1"], p["wan2"]} - {""}
+    aliases = {p["lan"], *_wan_aliases(p)}
     def order(values):
         return sorted(values, key=lambda item: json.dumps(item, sort_keys=True, default=str))
     return json.dumps({
@@ -126,19 +205,17 @@ def fingerprint(profile, data):
 
 
 def _guard_script(p):
-    return """
-$ErrorActionPreference = 'Stop'
-$lan = %s
-$wan1 = %s
-$wan2 = %s
-$lanIndex = (Get-NetAdapter -Name $lan -ErrorAction Stop).ifIndex
-$wanIndex = (Get-NetAdapter -Name $wan1 -ErrorAction Stop).ifIndex
-if ($lanIndex -eq $wanIndex) { throw 'LAN e WAN coincidono' }
-if ($wan2) {
-    $wan2Index = (Get-NetAdapter -Name $wan2 -ErrorAction Stop).ifIndex
-    if ($wan2Index -eq $lanIndex -or $wan2Index -eq $wanIndex) { throw 'Interfacce duplicate' }
-}
-""" % (psquote(p["lan"]), psquote(p["wan1"]), psquote(p["wan2"]))
+    """Bind $lan, $wan1..$wanN and refuse to run if two names share an adapter."""
+    lines = ["", "$ErrorActionPreference = 'Stop'", "$lan = " + psquote(p["lan"])]
+    for i, alias in enumerate(_wan_aliases(p), 1):
+        lines.append("$wan%d = %s" % (i, psquote(alias)))
+    names = ["$lan"] + ["$wan%d" % i for i in range(1, len(p["wans"]) + 1)]
+    lines += [
+        "$lanIndex = (Get-NetAdapter -Name $lan -ErrorAction Stop).ifIndex",
+        "$indexes = @(" + ", ".join("(Get-NetAdapter -Name %s -ErrorAction Stop).ifIndex" % n for n in names) + ")",
+        "if (@($indexes | Select-Object -Unique).Count -ne $indexes.Count) { throw 'Interfacce LAN/WAN duplicate' }",
+        ""]
+    return "\n".join(lines)
 
 
 def execute(action, profile, current, expected_fingerprint):
@@ -198,12 +275,11 @@ def execute(action, profile, current, expected_fingerprint):
             "Remove-NetRoute -Confirm:$false -ErrorAction Stop",
             "Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters' -Name IPEnableRouter -Value 1 -ErrorAction Stop",
             "Set-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -Forwarding Enabled -ErrorAction Stop",
-            "Set-NetIPInterface -InterfaceAlias $wan1 -AddressFamily IPv4 -Forwarding Enabled -ErrorAction Stop",
-            "Set-NetIPInterface -InterfaceAlias $wan1 -AddressFamily IPv4 -InterfaceMetric %d -ErrorAction Stop" % p["metric1"],
         ]
-        if p["wan2"]:
-            script += ["Set-NetIPInterface -InterfaceAlias $wan2 -AddressFamily IPv4 -Forwarding Enabled -ErrorAction Stop",
-                       "Set-NetIPInterface -InterfaceAlias $wan2 -AddressFamily IPv4 -InterfaceMetric %d -ErrorAction Stop" % p["metric2"]]
+        for i, w in enumerate(p["wans"], 1):
+            script += ["Set-NetIPInterface -InterfaceAlias $wan%d -AddressFamily IPv4 -Forwarding Enabled -ErrorAction Stop" % i,
+                       "Set-NetIPInterface -InterfaceAlias $wan%d -AddressFamily IPv4 -InterfaceMetric %d -ErrorAction Stop"
+                       % (i, w["metric"])]
         script.append("New-NetNat -Name %s -InternalIPInterfaceAddressPrefix %s -ErrorAction Stop | Out-Null"
                       % (psquote(p["nat"]), psquote(p["prefix"])))
     else:
@@ -211,16 +287,12 @@ def execute(action, profile, current, expected_fingerprint):
             # Unrestricted by creator: every existing WinNAT is removed as explicitly previewed.
             "Get-NetNat -ErrorAction Stop | Remove-NetNat -Confirm:$false -ErrorAction Stop",
             "Set-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -Forwarding Disabled -ErrorAction Stop",
-            "Set-NetIPInterface -InterfaceAlias $wan1 -AddressFamily IPv4 -Forwarding Disabled -ErrorAction Stop",
         ]
-        if p["wan2"]:
-            script.append("Set-NetIPInterface -InterfaceAlias $wan2 -AddressFamily IPv4 -Forwarding Disabled -ErrorAction Stop")
+        for i in range(1, len(p["wans"]) + 1):
+            script.append("Set-NetIPInterface -InterfaceAlias $wan%d -AddressFamily IPv4 -Forwarding Disabled -ErrorAction Stop" % i)
         if action == "reset":
-            script += [
-                "Set-NetIPInterface -InterfaceAlias $wan1 -AddressFamily IPv4 -AutomaticMetric Enabled -ErrorAction Stop",
-            ]
-            if p["wan2"]:
-                script.append("Set-NetIPInterface -InterfaceAlias $wan2 -AddressFamily IPv4 -AutomaticMetric Enabled -ErrorAction Stop")
+            for i in range(1, len(p["wans"]) + 1):
+                script.append("Set-NetIPInterface -InterfaceAlias $wan%d -AddressFamily IPv4 -AutomaticMetric Enabled -ErrorAction Stop" % i)
             script += [
                 # Reset all manually configured addresses/default gateway
                 # while setting DHCP, without an intermediate inconsistent store.
@@ -254,8 +326,8 @@ def execute(action, profile, current, expected_fingerprint):
             "OPERAZIONE GUIDATA FALLITA\n"
             "Azione: " + action + "\n"
             "Interfaccia LAN: " + p["lan"] + "\n"
-            "WAN primaria: " + p["wan1"] + "\n"
-            "WAN secondaria: " + (p["wan2"] or "nessuna") + "\n"
+            "WAN (in ordine di priorità): " + ", ".join(
+                w["alias"] + " [metrica " + str(w["metric"]) + "]" for w in p["wans"]) + "\n"
             "IPv4 atteso: " + p["gateway"] + "/" + p["prefix"].split("/")[1] + "\n"
             "NAT atteso: " + p["nat"] + "\n\n"
             "ERRORE ORIGINALE:\n" + str(error) + "\n\n"

@@ -85,6 +85,17 @@ class RollbackTests(unittest.TestCase):
                 rb.rollback(before, scope, "backup.json")
         ps.assert_not_called()
 
+    def test_scope_covers_every_wan(self):
+        profile = dict(lan="Loopback0", nat="NAT-Firewall",
+                       wans=[{"alias": "Wi-Fi", "metric": 10}, {"alias": "USB-C", "metric": 50},
+                             {"alias": "LTE", "metric": 90}])
+        for action in ("apply", "reset"):
+            scope = rb.scope_for("guide", (action, profile, "fp"), state())
+            self.assertEqual(scope["metrics"], {"Wi-Fi", "USB-C", "LTE"})
+            self.assertEqual(scope["forwarding"], {"Loopback0", "Wi-Fi", "USB-C", "LTE"})
+        scope = rb.scope_for("guide", ("disable", profile, "fp"), state())
+        self.assertEqual(scope["metrics"], set())
+
 
 if __name__ == "__main__":
     unittest.main()

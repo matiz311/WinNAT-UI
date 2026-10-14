@@ -7,6 +7,7 @@ restoration. The original error and snapshot remain available.
 import ipaddress
 import json
 import network
+import network_guide
 
 
 def quote(value):
@@ -24,7 +25,8 @@ def scope_for(kind, args, before):
              "forwarding": set(), "notes": []}
     if kind == "guide":
         action, profile = args[0], args[1]
-        involved = {profile["lan"], profile["wan1"]} | ({profile["wan2"]} if profile.get("wan2") else set())
+        wans = {w["alias"] for w in network_guide.wan_list(profile)}
+        involved = {profile["lan"]} | wans
         scope["interfaces"] = involved
         scope["forwarding"] = set(involved)
         scope["router"] = True
@@ -33,14 +35,8 @@ def scope_for(kind, args, before):
             scope["ips"].add(profile["lan"])
             scope["routes"].add(profile["lan"])
             scope["dhcp"].add(profile["lan"])
-        if action == "apply":
-            scope["metrics"].add(profile["wan1"])
-            if profile.get("wan2"):
-                scope["metrics"].add(profile["wan2"])
-        if action == "reset":
-            scope["metrics"].add(profile["wan1"])
-            if profile.get("wan2"):
-                scope["metrics"].add(profile["wan2"])
+        if action in ("apply", "reset"):
+            scope["metrics"].update(wans)
     elif kind in ("add", "remove"):
         scope["nats"].add(args[0])
     elif kind == "setup":
