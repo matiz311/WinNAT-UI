@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, simpledialog
 import network
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 
 class App(tk.Tk):
     def __init__(self):
@@ -83,6 +83,12 @@ class App(tk.Tk):
         ttk.Label(wizard, text="Rimozione configurazione gestita", font=("Segoe UI", 12, "bold")).pack(anchor="w")
         ttk.Label(wizard, text="Rimuove il NAT gestito dal wizard e, se aggiunto dall'app, il suo IP LAN. Non rimuove configurazioni estranee.").pack(anchor="w", pady=5)
         ttk.Button(wizard, text="Rimuovi", command=self.teardown).pack(anchor="w", pady=9)
+        ttk.Separator(wizard).pack(fill="x", pady=10)
+        ttk.Label(wizard, text="Rimuovi una configurazione preesistente", font=("Segoe UI", 12, "bold")).pack(anchor="w")
+        ttk.Label(wizard, text="Per configurazioni create esternamente: rimuove solo il NAT che corrisponde alla subnet inserita. Non modifica ICS, DHCP, VPN o altri NAT.").pack(anchor="w", pady=4)
+        self.remove_address = tk.BooleanVar(value=False)
+        ttk.Checkbutton(wizard, text="Rimuovi anche l'IP LAN specificato (solo se corrisponde esattamente)", variable=self.remove_address).pack(anchor="w", pady=4)
+        ttk.Button(wizard, text="Rimuovi esistente", command=self.external_teardown).pack(anchor="w", pady=7)
         self.wizard_notice = tk.StringVar(value="Nessuna modifica preparata")
         ttk.Label(wizard, textvariable=self.wizard_notice).pack(anchor="w", pady=7)
 
@@ -188,6 +194,12 @@ class App(tk.Tk):
                 self.nat_table.insert("","end",values=("+ Da creare",p["args"][0],p["args"][1],"Non applicata"))
             if p["kind"]=="setup":
                 self.nat_table.insert("","end",values=("+ Setup", "WinNAT-UI",p["args"][1],"Non applicata"))
+            if p["kind"]=="external_teardown":
+                for item in self.nat_table.get_children():
+                    v=list(self.nat_table.item(item,"values"))
+                    if v[1] in p["args"][3]:
+                        v[0]="- Da eliminare"
+                        self.nat_table.item(item,values=v)
             if p["kind"]=="teardown":
                 state=network.managed_state()
                 if state and state["nat"] in nats and state["nat"] not in removals:
@@ -255,6 +267,27 @@ class App(tk.Tk):
         if not state:return messagebox.showinfo("Configurazione","Non esiste un setup registrato dall'app.")
         self.stage("teardown",(),"Rimuovi configurazione",state["lan"]+" | "+state["prefix"])
 
+    def external_teardown(self):
+        if self.data is None:
+            return
+        try:
+            lan=self.lan.get()
+            prefix=network.validate_prefix(self.prefix.get().strip())
+            gateway=network.validate_gateway(self.gateway.get().strip(),ipaddress.IPv4Network(prefix))
+            network.validate_alias(lan,self.data)
+        except Exception as exc:
+            return messagebox.showerror("Dati non validi",str(exc))
+        matches=[n["Name"] for n in self.data.get("nats",[]) if n.get("InternalIPInterfaceAddressPrefix")==prefix]
+        if not matches:
+            return messagebox.showinfo("NAT assente","Nessuna regola WinNAT per "+prefix+". Per altre subnet usa la tab NAT.")
+        if len(matches)!=1:
+            return messagebox.showwarning("Selezione necessaria","Trovate piu regole per questa subnet. Rimuovile individualmente dalla tab NAT.")
+        remove_ip=bool(self.remove_address.get())
+        details="NAT: "+matches[0]+" | LAN: "+lan+" | "+prefix
+        if remove_ip:
+            details+=" | Rimuovi anche IP "+gateway
+        self.stage("external_teardown",(lan,prefix,gateway,tuple(matches),remove_ip),"Rimuovi esistente",details)
+
     def unstage(self):
         selected=self.pending_table.selection()
         if not selected:return
@@ -296,6 +329,8 @@ class App(tk.Tk):
                     network.setup(*args,current)
                 elif kind=="teardown":
                     network.teardown(current)
+                elif kind=="external_teardown":
+                    network.remove_existing_configuration(*args,current)
                 completed.append(p)
                 current=network.collect()
             return completed
