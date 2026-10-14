@@ -77,3 +77,10 @@ Early public release. Real-world Windows tests of forwarding, NAT, rollback beha
 - Async operations display an indeterminate progress bar. PowerShell runs without a separate console window.
 
 For safety, the commit currently applies **one operation at a time**, although multiple changes can be staged. Windows operations do not offer transactional rollback.
+
+## Version 1.4.0: existing configuration removal
+- Independent adapter, IPv4, routing, forwarding and NAT inventory queries run concurrently; sessions remain separate.
+- **Rete > Rimuovi esistente** stages removal of an existing NAT rule matching the selected subnet, including rules created outside this app.
+- The LAN interface address is preserved unless optional exact-address removal is explicitly selected. ICS, DHCP, VPN and unrelated settings are not touched.
+- Review **Modifiche**, then select **Commit**. Once the old NAT is removed, return to **Rete** to stage a clean setup.
+- Local console access is strongly recommended: removing networking configurations can terminate a remote management session.
