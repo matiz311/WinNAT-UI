@@ -57,7 +57,7 @@ jobs:
           }
           exit 0
       - name: Package executable
-        run: pyinstaller --noconfirm --clean --noupx --onedir --windowed --uac-admin --version-file version_info.txt --name WinNAT-UI app.py
+        run: pyinstaller --noconfirm --clean --noupx --onedir --windowed --uac-admin --version-file version_info.txt --icon assets/winnat-ui.ico --add-data "assets/winnat-ui.ico;assets" --add-data "assets/winnat-ui-256.png;assets" --add-data "assets/winnat-ui-32.png;assets" --name WinNAT-UI app.py
       - name: Verify Windows executable metadata
         shell: pwsh
         run: |
@@ -65,6 +65,11 @@ jobs:
           $info = (Get-Item $exe).VersionInfo
           $info | Format-List ProductName,FileDescription,CompanyName,FileVersion,ProductVersion
           if ($info.ProductName -ne 'WinNAT UI') { throw 'Product metadata mismatch.' }
+          foreach ($asset in 'winnat-ui.ico','winnat-ui-256.png','winnat-ui-32.png') {
+            if (-not (Get-ChildItem 'dist/WinNAT-UI' -Recurse -Filter $asset)) { throw "Icon asset missing from build: $asset" }
+          }
+          Add-Type -AssemblyName System.Drawing
+          if (-not [System.Drawing.Icon]::ExtractAssociatedIcon($exe)) { throw 'Executable has no icon.' }
           $expected = (python tools/release.py version).Trim() + '.0'
           if ($info.FileVersion -ne $expected -or $info.ProductVersion -ne $expected) { throw "Version mismatch: exe $($info.FileVersion), version.py $expected" }
           $signature = Get-AuthenticodeSignature -FilePath $exe

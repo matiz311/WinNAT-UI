@@ -10,6 +10,12 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
 
 
+## [1.9.3] - 2026-10-15
+### Aggiunto
+- Icona dell'applicazione: dispositivi della LAN che convergono nel gateway NAT e un'unica uscita verso Internet, nei colori dell'interfaccia. Usata per l'eseguibile, la barra del titolo, la barra delle applicazioni, le finestre di dialogo e il logo nella barra laterale.
+- File `.ico` con 10 risoluzioni (16–256 px) e disegni semplificati per le dimensioni piccole; sorgenti SVG in `assets/` e `tools/build_icon.py` per rigenerarle.
+- La build verifica che l'eseguibile abbia l'icona e che i file grafici siano inclusi.
+
 ## [1.9.2] - 2026-10-14
 ### Corretto
 - Impronta anteprima del gateway normalizzata anche con WAN dinamiche: ignora stato/velocità adattatori, AddressState, APIPA e route connesse generate automaticamente, preservando i controlli di sicurezza su IP LAN, gateway WAN, NAT, forwarding, metriche e interfacce.

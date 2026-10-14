@@ -1,3 +1,5 @@
+<img src="assets/winnat-ui-256.png" alt="" width="96" align="right">
+
 # WinNAT UI
 
 **Italiano** | [English](README.en.md)
