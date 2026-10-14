@@ -17,9 +17,13 @@ def admin():
 
 def ps(script):
     """Execute readable PowerShell commands, without Base64, packing or shell invocation."""
+    startup = subprocess.STARTUPINFO() if os.name == "nt" else None
+    if startup is not None:
+        startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startup.wShowWindow = 0
     process = subprocess.run(
         [POWERSHELL, "-NoProfile", "-NonInteractive", "-Command", script],
-        capture_output=True, text=True, timeout=60, shell=False)
+        capture_output=True, text=True, timeout=60, shell=False, startupinfo=startup)
     if process.returncode:
         raise RuntimeError((process.stderr or process.stdout).strip() or "PowerShell failed")
     return process.stdout.strip()
