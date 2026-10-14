@@ -910,9 +910,62 @@ class App(tk.Tk):
         ttk.Button(page.actions, text="Scarta tutto", command=self.discard).pack(side="right")
         self.changes_box = ttk.Frame(page)
         self.changes_box.pack(fill="both", expand=True)
+        console_card = ui.Card(page, padding=S3)
+        console_card.pack(fill="both", expand=True, pady=(S2, 0))
+        console_header = tk.Frame(console_card.body, bg=C["surface"])
+        console_header.pack(fill="x")
+        tk.Label(console_header, text="Console Commit · PowerShell", font=F["strong"],
+                 fg=C["text"], bg=C["surface"]).pack(side="left")
+        ttk.Button(console_header, text="Copia output", command=self.copy_commit_log).pack(side="right")
+        ttk.Button(console_header, text="Pulisci", command=self.clear_commit_log).pack(side="right", padx=S2)
+        console_frame = tk.Frame(console_card.body, bg=C["surface_alt"])
+        console_frame.pack(fill="both", expand=True, pady=(S2, 0))
+        self.commit_console = tk.Text(console_frame, wrap="none", height=13,
+                                      font=F["mono_s"], state="disabled",
+                                      bg=C["surface_alt"], fg=C["text"], bd=0,
+                                      insertbackground=C["text"], padx=S2, pady=S2,
+                                      selectbackground=C["select"])
+        yscroll = ttk.Scrollbar(console_frame, orient="vertical", command=self.commit_console.yview)
+        xscroll = ttk.Scrollbar(console_frame, orient="horizontal", command=self.commit_console.xview)
+        self.commit_console.configure(yscrollcommand=yscroll.set, xscrollcommand=xscroll.set)
+        yscroll.pack(side="right", fill="y")
+        xscroll.pack(side="bottom", fill="x")
+        self.commit_console.pack(side="left", fill="both", expand=True)
+        self.commit_console.bind("<Control-a>", lambda e: (self.commit_console.tag_add("sel", "1.0", "end-1c"), "break")[1])
+        self.commit_console.tag_configure("command", foreground=C["accent"])
+        self.commit_console.tag_configure("stderr", foreground=C["danger"])
+        self.commit_console.tag_configure("status", foreground=C["text_muted"])
+        self.commit_console.tag_configure("info", foreground=C["text_muted"])
         # Kept for compatibility with older code paths (select + unstage).
         self.pending_table = ttk.Treeview(page, columns=("action", "details"), show="headings")
         self.summary = tk.Text(page)
+
+    def append_commit_log(self, kind, message):
+        """Only the Tk event-loop may edit the read-only Commit console."""
+        if not hasattr(self, "commit_console"):
+            return
+        prefix = {"command": ">>> PowerShell", "stdout": "STDOUT", "stderr": "STDERR",
+                  "status": "ESITO", "info": "COMMIT"}.get(kind, kind.upper())
+        text = prefix + ":\n" + str(message).rstrip() + "\n\n"
+        widget = self.commit_console
+        widget.configure(state="normal")
+        widget.insert("end", text, kind)
+        widget.configure(state="disabled")
+        widget.see("end")
+
+    def clear_commit_log(self):
+        if "Commit" in self.tasks:
+            return
+        self.commit_console.configure(state="normal")
+        self.commit_console.delete("1.0", "end")
+        self.commit_console.configure(state="disabled")
+
+    def copy_commit_log(self):
+        details = self.commit_console.get("1.0", "end-1c")
+        self.clipboard_clear()
+        self.clipboard_append(details)
+        self.update_idletasks()
+        self.toast.show("Output dei comandi copiato.", "success")
 
     def render_changes(self):
         for child in self.changes_box.winfo_children():
@@ -1148,6 +1201,9 @@ class App(tk.Tk):
         try:
             while True:
                 key, ok, value, callback = self.work.get_nowait()
+                if key == "__commit_log__":
+                    self.append_commit_log(value[0], value[1])
+                    continue
                 self.tasks.discard(key)
                 if not self.tasks:
                     self.progress.stop()
@@ -1657,7 +1713,25 @@ class App(tk.Tk):
                                                     "IPEnableRouter è cambiato." if router_changed else ""),
                             "success", ms=9000 if router_changed else 4000)
             self.refresh()
-        self.run_task("Commit", execute, success)
+        self.show_page("changes")
+        self.clear_commit_log()
+        self.append_commit_log("info", "Avvio commit · " + changes[0]["label"])
+        def execute_logged():
+            token = network.command_logger.set(
+                lambda kind, message: self.work.put(
+                    ("__commit_log__", True, (kind, message), None)))
+            try:
+                self.work.put(("__commit_log__", True,
+                               ("info", "Snapshot della configurazione e verifiche preliminari"), None))
+                result = execute()
+                self.work.put(("__commit_log__", True, ("info", "Commit completato"), None))
+                return result
+            except Exception as exc:
+                self.work.put(("__commit_log__", True, ("stderr", "Errore commit: " + str(exc)), None))
+                raise
+            finally:
+                network.command_logger.reset(token)
+        self.run_task("Commit", execute_logged, success)
 
     # --------------------------------------------------------- sessions ---
     def periodic_sessions(self):

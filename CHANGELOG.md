@@ -10,6 +10,11 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
 
 
+## [1.9.4] - 2026-10-15
+### Migliorato
+- Nella scheda Modifiche, console PowerShell aggiornabile durante il commit: mostra ogni script, STDOUT, STDERR e il codice di uscita.
+- Log leggibile e copiabile anche se il commit fallisce e viene tentato un rollback; senza logging delle raccolte inventario esterne al commit.
+
 ## [1.9.3] - 2026-10-15
 ### Aggiunto
 - Controllo automatico all'avvio della release stabile ufficiale disponibile su GitHub e comando «Controlla aggiornamenti» nella pagina Informazioni.
