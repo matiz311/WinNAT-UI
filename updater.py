@@ -166,13 +166,17 @@ try {
         throw 'Eseguibile nuovo assente.'
     }
     New-Item -ItemType Directory -Path $backup -Force | Out-Null
-    # Copy old program before any destructive operation.
+    # Copy old application files before modifying any installed file.
     Copy-Item -Path (Join-Path $InstallDir '*') -Destination $backup -Recurse -Force -ErrorAction Stop
+    $oldCount = @(Get-ChildItem -LiteralPath $backup -Recurse -File).Count
+    if ($oldCount -lt 1 -or -not (Test-Path -LiteralPath (Join-Path $backup 'WinNAT-UI.exe'))) {
+        throw 'Backup non completo: installazione non avviata.'
+    }
     try {
         Copy-Item -Path (Join-Path $source '*') -Destination $InstallDir -Recurse -Force -ErrorAction Stop
     } catch {
         Copy-Item -Path (Join-Path $backup '*') -Destination $InstallDir -Recurse -Force -ErrorAction Stop
-        throw ('Installazione fallita; tentato ripristino: ' + $_.Exception.Message)
+        throw ('Installazione fallita; ripristino tentato: ' + $_.Exception.Message)
     }
     if (-not (Test-Path -LiteralPath $installed)) { throw 'Installazione priva di EXE.' }
     Start-Process -FilePath $installed -WorkingDirectory $InstallDir
