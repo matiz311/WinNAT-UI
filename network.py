@@ -33,7 +33,6 @@ $ips = @(Get-NetIPAddress -AddressFamily IPv4 | Select-Object InterfaceAlias,Int
 $routes = @(Get-NetRoute -AddressFamily IPv4 | Select-Object InterfaceAlias,InterfaceIndex,DestinationPrefix,NextHop,RouteMetric,InterfaceMetric)
 $ifaces = @(Get-NetIPInterface -AddressFamily IPv4 | Select-Object InterfaceAlias,InterfaceIndex,Forwarding,Dhcp,ConnectionState,InterfaceMetric)
 $nats = @(Get-NetNat | Select-Object Name,InternalIPInterfaceAddressPrefix,ExternalIPInterfaceAddressPrefix,Active)
-$sessions = @(Get-NetNatSession | Select-Object -First 100 NatName,InternalSourceAddress,InternalDestinationAddress,ExternalSourceAddress,ExternalDestinationAddress,Protocol)
 $ics = Get-Service SharedAccess | Select-Object Name,Status,StartType
 $connections = @()
 try {
@@ -48,9 +47,22 @@ try {
     }
   }
 } catch { $connections += [pscustomobject]@{Name='ICS inspection error';Error=$_.Exception.Message} }
-[pscustomobject]@{adapters=$adapters;ips=$ips;routes=$routes;interfaces=$ifaces;nats=$nats;sessions=$sessions;ics=$ics;icsConnections=$connections} | ConvertTo-Json -Depth 8 -Compress
+[pscustomobject]@{adapters=$adapters;ips=$ips;routes=$routes;interfaces=$ifaces;nats=$nats;ics=$ics;icsConnections=$connections} | ConvertTo-Json -Depth 8 -Compress
 """
     return json.loads(ps(script))
+
+def sessions():
+    """Load active NAT sessions on demand, independently of interface discovery."""
+    script = r"""
+$ErrorActionPreference = 'Stop'
+@(Get-NetNatSession | Select-Object -First 500 NatName,InternalSourceAddress,InternalSourcePort,InternalDestinationAddress,InternalDestinationPort,ExternalSourceAddress,ExternalSourcePort,ExternalDestinationAddress,ExternalDestinationPort,Protocol) | ConvertTo-Json -Depth 4 -Compress
+"""
+    raw = ps(script)
+    if not raw:
+        return []
+    value = json.loads(raw)
+    return value if isinstance(value, list) else [value]
+
 
 def snapshot(data):
     folder = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "WinNAT-UI" / "backups"
