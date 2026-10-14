@@ -1319,12 +1319,12 @@ class App(tk.Tk):
                         report = network_rollback.rollback(current, scope, backup_path)
                     except Exception as rollback_error:
                         raise RuntimeError(
-                            "COMMIT FALLITO: " + str(original) + "\\n\\n"
-                            "ROLLBACK INCOMPLETO O NON VERIFICABILE:\\n" + str(rollback_error)
-                            + "\\nSnapshot: " + str(backup_path)) from original
+                            "COMMIT FALLITO: " + str(original) + "\n\n"
+                            "ROLLBACK INCOMPLETO O NON VERIFICABILE:\n" + str(rollback_error)
+                            + "\nSnapshot: " + str(backup_path)) from original
                     raise RuntimeError(
-                        "COMMIT FALLITO: " + str(original) + "\\n\\n" + report
-                        + "\\nSnapshot: " + str(backup_path)) from original
+                        "COMMIT FALLITO: " + str(original) + "\n\n" + report
+                        + "\nSnapshot: " + str(backup_path)) from original
             return completed
 
         def success(applied):
