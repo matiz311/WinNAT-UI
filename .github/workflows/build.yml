@@ -12,16 +12,30 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install PyInstaller
-        run: python -m pip install pyinstaller==6.16.0
+        run: python -m pip install pyinstaller==6.22.3
+      - name: Verify build tools
+        run: |
+          python --version
+          python -m PyInstaller --version
       - name: Validate syntax
         run: python -m compileall -q app.py network.py
       - name: Package executable
         run: pyinstaller --noconfirm --clean --noupx --onedir --windowed --uac-admin --version-file version_info.txt --name WinNAT-UI app.py
+      - name: Verify Windows executable metadata
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'dist/WinNAT-UI/WinNAT-UI.exe').Path
+          $info = (Get-Item $exe).VersionInfo
+          $info | Format-List ProductName,FileDescription,CompanyName,FileVersion,ProductVersion
+          if ($info.ProductName -ne 'WinNAT UI') { throw 'Product metadata mismatch.' }
+          $signature = Get-AuthenticodeSignature -FilePath $exe
+          Write-Host "Authenticode status: $($signature.Status)"
+          if ($signature.Status -ne 'NotSigned' -and $signature.Status -ne 'Valid') { throw 'Invalid or unexpected digital signature.' }
       - name: Prepare release manifest
         shell: pwsh
         run: |
@@ -59,6 +73,8 @@ jobs:
           "Defender scan completed: $(Get-Date -Format o)" | Out-File -FilePath (Join-Path $scanPath 'DEFENDER_SCAN.txt') -Encoding utf8
           "Signature version: $($status.AntivirusSignatureVersion)" | Add-Content (Join-Path $scanPath 'DEFENDER_SCAN.txt')
           Write-Host 'Defender scan completed without reported detections for this build.'
+      - name: Validate Python source imports
+        run: python -c "import ast,pathlib; [ast.parse(p.read_text(encoding='utf-8')) for p in pathlib.Path('.').glob('*.py')]"
       - name: Upload executable
         uses: actions/upload-artifact@v4
         with:
