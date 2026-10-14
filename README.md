@@ -1,14 +1,16 @@
 # WinNAT UI
 
+**Italiano** | [English](README.en.md)
+
 [![Download Windows ZIP](https://img.shields.io/badge/Download-Windows%20ZIP-blue?logo=windows)](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)
 [![Latest release](https://img.shields.io/github/v/release/matiz311/WinNAT-UI)](https://github.com/matiz311/WinNAT-UI/releases/latest)
 [![Build Windows executable](https://github.com/matiz311/WinNAT-UI/actions/workflows/build.yml/badge.svg)](https://github.com/matiz311/WinNAT-UI/actions/workflows/build.yml)
 
-**[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)** — scarica lo ZIP della release pubblica, estrai completamente la cartella e avvia `WinNAT-UI.exe`. La prima release è **non firmata**; la candidatura SignPath Foundation è in preparazione. Il link diretto diventa attivo dopo la prima release riuscita.
+**[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)** — scarica lo ZIP della release pubblica, estrai completamente la cartella e avvia `WinNAT-UI.exe`. La release attuale è **non firmata**; la firma tramite SignPath Foundation non è ancora approvata.
 
 - [Release e changelog](https://github.com/matiz311/WinNAT-UI/releases)
-- [Privacy policy](PRIVACY.md)
-- [Code signing policy](CODE_SIGNING_POLICY.md)
+- [Informativa privacy](PRIVACY.it.md) ([English](PRIVACY.md))
+- [Politica di firma](CODE_SIGNING_POLICY.it.md) ([English](CODE_SIGNING_POLICY.md))
 - [Licenza MIT](LICENSE)
 
 
@@ -51,7 +53,7 @@ WinNAT Microsoft è progettato per un singolo prefisso interno: più istanze con
 Versione iniziale, da validare su Windows reale. Prima prova consigliata: diagnostica senza modifiche e successiva configurazione in ambiente di test.
 
 ## Identità e attendibilità dell'eseguibile
-Windows mostra ProductName **WinNAT UI**, CompanyName **Matteo Cannizzo**, FileDescription e FileVersion **1.1.0.0** nelle proprietà dell'eseguibile. Questi campi sono dichiarazioni testuali del progetto, **non** attestano l'identità dell'editore. Un programma compilato da GitHub Actions senza certificato resta **non firmato** e Windows SmartScreen potrebbe avvisare l'utente. Per apparire come editore verificato serve un certificato di firma codice appropriato, mantenuto nei secret della CI o tramite servizio di signing, e una firma Authenticode verificabile con `Get-AuthenticodeSignature`. Nessun certificato o approvazione Microsoft è implicito.
+Windows mostra ProductName **WinNAT UI**, CompanyName **Matteo Cannizzo**, FileDescription e FileVersion **1.2.0.0** nelle proprietà dell'eseguibile. Questi campi sono dichiarazioni testuali del progetto, **non** attestano l'identità dell'editore. Un programma compilato da GitHub Actions senza certificato resta **non firmato** e Windows SmartScreen potrebbe avvisare l'utente. Per apparire come editore verificato serve un certificato di firma codice appropriato, mantenuto nei secret della CI o tramite servizio di signing, e una firma Authenticode verificabile con `Get-AuthenticodeSignature`. Nessun certificato o approvazione Microsoft è implicito.
 
 ## Rimozione setup
 La funzione **Rimuovi setup gestito** è disponibile solo se il wizard ha registrato il proprio stato. Rimuove la regola `WinNAT-UI` dopo aver verificato nome e prefisso, e rimuove l'IP LAN soltanto se il wizard lo aveva aggiunto. Non disabilita genericamente l'IP forwarding, né rimuove NAT/ICS altrui. Il backup JSON è diagnostico, non un rollback automatico.
@@ -74,7 +76,7 @@ Ogni push su `main` e ogni avvio manuale del workflow compila il programma e ric
 Il progetto pubblica versione, autore e descrizione nelle risorse Windows dell'eseguibile. Questi metadati NON attestano l'identità dell'autore. La pipeline verifica con `Get-AuthenticodeSignature` se l'eseguibile è firmato, e non lo dichiara firmato in assenza di una firma valida.
 
 ### Politica di distribuzione
-- Il progetto è attualmente privato: nessuna dichiarazione di eleggibilità per un certificato open source.
+- Il repository è pubblico, ma la candidatura e la verifica SignPath Foundation non sono ancora concluse.
 - Una build viene pubblicata come artefatto soltanto quando supera compilazione, controlli metadati e verifica Defender.
 - Sono pubblicati SHA256 e versione delle definizioni antivirus adoperate.
 - Non vengono applicate eccezioni o esclusioni antivirus.
@@ -82,14 +84,14 @@ Il progetto pubblica versione, autore e descrizione nelle risorse Windows dell'e
 - Il fatto che un binario sia firmato non garantisce che sia privo di vulnerabilità o malware.
 
 ### Opzioni di firma esaminate (ottobre 2026)
-- **SignPath Foundation**: servizio gratuito per progetti open source pubblici e idonei, con certificato emesso alla Foundation. Il repository privato attuale non soddisfa questo requisito.
+- **SignPath Foundation**: servizio gratuito per progetti open source pubblici e idonei, con certificato emesso alla Foundation. Il repository è ora pubblico; l'idoneità è comunque soggetta alla valutazione di SignPath.
 - **Microsoft Artifact Signing**: servizio a pagamento con verifica dell'identità.
 - **Microsoft Store (MSIX)**: percorso di firma/distribuzione tramite Store con requisiti di pubblicazione.
 
 Fonti ufficiali: https://signpath.org/terms.html ; https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options ; https://azure.microsoft.com/en-us/products/artifact-signing
 
-## Code signing policy
+## Politica di firma digitale
 
-[Code signing policy](CODE_SIGNING_POLICY.md). Free code signing provided by SignPath.io, certificate by SignPath Foundation **only if and after the project is approved**. No signing certificate has been granted yet. Project roles, manual approval, and privacy commitments are described in the policy. The executable is currently unsigned.
+Consulta la [politica di firma](CODE_SIGNING_POLICY.it.md) ([English](CODE_SIGNING_POLICY.md)). L'attribuzione «Free code signing provided by SignPath.io, certificate by SignPath Foundation» sarà applicabile solo in caso di approvazione; l'eseguibile attuale è ancora non firmato.
 
-To uninstall the portable application, close it and remove the extracted application directory. To remove any networking changes created by the setup wizard, use **Rimuovi setup gestito** before deleting the directory.
+Per disinstallare il programma portatile, chiudilo e rimuovi la cartella estratta. Prima di farlo, se hai configurato la rete con il wizard, utilizza **Rimuovi setup gestito**.
