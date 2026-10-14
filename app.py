@@ -330,7 +330,7 @@ class App(tk.Tk):
                 elif kind=="teardown":
                     network.teardown(current)
                 elif kind=="external_teardown":
-                    network.remove_existing_configuration(*args,current)
+                    network.remove_existing_configuration(args[0],args[1],args[2],args[3],current,args[4])
                 completed.append(p)
                 current=network.collect()
             return completed
