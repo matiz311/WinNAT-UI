@@ -7,8 +7,9 @@ import threading
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, simpledialog
 import network
+import network_plan
 
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 
 class App(tk.Tk):
     def __init__(self):
@@ -73,6 +74,10 @@ class App(tk.Tk):
         self.lan = tk.StringVar(value="Ethernet")
         self.prefix = tk.StringVar(value="192.168.1.0/24")
         self.gateway = tk.StringVar(value="192.168.1.254")
+        ttk.Label(wizard, text="Interfaccia WAN (deve avere una default route)").pack(anchor="w")
+        self.wan = tk.StringVar(value="")
+        self.wan_box = ttk.Combobox(wizard, textvariable=self.wan, width=44, state="readonly")
+        self.wan_box.pack(anchor="w", pady=5)
         ttk.Label(wizard, text="Interfaccia LAN").pack(anchor="w")
         self.lan_box = ttk.Combobox(wizard, textvariable=self.lan, width=44, state="readonly")
         self.lan_box.pack(anchor="w", pady=5)
@@ -89,6 +94,19 @@ class App(tk.Tk):
         self.remove_address = tk.BooleanVar(value=False)
         ttk.Checkbutton(wizard, text="Rimuovi anche l'IP LAN specificato (solo se corrisponde esattamente)", variable=self.remove_address).pack(anchor="w", pady=4)
         ttk.Button(wizard, text="Rimuovi esistente", command=self.external_teardown).pack(anchor="w", pady=7)
+        ttk.Separator(wizard).pack(fill="x", pady=10)
+        ttk.Label(wizard, text="Ripristino selettivo (qualsiasi origine)", font=("Segoe UI", 12, "bold")).pack(anchor="w")
+        ttk.Label(wizard, text="Elimina tutte le regole WinNAT selezionate e, se richiesto, IP, route e forwarding IPv4 delle interfacce LAN selezionate. La WAN non viene inclusa.").pack(anchor="w", pady=5)
+        self.cleanup_all_nat=tk.BooleanVar(value=True)
+        self.cleanup_ips=tk.BooleanVar(value=False)
+        self.cleanup_routes=tk.BooleanVar(value=False)
+        self.cleanup_forward=tk.BooleanVar(value=False)
+        for label,var in [("Elimina tutte le regole WinNAT",self.cleanup_all_nat),
+                          ("Elimina tutti gli indirizzi IPv4 della LAN",self.cleanup_ips),
+                          ("Elimina le route IPv4 non predefinite sulla LAN",self.cleanup_routes),
+                          ("Disabilita forwarding IPv4 sulla LAN",self.cleanup_forward)]:
+            ttk.Checkbutton(wizard,text=label,variable=var).pack(anchor="w")
+        ttk.Button(wizard,text="Prepara ripristino",command=self.stage_reset).pack(anchor="w",pady=8)
         self.wizard_notice = tk.StringVar(value="Nessuna modifica preparata")
         ttk.Label(wizard, textvariable=self.wizard_notice).pack(anchor="w", pady=7)
 
@@ -164,10 +182,13 @@ class App(tk.Tk):
         self.data = data
         adapter_names = [a["Name"] for a in data.get("adapters",[]) if str(a.get("Status")).lower() == "up"]
         self.lan_box["values"] = adapter_names
+        self.wan_box["values"] = adapter_names
         if adapter_names and self.lan.get() not in adapter_names:
             self.lan.set("Ethernet" if "Ethernet" in adapter_names else adapter_names[0])
         routes = [r for r in data.get("routes",[]) if r.get("DestinationPrefix") == "0.0.0.0/0"]
         routes.sort(key=lambda r: int(r.get("RouteMetric") or 0)+int(r.get("InterfaceMetric") or 0))
+        if routes and (not self.wan.get() or self.wan.get() not in adapter_names):
+            self.wan.set(routes[0].get("InterfaceAlias",""))
         lines = ["WAN prevista: " + (routes[0].get("InterfaceAlias","?") if routes else "nessuna default route"),"",
                  "Interfacce e indirizzi IPv4:"]
         for a in data.get("adapters",[]):
@@ -194,6 +215,14 @@ class App(tk.Tk):
                 self.nat_table.insert("","end",values=("+ Da creare",p["args"][0],p["args"][1],"Non applicata"))
             if p["kind"]=="setup":
                 self.nat_table.insert("","end",values=("+ Setup", "WinNAT-UI",p["args"][1],"Non applicata"))
+            if p["kind"]=="reset":
+                for item in self.nat_table.get_children():
+                    v=list(self.nat_table.item(item,"values"))
+                    if v[1] in p["args"][0].get("nat_names",[]):
+                        v[0]="- Da eliminare"
+                        self.nat_table.item(item,values=v)
+            if p["kind"]=="profile":
+                self.nat_table.insert("","end",values=("+ Setup","WinNAT-UI",p["args"][0]["prefix"],"Non applicata"))
             if p["kind"]=="external_teardown":
                 for item in self.nat_table.get_children():
                     v=list(self.nat_table.item(item,"values"))
@@ -260,7 +289,13 @@ class App(tk.Tk):
             network.validate_alias(lan,self.data)
         except Exception as exc:
             return messagebox.showerror("Dati non validi",str(exc))
-        self.stage("setup",(lan,prefix,gateway),"Configura rete",lan+" | "+prefix+" | gateway "+gateway)
+        plan={"lan":lan,"wan":self.wan.get(),"prefix":prefix,"gateway":gateway}
+        try:
+            network_plan.preflight(plan,self.data)
+        except Exception as exc:
+            return messagebox.showwarning("Prerequisiti setup",str(exc))
+        self.stage("profile",(plan,),"Configura LAN/WAN",lan+" -> "+plan["wan"]+" | "+prefix+" | gateway "+gateway)
+        self.tabs.select(3)
 
     def teardown(self):
         state=network.managed_state()
@@ -287,6 +322,27 @@ class App(tk.Tk):
         if remove_ip:
             details+=" | Rimuovi anche IP "+gateway
         self.stage("external_teardown",(lan,prefix,gateway,tuple(matches),remove_ip),"Rimuovi esistente",details)
+
+    def stage_reset(self):
+        if self.data is None:
+            return
+        lan=self.lan.get()
+        if lan==self.wan.get():
+            return messagebox.showerror("Interfacce","LAN e WAN devono essere distinte.")
+        scope={"interfaces":[lan],
+               "nat_names":[n["Name"] for n in self.data.get("nats",[])] if self.cleanup_all_nat.get() else [],
+               "remove_ips":self.cleanup_ips.get(),
+               "remove_routes":self.cleanup_routes.get(),
+               "disable_forwarding":self.cleanup_forward.get()}
+        try:
+            resources=network_plan.matching_resources(self.data,scope)
+            lines=network_plan.preview(resources)
+        except Exception as exc:
+            return messagebox.showerror("Configurazione non valida",str(exc))
+        if not lines:
+            return messagebox.showinfo("Ripristino","Nessuna risorsa corrispondente.")
+        self.stage("reset",(scope,),"Ripristino selettivo","; ".join(lines))
+        self.tabs.select(3)
 
     def unstage(self):
         selected=self.pending_table.selection()
@@ -327,6 +383,15 @@ class App(tk.Tk):
                     if nats or any(c.get("SharingEnabled") for c in current.get("icsConnections",[])):
                         raise ValueError("Setup bloccato da WinNAT/ICS esistente.")
                     network.setup(*args,current)
+                elif kind=="profile":
+                    network_plan.apply_profile(args[0],current)
+                elif kind=="reset":
+                    # Recompute the exact resources at commit time; abort if the inventory changed.
+                    expected=network_plan.matching_resources(self.data,args[0])
+                    actual=network_plan.matching_resources(current,args[0])
+                    if expected!=actual:
+                        raise ValueError("La configurazione è cambiata dopo l'anteprima: aggiorna e prepara di nuovo il ripristino.")
+                    network_plan.remove_selected(args[0],current)
                 elif kind=="teardown":
                     network.teardown(current)
                 elif kind=="external_teardown":
