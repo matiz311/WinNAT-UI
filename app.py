@@ -1227,20 +1227,12 @@ class App(tk.Tk):
         def report_bug():
             if "Segnala bug" in self.tasks:
                 return
-            # Check service availability before closing the original error.
-            # An unconfigured backend cannot create a GitHub Issue.
-            endpoint = issue_tracker.service_endpoint()
-            if endpoint is None:
-                messagebox.showwarning(
-                    "Invio anonimo non disponibile",
-                    "Il gateway per creare Issue senza account GitHub non è ancora attivo. "
-                    "Nessuna segnalazione è stata inviata.\n\n"
-                    "Usa 'Copia errore' per conservare il report anonimo. "
-                    "La finestra con l'errore originale rimane aperta.",
-                    parent=dlg)
-                return
             payload = issue_tracker.safe_payload(operation, message, traceback_text, VERSION)
             def send():
+                # Remote availability check runs on a worker, not the Tk thread.
+                endpoint = issue_tracker.service_endpoint()
+                if endpoint is None:
+                    raise RuntimeError("Servizio per la creazione anonima delle Issue non configurato.")
                 matches = issue_tracker.find_similar(payload, issue_tracker.public_issues())
                 active = [m for m in matches if m.get("state") == "open"]
                 if active:
