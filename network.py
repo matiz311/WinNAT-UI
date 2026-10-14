@@ -26,15 +26,25 @@ def ps(script):
         # Force UTF-8 output: otherwise Windows uses the OEM code page (e.g. 850 on
         # Italian systems) and accented adapter names or messages are garbled.
         [POWERSHELL, "-NoProfile", "-NonInteractive", "-Command",
-         "[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false\n" + script],
+         # Same line as the script's first line, so "In riga:X" still matches the numbering below.
+         "[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false; " + script],
         capture_output=True, encoding="utf-8", errors="replace", timeout=60, shell=False,
         startupinfo=startup)
     if process.returncode:
-        parts = ["PowerShell exit code: " + str(process.returncode)]
-        if process.stderr.strip():
-            parts.extend(["STDERR:", process.stderr.rstrip()])
-        if process.stdout.strip():
-            parts.extend(["STDOUT:", process.stdout.rstrip()])
+        # Diagnostic only: preserve all output and the exact executed script.
+        # Line numbers allow matching "In riga:X" in localized PowerShell errors.
+        numbered_script = "\n".join(
+            f"{number:04d} | {line}" for number, line in enumerate(script.splitlines(), 1))
+        parts = [
+            "ESECUZIONE POWERSHELL NON RIUSCITA",
+            "Exit code: " + str(process.returncode),
+            "Interprete: " + POWERSHELL + " -NoProfile -NonInteractive -Command",
+            "Timeout configurato: 60 secondi",
+            "STDERR (integrale):\n" + (process.stderr if process.stderr else "(vuoto)"),
+            "STDOUT (integrale):\n" + (process.stdout if process.stdout else "(vuoto)"),
+            "SCRIPT ESEGUITO (righe numerate):\n" + numbered_script,
+            "Nota: lo script contiene configurazioni IP/NAT. Controllare i dati prima di condividerlo."
+        ]
         raise RuntimeError("\n\n".join(parts))
     return process.stdout.lstrip("\ufeff").strip()
 
