@@ -10,6 +10,11 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
 
 
+## [1.9.8] - 2026-10-15
+### Corretto
+- L'invio di un bug non richiede più che la lettura pubblica dell'elenco delle Issue GitHub abbia successo: il gateway riceve direttamente il report e gestisce autonomamente i duplicati.
+- Resta indispensabile attivare l'endpoint HTTPS nel manifesto `bug-service.json` e configurare sul server l'autenticazione GitHub; la release non rende disponibile da sola il backend.
+
 ## [1.9.7] - 2026-10-15
 ### Corretto
 - Gli errori durante «Segnala bug» non generano più una seconda finestra generica con possibilità di segnalare nuovamente il medesimo errore.

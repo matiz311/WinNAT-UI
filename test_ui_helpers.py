@@ -61,6 +61,15 @@ class HelperTests(unittest.TestCase):
         self.assertIn('            def sent(result):\n                dlg.destroy()', body)
         self.assertNotIn('            dlg.destroy()\n            self.run_task(', body)
 
+    def test_bug_submission_does_not_depend_on_public_issue_lookup(self):
+        from pathlib import Path
+        source = Path(__file__).with_name("app.py").read_text(encoding="utf-8")
+        begin = source.index("        def report_bug():")
+        end = source.index("        dlg.cancel_btn.configure(command=copy_anonymized)", begin)
+        segment = source[begin:end]
+        self.assertIn("issue_tracker.submit(payload, endpoint=endpoint)", segment)
+        self.assertNotIn("issue_tracker.public_issues()", segment)
+
     def test_debug_retains_multiline_output(self):
         message = "PowerShell exit code: 1\n\nSTDERR:\nErrore di rete\n\nSTDOUT:\nL'oggetto esiste già."
         trace = 'Traceback (most recent call last):\n  File "app.py", line 50'
