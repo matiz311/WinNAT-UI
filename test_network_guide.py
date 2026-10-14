@@ -54,6 +54,22 @@ class GuideTests(unittest.TestCase):
         self.assertNotIn("Remove-NetIPAddress",text)
         self.assertEqual(result["backup"],"backup.json")
 
+    def test_static_lan_checks_existing_address_before_netsh(self):
+        fp = guide.fingerprint(self.profile, self.data)
+        with patch("network_guide.network.snapshot", return_value="x"), patch(
+                "network_guide.network.ps", return_value="") as call:
+            guide.execute("apply", self.profile, self.data, fp)
+        script = call.call_args.args[0]
+        self.assertIn("$duplicate = @(Get-NetIPAddress", script)
+        self.assertIn("$_ .InterfaceIndex".replace(" ", ""), script)
+        self.assertIn("$alreadyConfigured =", script)
+        self.assertIn("if (-not $alreadyConfigured) {", script)
+        self.assertIn("$netshExitCode = $LASTEXITCODE", script)
+        self.assertIn("$validState =", script)
+        self.assertIn("if (-not $validState) {", script)
+        self.assertIn("IPv4 rilevati=[", script)
+        self.assertNotIn("if ($LASTEXITCODE -ne 0) { throw ('Impossibile impostare IP statico LAN", script)
+
     def test_disable_preserves_ip_addresses(self):
         self.data["nats"]=[{"Name":"FromAnotherApp","InternalIPInterfaceAddressPrefix":"10.10.10.0/24"}]
         fp=guide.fingerprint(self.profile,self.data)

@@ -12,11 +12,15 @@ Regole del progetto:
 ### Aggiunto
 - `tools/WinNAT-Diagnostica.ps1`: diagnostica di compatibilità in sola lettura (sistema, schede, IPv4, route, WinNAT, ICS, Hyper-V) con verdetto e indicazione delle schede utilizzabili come LAN/WAN; produce un report `.txt` e `.json` da allegare alle segnalazioni. Eseguito in CI come smoke test.
 
-## [1.7.3] - 2026-10-14
+## [1.7.4] - 2026-10-14
 ### Corretto
 - Finestra d'errore: il riepilogo mostra il primo messaggio utile invece di "PowerShell exit code: 1"; finestra centrata, coerente con il tema chiaro/scuro, dettagli tecnici a scomparsa, Esc per chiudere. Anche il messaggio di stato nella barra laterale mostra una sola riga leggibile.
 - Output PowerShell letto in UTF-8: nomi di schede e messaggi con lettere accentate non risultano più corrotti (code page OEM 850 su Windows in italiano).
 - Versioning: unica fonte in `version.py`; versione file Windows, tag e note di release derivati automaticamente e verificati dai test. Le note di release non sono più scritte a mano nel workflow (in passato v1.3.0 e v1.6.1 avevano note copiate da altre versioni).
+
+## [1.7.3] - 2026-10-14
+### Corretto
+- IP statico LAN: `netsh` poteva segnalare un falso errore "oggetto già esistente"; ora lo stato reale della LAN viene verificato e i conflitti di indirizzo diagnosticati prima di considerare l'operazione fallita.
 
 ## [1.7.2] - 2026-10-14
 ### Aggiunto
