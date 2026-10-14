@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      approve_feature_release:
+        description: 'Autorizza pubblicazione MINOR/MAJOR dopo aver verificato il riepilogo delle feature e correzioni'
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   contents: read
@@ -27,9 +33,9 @@ jobs:
           python --version
           python -m PyInstaller --version
       - name: Validate syntax
-        run: python -m compileall -q app.py version.py network.py network_plan.py network_guide.py network_rollback.py ui_theme.py tools/release.py test_network_guide.py test_network_rollback.py test_ui_helpers.py test_version.py test_windows_ps.py
+        run: python -m compileall -q app.py version.py network.py network_plan.py network_guide.py network_rollback.py ui_theme.py tools/release.py test_release_policy.py test_network_guide.py test_network_rollback.py test_ui_helpers.py test_version.py test_windows_ps.py
       - name: Run tests (planning, UI helpers, versioning, real PowerShell)
-        run: python -m unittest -v test_network_guide test_network_rollback test_ui_helpers test_version test_windows_ps
+        run: python -m unittest -v test_release_policy test_network_guide test_network_rollback test_ui_helpers test_version test_windows_ps
       - name: Run read-only diagnostic script (smoke test)
         shell: powershell
         run: |
@@ -103,14 +109,47 @@ jobs:
           Write-Host 'Defender scan completed without reported detections for this build.'
       - name: Validate Python source imports
         run: python -c "import ast,pathlib; [ast.parse(p.read_text(encoding='utf-8')) for p in pathlib.Path('.').glob('*.py')]"
+      - name: Write unique build identifier
+        shell: pwsh
+        run: |
+          $semanticVersion = (python tools/release.py version).Trim()
+          $buildId = "$semanticVersion+ci.$env:GITHUB_RUN_NUMBER.$($env:GITHUB_SHA.Substring(0,8))"
+          "Functional version: $semanticVersion" | Out-File "dist/WinNAT-UI/BUILD_INFO.txt" -Encoding utf8
+          "Build identifier: $buildId" | Add-Content "dist/WinNAT-UI/BUILD_INFO.txt"
+          "Git commit: $env:GITHUB_SHA" | Add-Content "dist/WinNAT-UI/BUILD_INFO.txt"
+          "Workflow: $env:GITHUB_RUN_ID" | Add-Content "dist/WinNAT-UI/BUILD_INFO.txt"
       - name: Upload executable
         uses: actions/upload-artifact@v4
         with:
-          name: WinNAT-UI-Windows
+          name: WinNAT-UI-Windows-${{ github.run_number }}-${{ github.sha }}
           path: dist/WinNAT-UI/
           if-no-files-found: error
-      - name: Publish public GitHub release
+      - name: Authorize semantic release
         if: github.ref == 'refs/heads/main'
+        id: release_gate
+        shell: pwsh
+        env:
+          IS_MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
+          FEATURE_APPROVED: ${{ inputs.approve_feature_release || false }}
+        run: |
+          $previousFile = git show HEAD^:version.py
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect the previous version for release approval.' }
+          if (($previousFile -join "`n") -notmatch 'VERSION = "([^"]+)"') { throw 'Previous version not found.' }
+          $previous = $Matches[1]
+          $options = @()
+          if ($env:IS_MANUAL -eq 'true') { $options += '--manual' }
+          if ($env:FEATURE_APPROVED -eq 'true') { $options += '--approved' }
+          $decision = python tools/release.py gate $previous @options
+          if ($LASTEXITCODE -ne 0) { throw "Release policy check failed: $decision" }
+          Write-Host "Release decision: $decision (previous=$previous)"
+          if ($decision -like 'allowed:*') {
+            "allowed=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          } else {
+            "allowed=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Host "::notice::MINOR/MAJOR richiede riepilogo e approvazione tramite workflow_dispatch. Build artifact disponibile."
+          }
+      - name: Publish public GitHub release
+        if: github.ref == 'refs/heads/main' && steps.release_gate.outputs.allowed == 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
