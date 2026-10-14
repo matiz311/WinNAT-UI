@@ -21,7 +21,7 @@ jobs:
       - name: Validate syntax
         run: python -m compileall -q app.py network.py
       - name: Package executable
-        run: pyinstaller --noconfirm --clean --onefile --windowed --uac-admin --name WinNAT-UI app.py
+        run: pyinstaller --noconfirm --clean --onefile --windowed --uac-admin --version-file version_info.txt --name WinNAT-UI app.py
       - name: Upload executable
         uses: actions/upload-artifact@v4
         with:
