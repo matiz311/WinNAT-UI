@@ -164,7 +164,7 @@ def comparable_release(a, b):
     return aa is not None and bb is not None and aa >= bb
 
 
-def synchronize(installed=VERSION, remote=None):
+def synchronize(installed=VERSION, remote=None, latest_version=None):
     """Update locally reported issues from public GitHub state, no personal data uploaded."""
     listed = remote if remote is not None else public_issues()
     entries = history()
@@ -175,8 +175,9 @@ def synchronize(installed=VERSION, remote=None):
             issue = matches[0]
             record["state"] = issue["state"]
             record["fixed_in"] = issue["fixed_in"]
-            record["fix_available"] = (bool(issue["fixed_in"])
-                                       and comparable_release(issue["fixed_in"], installed))
+            record["fix_available"] = (bool(issue["fixed_in"]) and latest_version is not None
+                                       and comparable_release(latest_version, issue["fixed_in"])
+                                       and not comparable_release(installed, issue["fixed_in"]))
     path = store_path()
     if entries:
         path.parent.mkdir(parents=True, exist_ok=True)
