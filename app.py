@@ -209,12 +209,20 @@ def error_summary(message):
     return "Errore sconosciuto: apri i dettagli tecnici."
 
 
+def resource_path(*parts):
+    """Bundled file path both from source and from the PyInstaller build."""
+    import os
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, *parts)
+
+
 class App(tk.Tk):
     def __init__(self):
         ui.enable_dpi_awareness()
         super().__init__()
         ui.apply(self)
         self.title("WinNAT UI " + VERSION)
+        self.set_window_icon()
         self.geometry("1200x800")
         self.minsize(1000, 660)
         self.data = None
@@ -232,6 +240,20 @@ class App(tk.Tk):
         self.after(60000, self.periodic_sessions)
         self.refresh()
 
+    def set_window_icon(self):
+        """Title bar, taskbar and every dialog use the app icon; never fatal."""
+        self.logo = None
+        try:
+            if sys.platform == "win32":
+                self.iconbitmap(default=resource_path("assets", "winnat-ui.ico"))
+            self.iconphoto(True, tk.PhotoImage(file=resource_path("assets", "winnat-ui-256.png")))
+        except (tk.TclError, OSError):
+            pass
+        try:
+            self.logo = tk.PhotoImage(file=resource_path("assets", "winnat-ui-32.png"))
+        except (tk.TclError, OSError):
+            self.logo = None
+
     # ------------------------------------------------------------ layout --
     def build(self):
         side = tk.Frame(self, bg=C["side_bg"], width=228)
@@ -239,7 +261,10 @@ class App(tk.Tk):
         side.pack_propagate(False)
         brand = ttk.Frame(side, style="Side.TFrame")
         brand.pack(fill="x", padx=S4, pady=(S5, S4))
-        ttk.Label(brand, text=ui.icon("network"), style="Side.Logo.TLabel").pack(side="left", padx=(0, S2))
+        if self.logo is not None:
+            tk.Label(brand, image=self.logo, bg=C["side_bg"], bd=0).pack(side="left", padx=(0, S2))
+        else:
+            ttk.Label(brand, text=ui.icon("network"), style="Side.Logo.TLabel").pack(side="left", padx=(0, S2))
         names = ttk.Frame(brand, style="Side.TFrame")
         names.pack(side="left")
         ttk.Label(names, text="WinNAT UI", style="Side.Brand.TLabel").pack(anchor="w")

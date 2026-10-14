@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#16294A"/>
+      <stop offset="0.55" stop-color="#0F2F45"/>
+      <stop offset="1" stop-color="#0B6B73"/>
+    </linearGradient>
+    <linearGradient id="wire" gradientUnits="userSpaceOnUse" x1="60" y1="0" x2="138" y2="0">
+      <stop offset="0" stop-color="#8FE3E8"/>
+      <stop offset="1" stop-color="#38C6CF"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#38C6CF" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#38C6CF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="12" y="12" width="232" height="232" rx="54" fill="url(#tile)"/>
+  <rect x="13.5" y="13.5" width="229" height="229" rx="52.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="3"/>
+  <circle cx="138" cy="128" r="74" fill="url(#glow)"/>
+  <path d="M66 78 C 100 78, 104 128, 138 128" fill="none" stroke="url(#wire)" stroke-width="17" stroke-linecap="round"/><path d="M66 128 C 100 128, 104 128, 138 128" fill="none" stroke="url(#wire)" stroke-width="17" stroke-linecap="round"/><path d="M66 178 C 100 178, 104 128, 138 128" fill="none" stroke="url(#wire)" stroke-width="17" stroke-linecap="round"/>
+  <circle cx="66" cy="78" r="17" fill="#E6F7F8"/><circle cx="66" cy="128" r="17" fill="#E6F7F8"/><circle cx="66" cy="178" r="17" fill="#E6F7F8"/>
+  <path d="M150 128 L 188 128" stroke="#FFFFFF" stroke-width="19" stroke-linecap="round"/>
+  <path d="M186 102 L 214 128 L 186 154 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="6" stroke-linejoin="round"/>
+  <circle cx="138" cy="128" r="36" fill="#38C6CF"/>
+  <circle cx="138" cy="128" r="36" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="3"/>
+  <circle cx="138" cy="128" r="14" fill="#0F2440"/>
+</svg>

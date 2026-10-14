@@ -46,6 +46,22 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(app.service_status(4), "In esecuzione")
         self.assertEqual(app.service_status("Stopped"), "Arrestato")
 
+    def test_icon_assets(self):
+        import os
+        import struct
+        ico = app.resource_path("assets", "winnat-ui.ico")
+        with open(ico, "rb") as f:
+            reserved, kind, count = struct.unpack("<HHH", f.read(6))
+            sizes = {(struct.unpack("<BB", f.read(16)[:2])) for _ in range(count)}
+        self.assertEqual((reserved, kind), (0, 1))
+        for s in (16, 32, 48):
+            self.assertIn((s, s), sizes)
+        self.assertIn((0, 0), sizes)   # 256 px is stored as 0 in the ICO directory
+        for name in ("winnat-ui-256.png", "winnat-ui-32.png"):
+            with open(app.resource_path("assets", name), "rb") as f:
+                self.assertEqual(f.read(8), b"\x89PNG\r\n\x1a\n")
+        self.assertTrue(os.path.exists(app.resource_path("assets", "winnat-ui.svg")))
+
 
 if __name__ == "__main__":
     unittest.main()
