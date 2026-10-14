@@ -9,6 +9,10 @@ Regole del progetto:
 - La versione si cambia solo in `version.py`; ogni release ha qui una sezione `## [x.y.z]`, da cui la CI prende le note.
 - I tag già pubblicati non vengono mai spostati o rinominati (gli ZIP e gli SHA256 distribuiti resterebbero orfani): eventuali errori si correggono qui e nelle note della release.
 
+## [1.8.0] - 2026-10-14
+### Aggiunto
+- `tools/WinNAT-Diagnostica.ps1`: diagnostica di compatibilità in sola lettura (sistema, schede, IPv4, route, WinNAT, ICS, Hyper-V) con verdetto e indicazione delle schede utilizzabili come LAN/WAN; produce un report `.txt` e `.json` da allegare alle segnalazioni. Eseguito in CI come smoke test.
+
 ## [1.7.5] - 2026-10-14
 ### Corretto
 - Finestra d'errore: il riepilogo mostra il primo messaggio utile dello stderr invece delle intestazioni ("ESECUZIONE POWERSHELL NON RIUSCITA", exit code); finestra centrata, coerente con il tema chiaro/scuro, dettagli tecnici a scomparsa, Esc per chiudere. Anche il messaggio di stato nella barra laterale mostra una sola riga leggibile.
