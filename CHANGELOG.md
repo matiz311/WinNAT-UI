@@ -10,6 +10,14 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
 
 
+## [1.9.4] - 2026-10-15
+### Aggiunto
+- Controllo automatico all'avvio della release stabile ufficiale disponibile su GitHub e comando «Controlla aggiornamenti» nella pagina Informazioni.
+- Download diretto dello ZIP ufficiale solo con consenso esplicito, verifica SHA256 rispetto ai metadati GitHub, protezioni contro archivi non sicuri e avvio dell'aggiornamento a programma chiuso.
+- Backup preventivo dei file dell'applicazione e tentativo di ripristino in caso di errore di installazione. L'aggiornamento non parte in presenza di modifiche di rete in sospeso.
+### Nota
+- Il primo passaggio alla versione contenente l'updater va fatto con lo ZIP manuale. La funzione di aggiornamento automatico richiede l'eseguibile Windows e non è ancora collaudata su una macchina reale.
+
 ## [1.9.3] - 2026-10-15
 ### Aggiunto
 - Icona dell'applicazione: dispositivi della LAN che convergono nel gateway NAT e un'unica uscita verso Internet, nei colori dell'interfaccia. Usata per l'eseguibile, la barra del titolo, la barra delle applicazioni, le finestre di dialogo e il logo nella barra laterale.
