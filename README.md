@@ -105,3 +105,10 @@ Per disinstallare il programma portatile, chiudilo e rimuovi la cartella estratt
 - Durante le operazioni asincrone viene mostrata una barra di avanzamento. Il processo PowerShell non apre una finestra separata. La barra è indeterminata: mostra attività in corso, non la percentuale completata.
 
 Per prudenza il commit applica **una modifica alla volta**, anche se è possibile prepararne diverse. Non esiste un rollback automatico delle modifiche Windows.
+
+## Versione 1.4.0: reset di configurazioni preesistenti
+- La raccolta di adattatori, IPv4, route, forwarding e NAT usa thread paralleli; le sessioni restano indipendenti.
+- In **Rete > Rimuovi esistente** puoi preparare la rimozione del NAT presente per la subnet selezionata anche se creato esternamente all'app.
+- L'IP della scheda LAN viene mantenuto salvo selezione esplicita dell'opzione di rimozione esatta; ICS, DHCP, VPN e configurazioni non corrispondenti non vengono rimossi.
+- Controlla la configurazione candidata nella tab **Modifiche**, quindi utilizza **Commit**. Dopo la rimozione puoi preparare un nuovo setup dalla stessa schermata.
+- La modifica delle interfacce può interrompere la connettività: usare una sessione locale, non una connessione remota dipendente dal NAT da rimuovere.
