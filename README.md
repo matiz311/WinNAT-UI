@@ -21,7 +21,7 @@ Applicazione desktop per Windows 10/11 dedicata alla diagnostica e gestione di *
 - Riepilogo delle regole WinNAT, sessioni NAT e stato del servizio SharedAccess.
 - Identificazione *indicativa* della WAN tramite la default route e della LAN tramite la selezione manuale.
 - Creazione e rimozione di NAT con avvisi sui conflitti; un solo prefisso interno WinNAT è supportato ufficialmente.
-- Setup guidato LAN Ethernet -> Internet (IP LAN, prefisso, forwarding, WinNAT) con rete predefinita `192.168.1.0/24` e IP PC `192.168.1.254`.
+- Setup guidato LAN Ethernet -> Internet (IP LAN, prefisso, forwarding, WinNAT) con rete predefinita `10.10.10.0/24` e IP PC `10.10.10.1`.
 - Rimozione guidata del setup creato dall'app, mantenendo gli IP preesistenti.
 - Esportazione diagnostica JSON e backup di configurazione prima dei cambiamenti.
 - Conferme esplicite per ogni intervento potenzialmente distruttivo.
@@ -112,3 +112,19 @@ Per prudenza il commit applica **una modifica alla volta**, anche se è possibil
 - L'IP della scheda LAN viene mantenuto salvo selezione esplicita dell'opzione di rimozione esatta; ICS, DHCP, VPN e configurazioni non corrispondenti non vengono rimossi.
 - Controlla la configurazione candidata nella tab **Modifiche**, quindi utilizza **Commit**. Dopo la rimozione puoi preparare un nuovo setup dalla stessa schermata.
 - La modifica delle interfacce può interrompere la connettività: usare una sessione locale, non una connessione remota dipendente dal NAT da rimuovere.
+
+## Versione 1.6.0 — Configurazione completa da PC vergine
+
+**Rete → Configura** segue la guida operativa «NAT e Routing IPv4 su Windows 11»: scegli LAN, WAN primaria ed eventuale WAN secondaria, subnet LAN, IP gateway, nome NAT e metriche. Il profilo propone Ethernet / USB-C / Wi-Fi, LAN `10.10.10.0/24`, gateway `10.10.10.1`, NAT `NAT-Firewall` e metriche 10/50. Tutti i parametri sono modificabili.
+
+- **Configura:** disabilita DHCP sulla LAN, elimina indirizzi e route IPv4 della LAN, assegna l'IP statico senza default gateway, imposta `IPEnableRouter=1`, abilita il forwarding sulle interfacce selezionate, applica le metriche WAN e crea il NAT. Le WAN devono già essere operative con gateway verso Internet; non vengono cambiati indirizzo, DHCP e DNS delle WAN.
+- **Disabilita:** elimina **tutti gli oggetti WinNAT**, anche quelli creati manualmente o da altre applicazioni; disabilita il forwarding sulle interfacce LAN/WAN selezionate e imposta `IPEnableRouter=0`. Conserva indirizzamento LAN e metriche WAN.
+- **Ripristina:** oltre alla disabilitazione, rimuove tutti gli IPv4 e le route della LAN selezionata, ripristina il DHCP sulla LAN e le metriche automatiche delle WAN selezionate. Non ripristina la configurazione originale preesistente né elimina le configurazioni WAN.
+- **Candidate → Commit:** mostra l'elenco dettagliato delle operazioni e richiede conferma. Raccoglie nuovamente la configurazione prima di applicare; se è cambiata, blocca il commit. Salva uno snapshot JSON prima delle modifiche, **non** un rollback automatico.
+- **Riavvio:** dopo la modifica di `IPEnableRouter` è raccomandato riavviare Windows prima di validare il routing.
+
+**Avviso:** la rimozione di tutti gli oggetti WinNAT può interrompere Hyper-V, WSL2 e ambienti container. Anche il reset di IPv4 o delle route può far perdere una connessione di amministrazione remota. Usare una console locale, controllare tutte le interfacce selezionate e verificare l'anteprima prima del Commit. Un commit fallito può aver già applicato alcune modifiche.
+
+**Test suggerito:** apri l'app con privilegi amministrativi → configura LAN/WAN → controlla Modifiche → Commit → riavvia se richiesto → verifica indirizzamento, default route, NAT e sessioni → Disabilita / Ripristina con un nuovo Commit.
+
+I test automatici di pianificazione sono in `test_network_guide.py`.
