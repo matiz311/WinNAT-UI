@@ -155,10 +155,10 @@ def execute(action, profile, current, expected_fingerprint):
             "if (@(Get-NetNat).Count -gt 0) { throw 'NAT preesistente: esegui prima Ripristina' }",
             "Set-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -Dhcp Disabled -ErrorAction Stop",
             # Connected/on-link routes are removed when the related IP is removed.
-            "Get-NetRoute -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue | "
-            "Where-Object { $_.NextHop -ne '0.0.0.0' } | Remove-NetRoute -Confirm:$false -ErrorAction Stop",
             "Get-NetIPAddress -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue | "
-            "Where-Object { $_.IPAddress -notlike '169.254.*' } | Remove-NetIPAddress -Confirm:$false -ErrorAction Stop",
+            "Remove-NetIPAddress -Confirm:$false -ErrorAction Stop",
+            "Get-NetRoute -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue | "
+            "Remove-NetRoute -Confirm:$false -ErrorAction Stop",
             "New-NetIPAddress -InterfaceAlias $lan -IPAddress %s -PrefixLength %d -ErrorAction Stop | Out-Null"
             % (psquote(p["gateway"]), ipaddress.IPv4Network(p["prefix"]).prefixlen),
             "Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters' -Name IPEnableRouter -Value 1 -ErrorAction Stop",
@@ -188,10 +188,10 @@ def execute(action, profile, current, expected_fingerprint):
                 script.append("Set-NetIPInterface -InterfaceAlias $wan2 -AddressFamily IPv4 -AutomaticMetric Enabled -ErrorAction Stop")
             script += [
                 "Set-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -Dhcp Disabled -ErrorAction Stop",
-                "Get-NetRoute -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue | "
-                "Where-Object { $_.NextHop -ne '0.0.0.0' } | Remove-NetRoute -Confirm:$false -ErrorAction Stop",
                 "Get-NetIPAddress -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue | "
-                "Where-Object { $_.IPAddress -notlike '169.254.*' } | Remove-NetIPAddress -Confirm:$false -ErrorAction Stop",
+                "Remove-NetIPAddress -Confirm:$false -ErrorAction Stop",
+                "Get-NetRoute -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue | "
+                "Remove-NetRoute -Confirm:$false -ErrorAction Stop",
                 "Set-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -Dhcp Enabled -ErrorAction Stop",
             ]
         script.append("Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters' -Name IPEnableRouter -Value 0 -ErrorAction Stop")
