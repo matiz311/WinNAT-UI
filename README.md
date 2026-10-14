@@ -12,6 +12,7 @@
 - [Informativa privacy](PRIVACY.it.md) ([English](PRIVACY.md))
 - [Politica di firma](CODE_SIGNING_POLICY.it.md) ([English](CODE_SIGNING_POLICY.md))
 - [Changelog](CHANGELOG.md)
+- Aggiornamento in-app: **Informazioni → Controlla aggiornamenti**. L'app verifica all'avvio la release stabile GitHub e, su conferma, scarica l'archivio ZIP, ne verifica SHA256 e aggiorna i file al riavvio. È necessario usare la versione EXE Windows, non l'avvio da sorgente.
 - [Politica di versioning e build](VERSIONING_POLICY.md)
 - [Licenza MIT](LICENSE)
 
