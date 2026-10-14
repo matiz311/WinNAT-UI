@@ -11,6 +11,15 @@ class HelperTests(unittest.TestCase):
             self.assertFalse(app.is_on(value))
         self.assertEqual(app.yes_no(None), "—")
 
+    def test_debug_retains_multiline_output(self):
+        message = "PowerShell exit code: 1\\n\\nSTDERR:\\nErrore di rete\\n\\nSTDOUT:\\nL'oggetto esiste già."
+        trace = 'Traceback (most recent call last):\\n  File "app.py", line 50'
+        formatted = app.format_error_debug("Commit", message, trace)
+        self.assertIn("Operazione: Commit", formatted)
+        self.assertIn("STDERR:\\nErrore di rete", formatted)
+        self.assertIn("STDOUT:\\nL'oggetto esiste già.", formatted)
+        self.assertIn("Traceback (most recent call last):", formatted)
+
     def test_friendly_ip_errors(self):
         import ipaddress
         try:
