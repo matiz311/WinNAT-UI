@@ -98,3 +98,10 @@ For safety, the commit currently applies **one operation at a time**, although m
 **Warning:** removing all WinNAT objects can disrupt Hyper-V, WSL2 and containers. LAN IP/route changes can terminate remote access. Operate from the local console, verify interface selections and review the plan before committing. Operations are not transactional; partial changes can remain after an error.
 
 Automated planning tests: `test_network_guide.py`.
+
+## Interface v1.7.0 — UX redesign
+- Sidebar navigation (Ctrl+1…6) with a permanent *Administrator / Read-only* indicator.
+- Overview with a single gateway verdict, WAN/WinNAT/Routing/ICS cards with text badges, interface and default-route tables; raw diagnostics under *Technical details*.
+- Gateway page: live LAN → PC → WAN → Internet diagram, 3-step form with inline validation and a numbered preview of what Commit will do.
+- Persistent change bar (Discard / Review / Apply); commit requires explicit acknowledgement of possible network interruption.
+- Light/dark theme following Windows, high-DPI aware, non-blocking toasts. No new dependencies: Tkinter/ttk only (`ui_theme.py`).

@@ -128,3 +128,10 @@ Per prudenza il commit applica **una modifica alla volta**, anche se è possibil
 **Test suggerito:** apri l'app con privilegi amministrativi → configura LAN/WAN → controlla Modifiche → Commit → riavvia se richiesto → verifica indirizzamento, default route, NAT e sessioni → Disabilita / Ripristina con un nuovo Commit.
 
 I test automatici di pianificazione sono in `test_network_guide.py`.
+
+## Interfaccia v1.7.0 — redesign UX
+- **Navigazione laterale** con sezioni Panoramica, Regole NAT, Gateway, Modifiche, Sessioni (Ctrl+1…6) e indicatore permanente *Amministratore / Sola lettura*.
+- **Panoramica** con verdetto unico sullo stato del gateway, riquadri WAN/WinNAT/Routing/ICS con badge testuali (mai solo colore), tabelle interfacce e default route; il testo diagnostico grezzo resta in *Dettagli tecnici*.
+- **Gateway**: schema topologico LAN → PC → WAN → Internet aggiornato in tempo reale, campi raggruppati in 3 passi con validazione inline e anteprima numerata di cosa farà il Commit; il pulsante si abilita solo con dati validi.
+- **Barra modifiche** fissa in basso: unico punto per Scarta / Rivedi / Applica; il commit richiede una conferma esplicita della possibile interruzione di rete.
+- Tema chiaro/scuro che segue Windows, testo nitido su schermi high-DPI, notifiche non bloccanti al posto dei popup informativi. Nessuna nuova dipendenza: solo Tkinter/ttk (`ui_theme.py`).
