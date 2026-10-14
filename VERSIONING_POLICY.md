@@ -21,7 +21,9 @@ Il passaggio MINOR **non deriva dal numero di build** e non avviene automaticame
 4. La CI esegue comunque build e test a ogni push/PR, ma **non pubblica automaticamente** un cambio MINOR/MAJOR. Il controllo blocca salti numerici e pubblicazioni prive di note strutturate.
 5. Conservare immutabili i tag già pubblicati; non sovrascrivere pacchetti o SHA256 esistenti.
 
-Per la versione PATCH la pipeline può pubblicare automaticamente una release quando `version.py` aumenta di un solo PATCH e il changelog corrispondente è presente. A versione invariata produce esclusivamente artifact numerati.
+Per la versione PATCH la pipeline può pubblicare automaticamente una release quando `version.py` aumenta di un solo PATCH rispetto all'**ultima release pubblicata** e il changelog corrispondente è presente. A versione invariata produce esclusivamente artifact numerati.
+
+Se una PATCH preparata non è stata pubblicata (es. 1.9.3 bloccata dalla CI) e nel frattempo è arrivata la successiva (1.9.4), il salto è ammesso **solo** se ogni versione intermedia ha la propria sezione nel `CHANGELOG.md`: la release pubblicata (1.9.4) riporta nelle note anche le sezioni delle versioni incluse. Un numero saltato senza sezione resta bloccato.
 
 ## Eccezioni storiche
 Eccezione storica autorizzata: la release erronea `v1.10.1` e il relativo tag sono stati ritirati, mantenendo disponibile la versione corretta `v1.9.2`. I vecchi URL diretti non funzionano più. Nei prossimi rilasci evitare salti numerici non giustificati; non rinominare retroattivamente altre release senza un processo esplicito di migrazione.

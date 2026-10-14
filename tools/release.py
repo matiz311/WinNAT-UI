@@ -2,6 +2,7 @@
 
   python tools/release.py version          -> print the version (e.g. 1.7.3)
   python tools/release.py notes            -> print the CHANGELOG section of that version
+  python tools/release.py notes --since X  -> sections of all versions after X (bundled release)
   python tools/release.py bump 1.8.0       -> update version.py and version_info.txt
 """
 import pathlib
@@ -26,8 +27,30 @@ def notes(ver=None):
     return match.group(1).strip()
 
 
-def release_kind(previous, current):
-    """Classify an actual version change, not an individual CI build."""
+def changelog_versions():
+    """Versions that have their own '## [x.y.z]' section in CHANGELOG.md."""
+    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    return set(re.findall(r"^## \[(\d+\.\d+\.\d+)\]", text, re.M))
+
+
+def notes_since(previous, current=None):
+    """Notes for every version after `previous` up to `current` (unreleased
+    PATCH versions are bundled into the next published release)."""
+    current = current or version()
+    key = lambda v: tuple(map(int, v.split(".")))
+    included = sorted((v for v in changelog_versions() if key(previous) < key(v) <= key(current)),
+                      key=key, reverse=True)
+    if len(included) <= 1:
+        return notes(current)
+    return "\n\n".join("### Versione " + v + "\n" + notes(v).replace("### ", "#### ") for v in included)
+
+
+def release_kind(previous, current, documented=None):
+    """Classify an actual version change, not an individual CI build.
+
+    A PATCH jump over unreleased versions (e.g. 1.9.2 -> 1.9.4 when 1.9.3 was
+    prepared but never published) is accepted only if every skipped version is
+    listed in `documented` (the CHANGELOG sections)."""
     before, after = SEMVER.fullmatch(previous), SEMVER.fullmatch(current)
     if not before or not after:
         raise ValueError("Versione non valida: usare MAJOR.MINOR.PATCH.")
@@ -45,7 +68,10 @@ def release_kind(previous, current):
             raise ValueError("Incremento MINOR non sequenziale: atteso X.Y+1.0.")
         return "minor"
     if b[2] != a[2] + 1:
-        raise ValueError("Incremento PATCH non sequenziale.")
+        skipped = ["%d.%d.%d" % (a[0], a[1], p) for p in range(a[2] + 1, b[2])]
+        if documented is None or any(v not in documented for v in skipped):
+            raise ValueError("Incremento PATCH non sequenziale: le versioni intermedie ("
+                             + ", ".join(skipped) + ") devono avere una sezione nel CHANGELOG.")
     return "patch"
 
 
@@ -70,9 +96,9 @@ def validate_release_notes(kind, current, content=None):
         raise ValueError("Riepilogo MINOR troppo breve: descrivere il valore e le correzioni incluse.")
 
 
-def publication_gate(previous, current, manual=False, minor_approved=False, content=None):
+def publication_gate(previous, current, manual=False, minor_approved=False, content=None, documented=None):
     """Return whether publication is permitted; CI may always create artifacts."""
-    kind = release_kind(previous, current)
+    kind = release_kind(previous, current, changelog_versions() if documented is None else documented)
     validate_release_notes(kind, current, content)
     if kind == "same":
         return False, kind
@@ -101,7 +127,10 @@ if __name__ == "__main__":
         print(version())
     elif cmd == "notes":
         sys.stdout.reconfigure(encoding="utf-8")
-        print(notes())
+        if "--since" in sys.argv:
+            print(notes_since(sys.argv[sys.argv.index("--since") + 1]))
+        else:
+            print(notes())
     elif cmd == "gate" and len(sys.argv) >= 3:
         permitted, kind = publication_gate(
             sys.argv[2], version(),

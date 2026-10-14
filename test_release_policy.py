@@ -40,6 +40,22 @@ class ReleasePolicyTests(unittest.TestCase):
             with self.subTest(a=a, b=b), self.assertRaises(ValueError):
                 release.release_kind(a, b)
 
+    def test_patch_jump_over_unreleased_documented_versions(self):
+        # 1.9.3 was prepared (CHANGELOG section) but never published.
+        self.assertEqual(release.release_kind("1.9.2", "1.9.4", {"1.9.3", "1.9.4"}), "patch")
+        self.assertTrue(release.publication_gate("1.9.2", "1.9.4", documented={"1.9.3", "1.9.4"})[0])
+        with self.assertRaisesRegex(ValueError, "1.9.3"):
+            release.release_kind("1.9.2", "1.9.4", {"1.9.4"})
+        with self.assertRaises(ValueError):
+            release.release_kind("1.9.2", "1.9.4")
+
+    def test_bundled_notes_list_every_unreleased_version(self):
+        text = release.notes_since("1.9.2", "1.9.4")
+        self.assertIn("### Versione 1.9.4", text)
+        self.assertIn("### Versione 1.9.3", text)
+        self.assertLess(text.index("1.9.4"), text.index("1.9.3"))
+        self.assertEqual(release.notes_since("1.9.3", "1.9.4"), release.notes("1.9.4"))
+
 
 if __name__ == "__main__":
     unittest.main()

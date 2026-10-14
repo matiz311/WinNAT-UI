@@ -158,6 +158,7 @@ jobs:
           $decision = python tools/release.py gate $previous @options
           if ($LASTEXITCODE -ne 0) { throw "Release policy check failed: $decision" }
           Write-Host "Release decision: $decision (previous=$previous)"
+          "previous=$previous" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           if ($decision -like 'allowed:*') {
             "allowed=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           } else {
@@ -188,7 +189,7 @@ jobs:
           $zip = (Join-Path $env:RUNNER_TEMP 'WinNAT-UI-Windows.zip')
           Compress-Archive -Path (Join-Path $sourceDir '*') -DestinationPath $zip -Force
           [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-          $changes = (python tools/release.py notes) -join "`n"
+          $changes = (python tools/release.py notes --since "${{ steps.release_gate.outputs.previous }}") -join "`n"
           if ($LASTEXITCODE -ne 0) { throw 'CHANGELOG.md section missing for this version.' }
           $footer = @'
 

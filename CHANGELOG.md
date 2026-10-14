@@ -11,6 +11,8 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 
 
 ## [1.9.4] - 2026-10-15
+### Corretto
+- Pubblicazione: il controllo di release confronta con l'ultima release pubblicata e ammette il salto 1.9.2 → 1.9.4 perché la 1.9.3 (icona) era preparata ma bloccata dalla CI; le note di questa release includono anche la 1.9.3.
 ### Aggiunto
 - Controllo automatico all'avvio della release stabile ufficiale disponibile su GitHub e comando «Controlla aggiornamenti» nella pagina Informazioni.
 - Download diretto dello ZIP ufficiale solo con consenso esplicito, verifica SHA256 rispetto ai metadati GitHub, protezioni contro archivi non sicuri e avvio dell'aggiornamento a programma chiuso.
