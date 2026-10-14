@@ -1,0 +1,26 @@
+name: Sync release notes
+
+# Manual: rewrites the text of every published release from CHANGELOG.md.
+# Tags and downloadable assets are never modified.
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Applica le modifiche (altrimenti solo anteprima)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Sync notes from CHANGELOG.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: tools
+        run: python3 sync_release_notes.py ${{ inputs.apply && '--apply' || '' }}
