@@ -2,7 +2,7 @@ name: Build Windows executable
 
 on:
   push:
-    branches: [main]
+    branches: [main, ui/redesign-ux]
   workflow_dispatch:
 
 permissions:
