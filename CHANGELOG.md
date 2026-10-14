@@ -16,6 +16,10 @@ Regole del progetto:
 ### Nota
 - Lo stesso contenuto (1.9.1 + 1.9.2) è stato pubblicato per errore come **v1.10.1**; il progetto resta sulla serie 1.9.x.
 
+## [1.10.1] - 2026-10-14 (pubblicata per errore)
+### Nota
+- Numero pubblicato per errore: il contenuto corrisponde alla **1.9.2**, che è la versione da usare. Il progetto prosegue sulla serie 1.9.x; la release resta disponibile per non invalidare download e SHA256 già distribuiti.
+
 ## [1.9.1] - 2026-10-14
 ### Cambiato
 - **WAN dinamiche**: la configurazione parte con una sola WAN (la WAN secondaria non è più richiesta). Con «+ Aggiungi WAN» se ne possono aggiungere fino a quante interfacce ha il PC, riordinarle per priorità e rimuoverle; le metriche devono crescere secondo la priorità e viene proposta automaticamente la successiva (+40).
@@ -79,6 +83,7 @@ Regole del progetto:
 
 ## [1.5.0] - non pubblicata
 - Numero saltato: nessuna release 1.5.0 è stata distribuita.
+- Anche 1.10.0 non è mai stata pubblicata (build annullata).
 
 ## [1.4.0] - 2026-10-14
 ### Aggiunto
