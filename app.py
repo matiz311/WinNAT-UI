@@ -303,9 +303,8 @@ class App(tk.Tk):
             self.pending=[p for p in self.pending if p not in applied]
             messagebox.showinfo("Commit","Modifiche applicate: "+str(len(applied)))
             self.refresh()
-        # One change per commit prevents half-applied multi-step operations.
         if len(changes)!=1:
-            return messagebox.showwarning("Commit","Applica una modifica per volta per evitare commit parziali. Puoi lasciare le altre in attesa.")
+            return messagebox.showwarning("Commit","Le modifiche possono essere preparate insieme, ma applicale una per volta: Windows non offre rollback atomico per queste operazioni. Seleziona una modifica nella scheda Modifiche per annullare quelle non necessarie.")
         self.run_task("Commit",execute,success)
 
     def tab_changed(self,_event=None):
