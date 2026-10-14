@@ -28,6 +28,7 @@ jobs:
         run: python -m compileall -q app.py version.py network.py network_plan.py network_guide.py ui_theme.py tools/release.py test_network_guide.py test_ui_helpers.py test_version.py test_windows_ps.py
       - name: Run tests (planning, UI helpers, versioning, real PowerShell)
         run: python -m unittest -v test_network_guide test_ui_helpers test_version test_windows_ps
+<<<<<<< HEAD
       - name: Run read-only diagnostic script (smoke test)
         shell: powershell
         run: |
@@ -36,6 +37,8 @@ jobs:
           powershell -NoProfile -ExecutionPolicy Bypass -File tools/WinNAT-Diagnostica.ps1 -OutputFolder $out
           if (-not (Get-ChildItem $out -Filter 'WinNAT-Diagnostica-*.json')) { throw 'Diagnostic JSON not produced.' }
           Get-Content (Get-ChildItem $out -Filter '*.json' | Select-Object -First 1).FullName -Raw | ConvertFrom-Json | Out-Null
+=======
+>>>>>>> origin/main
       - name: Check version is not already released
         if: github.ref == 'refs/heads/main'
         shell: pwsh
