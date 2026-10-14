@@ -67,3 +67,13 @@ Close the application, use guided removal first if it created your NAT setup, an
 
 ## Maturity
 Early public release. Real-world Windows tests of forwarding, NAT, rollback behavior and interactions with Hyper-V/VPN/ICS remain necessary. Start with read-only diagnostics in a test environment.
+
+## Version 1.3.0 interface
+- **Dashboard** shows live configuration independently of NAT sessions.
+- **NAT** shows active and pending rules in the same table, marking additions/removals.
+- **Rete** stages guided setup and removal.
+- **Modifiche** previews changes before commit; **Scarta** discards pending edits.
+- **Sessioni** polls active NAT sessions separately every 60 seconds while selected, and offers a manual **Aggiorna** refresh.
+- Async operations display an indeterminate progress bar. PowerShell runs without a separate console window.
+
+For safety, the commit currently applies **one operation at a time**, although multiple changes can be staged. Windows operations do not offer transactional rollback.
