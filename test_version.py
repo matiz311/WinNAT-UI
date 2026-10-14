@@ -31,6 +31,14 @@ class VersionTests(unittest.TestCase):
         workflow = (ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
         self.assertNotRegex(workflow, r"v\d+\.\d+\.\d+", "il workflow non deve contenere versioni fisse")
 
+    def test_no_conflict_markers(self):
+        for path in ROOT.rglob("*"):
+            if ".git" in path.parts or not path.is_file() or path.suffix not in {".py", ".yml", ".md", ".txt", ".ps1"}:
+                continue
+            for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+                self.assertFalse(line.startswith(("<<<<<<< ", ">>>>>>> ")) or line == "=======",
+                                 "marker di conflitto in " + str(path))
+
 
 if __name__ == "__main__":
     unittest.main()
