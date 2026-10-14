@@ -1143,7 +1143,7 @@ class App(tk.Tk):
         dlg.ok.configure(command=dlg.destroy)
         details = format_error_debug(operation, message, traceback_text)
         report_title, report_body = bug_report.make_report(operation, message, traceback_text, VERSION)
-        report_text = report_title + "\\n\\n" + report_body
+        report_text = report_title + "\n\n" + report_body
 
         def copy_anonymized():
             dlg.clipboard_clear()
