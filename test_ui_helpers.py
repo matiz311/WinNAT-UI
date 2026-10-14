@@ -16,7 +16,7 @@ class HelperTests(unittest.TestCase):
         import network
         from types import SimpleNamespace
         events = []
-        process = SimpleNamespace(returncode=0, stdout="OK\\n", stderr="")
+        process = SimpleNamespace(returncode=0, stdout="OK\n", stderr="")
         with patch("network.subprocess.run", return_value=process):
             token = network.command_logger.set(lambda kind, value: events.append((kind, value)))
             try:
