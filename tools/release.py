@@ -26,6 +26,59 @@ def notes(ver=None):
     return match.group(1).strip()
 
 
+def release_kind(previous, current):
+    """Classify an actual version change, not an individual CI build."""
+    before, after = SEMVER.fullmatch(previous), SEMVER.fullmatch(current)
+    if not before or not after:
+        raise ValueError("Versione non valida: usare MAJOR.MINOR.PATCH.")
+    a, b = tuple(map(int, before.groups())), tuple(map(int, after.groups()))
+    if a == b:
+        return "same"
+    if b < a:
+        raise ValueError("La versione non può diminuire.")
+    if b[0] > a[0]:
+        if b[1:] != (0, 0) or b[0] != a[0] + 1:
+            raise ValueError("Incremento MAJOR non sequenziale.")
+        return "major"
+    if b[1] > a[1]:
+        if b[0] != a[0] or b[1] != a[1] + 1 or b[2] != 0:
+            raise ValueError("Incremento MINOR non sequenziale: atteso X.Y+1.0.")
+        return "minor"
+    if b[2] != a[2] + 1:
+        raise ValueError("Incremento PATCH non sequenziale.")
+    return "patch"
+
+
+def validate_release_notes(kind, current, content=None):
+    """A MINOR release needs an actual feature/fix summary, not just a label."""
+    if kind not in ("minor", "major"):
+        return
+    content = notes(current) if content is None else content
+    headings = ("### Sintesi", "### Funzionalità", "### Correzioni")
+    missing = [h for h in headings if h not in content]
+    if missing:
+        raise ValueError("Release MINOR senza riepilogo obbligatorio: " + ", ".join(missing))
+    for index, heading in enumerate(headings):
+        start = content.index(heading) + len(heading)
+        next_start = min((content.find("### ", start) if content.find("### ", start) >= 0 else len(content)),
+                         len(content))
+        section = content[start:next_start]
+        if not section.strip() or (heading != "### Sintesi" and not any(
+                line.lstrip().startswith("- ") for line in section.splitlines())):
+            raise ValueError("La sezione " + heading + " deve contenere informazioni concrete.")
+    if len(content.strip()) < 250:
+        raise ValueError("Riepilogo MINOR troppo breve: descrivere il valore e le correzioni incluse.")
+
+
+def publication_gate(previous, current, manual=False, minor_approved=False, content=None):
+    """Return whether publication is permitted; CI may always create artifacts."""
+    kind = release_kind(previous, current)
+    validate_release_notes(kind, current, content)
+    if kind in ("minor", "major") and not (manual and minor_approved):
+        return False, kind
+    return True, kind
+
+
 def bump(new):
     if not SEMVER.match(new):
         raise SystemExit("Versione non valida (atteso MAJOR.MINOR.PATCH): " + new)
