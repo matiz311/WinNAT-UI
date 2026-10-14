@@ -105,3 +105,10 @@ Some Windows 11 network adapters can reject `New-NetIPAddress` with `Inconsisten
 The candidate/commit process is unchanged. After a failed commit, the GUI discards the potentially stale candidate and re-reads the actual Windows configuration: **inspect the live state before trying again**, as earlier steps may already have run.
 
 Official Microsoft reference: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/netsh-interface.
+
+## Interface v1.7.1 — UX redesign
+- Sidebar navigation (Ctrl+1…6) with a permanent *Administrator / Read-only* indicator.
+- Overview with a single gateway verdict, WAN/WinNAT/Routing/ICS cards with text badges, interface and default-route tables; raw diagnostics under *Technical details*.
+- Gateway page: live LAN → PC → WAN → Internet diagram, 3-step form with inline validation and a numbered preview of what Commit will do.
+- Persistent change bar (Discard / Review / Apply); commit requires explicit acknowledgement of possible network interruption.
+- Light/dark theme following Windows, high-DPI aware, non-blocking toasts. No new dependencies: Tkinter/ttk only (`ui_theme.py`).

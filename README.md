@@ -135,3 +135,10 @@ In alcune configurazioni Windows 11, `New-NetIPAddress` fallisce con `Inconsiste
 La configurazione candidata e il Commit restano invariati. Se un Commit fallisce, la GUI scarta il candidato non più affidabile e aggiorna lo stato reale di Windows: **controlla prima di riprovare**, perché alcune operazioni precedenti all'errore possono essere state eseguite.
 
 Il comando `netsh` è documentato da Microsoft: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/netsh-interface.
+
+## Interfaccia v1.7.1 — redesign UX
+- **Navigazione laterale** con sezioni Panoramica, Regole NAT, Gateway, Modifiche, Sessioni (Ctrl+1…6) e indicatore permanente *Amministratore / Sola lettura*.
+- **Panoramica** con verdetto unico sullo stato del gateway, riquadri WAN/WinNAT/Routing/ICS con badge testuali (mai solo colore), tabelle interfacce e default route; il testo diagnostico grezzo resta in *Dettagli tecnici*.
+- **Gateway**: schema topologico LAN → PC → WAN → Internet aggiornato in tempo reale, campi raggruppati in 3 passi con validazione inline e anteprima numerata di cosa farà il Commit; il pulsante si abilita solo con dati validi.
+- **Barra modifiche** fissa in basso: unico punto per Scarta / Rivedi / Applica; il commit richiede una conferma esplicita della possibile interruzione di rete.
+- Tema chiaro/scuro che segue Windows, testo nitido su schermi high-DPI, notifiche non bloccanti al posto dei popup informativi. Nessuna nuova dipendenza: solo Tkinter/ttk (`ui_theme.py`).
