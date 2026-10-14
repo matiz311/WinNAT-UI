@@ -120,6 +120,7 @@ New-NetNat -Name 'WinNAT-UI' -InternalIPInterfaceAddressPrefix '%s' -ErrorAction
     state = {
         "lan": lan, "prefix": prefix, "gateway": gateway,
         "nat": "WinNAT-UI",
+        "added_ip": not any(ip.get("InterfaceAlias") == lan and ip.get("IPAddress") == gateway and ip.get("PrefixLength") == subnet.prefixlen for ip in data.get("ips", [])),
         "created": datetime.now().isoformat()
     }
     state_path().parent.mkdir(parents=True, exist_ok=True)
@@ -148,16 +149,18 @@ def teardown(data):
     if len(matching) != 1:
         raise ValueError("La regola NAT gestita non coincide con quella attuale. Operazione interrotta.")
     # Non rimuovere altri IP, gateway, DHCP, ICS, VPN o NAT estranei.
+    remove_ip = bool(state.get('added_ip', False))
     script = """
 $ErrorActionPreference='Stop'
 $nat = Get-NetNat -Name '%s' -ErrorAction Stop
 if($nat.InternalIPInterfaceAddressPrefix -ne '%s'){throw 'Prefisso NAT cambiato'}
 Remove-NetNat -Name '%s' -Confirm:$false -ErrorAction Stop
+$removeIp = $%s
 $ip = Get-NetIPAddress -InterfaceAlias '%s' -AddressFamily IPv4 -IPAddress '%s' -ErrorAction SilentlyContinue |
     Where-Object {$_.PrefixLength -eq %d}
-if($ip){Remove-NetIPAddress -InputObject $ip -Confirm:$false -ErrorAction Stop}
+if($ip -and $removeIp){Remove-NetIPAddress -InputObject $ip -Confirm:$false -ErrorAction Stop}
 'Managed NAT removed. IP forwarding has been preserved.'
-""" % (name, prefix, name, alias, gateway, ipaddress.IPv4Network(prefix).prefixlen)
+""" % (name, prefix, name, alias, gateway, 'true' if remove_ip else 'false', ipaddress.IPv4Network(prefix).prefixlen)
     result = ps(script)
     state_path().unlink(missing_ok=True)
     return result
