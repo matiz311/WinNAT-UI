@@ -114,7 +114,7 @@ Official Microsoft reference: https://learn.microsoft.com/en-us/windows-server/a
 - Light/dark theme following Windows, high-DPI aware, non-blocking toasts. No new dependencies: Tkinter/ttk only (`ui_theme.py`).
 
 
-## Version 1.10.0 — dynamic WANs and automatic LAN subnet
+## Version 1.9.1 — dynamic WANs and automatic LAN subnet
 - **Gateway → Configure** starts with a single WAN; **+ Add WAN** adds more (up to the number of adapters), with reorderable priority and increasing metrics.
 - Selecting the LAN reuses the IPv4 already on that adapter as a static address without gateway and NATs its subnet; without a usable IPv4 it falls back to `10.10.10.0/24` / `10.10.10.1`. Values stay editable.
 - The LAN subnet may not overlap a WAN network.

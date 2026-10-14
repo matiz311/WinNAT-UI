@@ -145,7 +145,7 @@ Il comando `netsh` è documentato da Microsoft: https://learn.microsoft.com/en-u
 - Tema chiaro/scuro che segue Windows, testo nitido su schermi high-DPI, notifiche non bloccanti al posto dei popup informativi. Nessuna nuova dipendenza: solo Tkinter/ttk (`ui_theme.py`).
 
 
-## Versione 1.10.0 — WAN dinamiche e subnet LAN automatica
+## Versione 1.9.1 — WAN dinamiche e subnet LAN automatica
 - **Gateway → Configura** parte con una sola WAN; **+ Aggiungi WAN** ne aggiunge altre (fino al numero di interfacce del PC), con priorità riordinabile e metriche crescenti.
 - Scegliendo la LAN, l'IPv4 già presente sulla scheda viene riutilizzato come IP statico senza gateway e la sua subnet diventa quella del NAT; senza un IPv4 utilizzabile si usa `10.10.10.0/24` con IP `10.10.10.1`. I valori restano modificabili.
 - La subnet LAN non può sovrapporsi a quella di una WAN.

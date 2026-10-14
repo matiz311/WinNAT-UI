@@ -9,7 +9,7 @@ Regole del progetto:
 - La versione si cambia solo in `version.py`; ogni release ha qui una sezione `## [x.y.z]`, da cui la CI prende le note.
 - I tag già pubblicati non vengono mai spostati o rinominati (gli ZIP e gli SHA256 distribuiti resterebbero orfani): eventuali errori si correggono qui e nelle note della release.
 
-## [1.10.0] - 2026-10-14
+## [1.9.1] - 2026-10-14
 ### Cambiato
 - **WAN dinamiche**: la configurazione parte con una sola WAN (la WAN secondaria non è più richiesta). Con «+ Aggiungi WAN» se ne possono aggiungere fino a quante interfacce ha il PC, riordinarle per priorità e rimuoverle; le metriche devono crescere secondo la priorità e viene proposta automaticamente la successiva (+40).
 - **Subnet LAN automatica**: scegliendo l'interfaccia LAN viene rilevato l'IPv4 già presente (preferiti gli indirizzi manuali, ignorati APIPA 169.254.x.x): diventa statico, senza gateway, e il NAT usa quella subnet. Se la scheda non ha un IPv4 utilizzabile si usa 10.10.10.0/24 con IP 10.10.10.1. Un'etichetta indica se i valori sono rilevati, predefiniti o modificati a mano.
