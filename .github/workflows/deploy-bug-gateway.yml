@@ -1,0 +1,101 @@
+name: Deploy anonymous issue gateway
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/bug-gateway/**'
+      - '.github/workflows/deploy-bug-gateway.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: winnat-bug-gateway-deploy
+  cancel-in-progress: false
+
+jobs:
+  gateway-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
+        working-directory: services/bug-gateway
+
+  deploy:
+    needs: gateway-tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify deployment secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GITHUB_ISSUE_TOKEN: ${{ secrets.GITHUB_ISSUE_TOKEN }}
+        run: |
+          for secret in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID GITHUB_ISSUE_TOKEN; do
+            if [[ -z "${!secret}" ]]; then
+              echo "Missing GitHub Actions secret: $secret" >&2
+              exit 1
+            fi
+          done
+      - name: Deploy Worker and securely set its GitHub credential
+        id: deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          workingDirectory: services/bug-gateway
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          secrets: |
+            GITHUB_ISSUE_TOKEN
+        env:
+          GITHUB_ISSUE_TOKEN: ${{ secrets.GITHUB_ISSUE_TOKEN }}
+      - name: Verify live endpoint and stage client service configuration
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          let url;
+          try { url = new URL(process.env.DEPLOYMENT_URL || ''); }
+          catch { throw new Error('Worker deployment URL is missing or invalid'); }
+          if (url.protocol !== 'https:' || !url.hostname.endsWith('.workers.dev') ||
+              url.hostname.split('.').length < 4 || !['', '/'].includes(url.pathname) ||
+              url.username || url.password || url.port || url.search || url.hash) {
+            throw new Error('Refusing to publish an untrusted or unsupported Worker URL');
+          }
+          const health = await fetch(new URL('/health',url), {signal:AbortSignal.timeout(15000)});
+          if (!health.ok || (await health.json()).status !== 'ready')
+            throw new Error('Worker health check failed; will not publish endpoint');
+          const submit = new URL('/report',url).toString();
+          writeFileSync('bug-service.json',JSON.stringify({submit_url:submit},null,2)+'\n');
+          console.log('Verified anonymous reporting endpoint:',submit);
+          NODE
+      - name: Ensure bug-report GitHub label exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if ! gh api "repos/$GH_REPO/labels/bug-report" >/dev/null 2>&1; then
+            gh api -X POST "repos/$GH_REPO/labels" \
+              -f name='bug-report' -f color='d73a4a' \
+              -f description='Segnalazione automatica anonimizzata da WinNAT-UI' >/dev/null
+          fi
+      - name: Publish verified endpoint to desktop clients
+        run: |
+          if git diff --quiet -- bug-service.json; then
+            echo 'Published endpoint is already current'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add bug-service.json
+          git commit -m 'chore: publish verified anonymous bug gateway URL'
+          git push origin HEAD:main
