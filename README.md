@@ -14,6 +14,7 @@
 - [Informativa privacy](PRIVACY.it.md) ([English](PRIVACY.md))
 - [Politica di firma](CODE_SIGNING_POLICY.it.md) ([English](CODE_SIGNING_POLICY.md))
 - [Changelog](CHANGELOG.md)
+- Aggiornamento integrato: in **Informazioni → Controlla aggiornamenti**, oppure all'avvio quando è disponibile una release stabile più recente; scarica da GitHub e verifica SHA256 prima della sostituzione dei file al riavvio.
 - [Politica di versioning e build](VERSIONING_POLICY.md)
 - [Licenza MIT](LICENSE)
 
