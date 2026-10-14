@@ -79,8 +79,8 @@ def preview(action, profile, data):
     if action == "apply":
         items = [
             "LAN " + p["lan"] + ": DHCP IPv4 disabilitato",
-            "LAN: elimina " + str(len(lan_ips)) + " indirizzi IPv4 esistenti",
-            "LAN: elimina le vecchie route, incluse eventuali default route (" + str(len(lan_routes)) + ")",
+            "LAN: sostituisce gli indirizzi IPv4 esistenti con un unico indirizzo statico persistente (netsh)",
+            "LAN: rimuove il vecchio default gateway e le route instradate residue (" + str(len(lan_routes)) + " route rilevate)",
             "LAN: configura " + p["gateway"] + "/" + p["prefix"].split("/")[1] + " senza gateway",
             "Routing globale: IPEnableRouter = 1 (riavvio raccomandato)",
             "Forwarding IPv4: abilita su " + ", ".join(involved),
@@ -153,14 +153,27 @@ def execute(action, profile, current, expected_fingerprint):
         # The guide deliberately replaces ALL IPv4 LAN configuration, but never WAN IPs.
         script += [
             "if (@(Get-NetNat).Count -gt 0) { throw 'NAT preesistente: esegui prima Ripristina' }",
-            "Set-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -Dhcp Disabled -ErrorAction Stop",
-            # Connected/on-link routes are removed when the related IP is removed.
-            "Get-NetIPAddress -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue | "
-            "Remove-NetIPAddress -Confirm:$false -ErrorAction Stop",
+            # Windows can retain DHCP=Enabled in PersistentStore even after
+            # Set-NetIPInterface -Dhcp Disabled. New-NetIPAddress then raises
+            # "Inconsistent parameters PolicyStore PersistentStore and Dhcp Enabled".
+            # netsh 'set address' changes the static source and IP persistently
+            # in one operation, removing previous interface IPs/default gateway.
+            "$lanIP = %s" % psquote(p["gateway"]),
+            "$lanMask = %s" % psquote(str(ipaddress.IPv4Network(p["prefix"]).netmask)),
+            "$netshOutput = & netsh.exe interface ipv4 set address "
+            '("name=" + $lan) "source=static" ("address=" + $lanIP) '
+            '("mask=" + $lanMask) "gateway=none" "store=persistent" 2>&1',
+            "if ($LASTEXITCODE -ne 0) { throw ('Impossibile impostare IP statico LAN tramite netsh (codice ' + $LASTEXITCODE + '): ' + ($netshOutput | Out-String)) }",
+            "$iface = Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop",
+            "if ($iface.Dhcp -ne 'Disabled') { throw 'LAN: DHCP risulta ancora attivo dopo la configurazione statica. Controlla lo stato della scheda e riprova solo dopo la verifica.' }",
+            "$configuredIP = @(Get-NetIPAddress -InterfaceAlias $lan -IPAddress $lanIP -AddressFamily IPv4 -ErrorAction SilentlyContinue)",
+            "if (-not ($configuredIP | Where-Object { $_.PrefixLength -eq %d })) { throw 'LAN: IPv4 statico non presente dopo la configurazione. Verifica la connessione fisica e lo stato di Windows.' }"
+            % ipaddress.IPv4Network(p["prefix"]).prefixlen,
+            # netsh clears previous IPs and default gateway; remove any leftover
+            # routed entries while preserving the new connected/on-link route.
             "Get-NetRoute -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue | "
+            "Where-Object { $_.DestinationPrefix -eq '0.0.0.0/0' -or $_.NextHop -notin @('0.0.0.0', '::') } | "
             "Remove-NetRoute -Confirm:$false -ErrorAction Stop",
-            "New-NetIPAddress -InterfaceAlias $lan -IPAddress %s -PrefixLength %d -ErrorAction Stop | Out-Null"
-            % (psquote(p["gateway"]), ipaddress.IPv4Network(p["prefix"]).prefixlen),
             "Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters' -Name IPEnableRouter -Value 1 -ErrorAction Stop",
             "Set-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -Forwarding Enabled -ErrorAction Stop",
             "Set-NetIPInterface -InterfaceAlias $wan1 -AddressFamily IPv4 -Forwarding Enabled -ErrorAction Stop",
@@ -187,12 +200,14 @@ def execute(action, profile, current, expected_fingerprint):
             if p["wan2"]:
                 script.append("Set-NetIPInterface -InterfaceAlias $wan2 -AddressFamily IPv4 -AutomaticMetric Enabled -ErrorAction Stop")
             script += [
-                "Set-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -Dhcp Disabled -ErrorAction Stop",
-                "Get-NetIPAddress -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue | "
-                "Remove-NetIPAddress -Confirm:$false -ErrorAction Stop",
+                # Reset all manually configured addresses/default gateway
+                # while setting DHCP, without an intermediate inconsistent store.
+                "$netshOutput = & netsh.exe interface ipv4 set address "
+                '("name=" + $lan) "source=dhcp" "store=persistent" 2>&1',
+                "if ($LASTEXITCODE -ne 0) { throw ('Impossibile ripristinare DHCP LAN tramite netsh (codice ' + $LASTEXITCODE + '): ' + ($netshOutput | Out-String)) }",
                 "Get-NetRoute -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue | "
+                "Where-Object { $_.NextHop -notin @('0.0.0.0', '::') -and $_.DestinationPrefix -ne '0.0.0.0/0' } | "
                 "Remove-NetRoute -Confirm:$false -ErrorAction Stop",
-                "Set-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -Dhcp Enabled -ErrorAction Stop",
             ]
         script.append("Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters' -Name IPEnableRouter -Value 0 -ErrorAction Stop")
     # A single PowerShell invocation makes operation order clear, but not atomic.
