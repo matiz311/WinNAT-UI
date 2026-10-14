@@ -98,3 +98,10 @@ For safety, the commit currently applies **one operation at a time**, although m
 **Warning:** removing all WinNAT objects can disrupt Hyper-V, WSL2 and containers. LAN IP/route changes can terminate remote access. Operate from the local console, verify interface selections and review the plan before committing. Operations are not transactional; partial changes can remain after an error.
 
 Automated planning tests: `test_network_guide.py`.
+
+## Fix v1.6.1 — PersistentStore DHCP vs. static IPv4
+Some Windows 11 network adapters can reject `New-NetIPAddress` with `Inconsistent parameters PolicyStore PersistentStore and Dhcp Enabled`, even after DHCP has been disabled using `Set-NetIPInterface`. The LAN static-IP operation now uses `netsh interface ipv4 set address source=static ... gateway=none store=persistent`, followed by explicit verification of the assigned IP and DHCP state. Resetting the LAN to DHCP uses `source=dhcp`.
+
+The candidate/commit process is unchanged. After a failed commit, the GUI discards the potentially stale candidate and re-reads the actual Windows configuration: **inspect the live state before trying again**, as earlier steps may already have run.
+
+Official Microsoft reference: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/netsh-interface.
