@@ -92,7 +92,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $tag = 'v1.7.3'
+          $tag = 'v1.7.4'
           $head = gh api "repos/$env:GITHUB_REPOSITORY/branches/main" --jq '.commit.sha'
           if ($LASTEXITCODE -ne 0) { throw 'Cannot verify main branch HEAD.' }
           if ($head.Trim() -ne $env:GITHUB_SHA) {
@@ -108,7 +108,7 @@ jobs:
           $zip = (Join-Path $env:RUNNER_TEMP 'WinNAT-UI-Windows.zip')
           Compress-Archive -Path (Join-Path $sourceDir '*') -DestinationPath $zip -Force
           $releaseNotes = @'
-          WinNAT UI v1.7.3 — verify existing static LAN address, detect cross-interface duplicate IPs, and distinguish netsh errors from actual state; Windows testing required.
+          WinNAT UI v1.7.4 — verbose error diagnostics with full numbered PowerShell command, stdout/stderr and before/after network state; Windows validation required.
 
           **UNSIGNED DEVELOPMENT BUILD**. The project is applying to SignPath Foundation for free code signing. No SignPath certificate has yet been issued, and this version is not signed or endorsed by SignPath Foundation.
           
@@ -121,5 +121,5 @@ jobs:
           '@
           $notesFile = Join-Path $env:RUNNER_TEMP 'release-notes.md'
           Set-Content -Path $notesFile -Value $releaseNotes -Encoding utf8
-          gh release create $tag $zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "WinNAT UI v1.7.3" --notes-file $notesFile --latest
+          gh release create $tag $zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "WinNAT UI v1.7.4" --notes-file $notesFile --latest
           if ($LASTEXITCODE -ne 0) { throw 'Release creation failed.' }
