@@ -10,6 +10,13 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
 
 
+## [1.9.5] - 2026-10-15
+### Aggiunto
+- Gli errori mostrano le azioni «Copia errore» e «Segnala bug su GitHub»: la seconda apre una bozza di Issue con dati anonimizzati, senza pubblicare nulla automaticamente.
+- Il report è costruito esclusivamente con metadati predefiniti: versione, operazione, categoria, tipo di eccezione, codice di uscita PowerShell e nomi dei moduli dell'app coinvolti.
+### Riservatezza
+- Non vengono esportati automaticamente traceback grezzo, comandi, configurazioni, output di PowerShell, indirizzi IP, credenziali, percorsi o nomi delle interfacce. L'utente può verificare il report e aggiungere informazioni prima dell'invio.
+
 ## [1.9.4] - 2026-10-15
 ### Migliorato
 - Nella scheda Modifiche, console PowerShell aggiornabile durante il commit: mostra ogni script, STDOUT, STDERR e il codice di uscita.
