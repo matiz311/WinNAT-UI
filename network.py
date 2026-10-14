@@ -4,6 +4,7 @@ import ipaddress
 import json
 import os
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
@@ -29,31 +30,42 @@ def ps(script):
     return process.stdout.strip()
 
 def collect():
-    script = r"""
-$ErrorActionPreference = 'Stop'
-function Arr($x) { @($x) }
-$adapters = @(Get-NetAdapter | Select-Object Name,InterfaceIndex,InterfaceDescription,Status,LinkSpeed)
-$ips = @(Get-NetIPAddress -AddressFamily IPv4 | Select-Object InterfaceAlias,InterfaceIndex,IPAddress,PrefixLength,AddressState)
-$routes = @(Get-NetRoute -AddressFamily IPv4 | Select-Object InterfaceAlias,InterfaceIndex,DestinationPrefix,NextHop,RouteMetric,InterfaceMetric)
-$ifaces = @(Get-NetIPInterface -AddressFamily IPv4 | Select-Object InterfaceAlias,InterfaceIndex,Forwarding,Dhcp,ConnectionState,InterfaceMetric)
-$nats = @(Get-NetNat | Select-Object Name,InternalIPInterfaceAddressPrefix,ExternalIPInterfaceAddressPrefix,Active)
-$ics = Get-Service SharedAccess | Select-Object Name,Status,StartType
-$connections = @()
-try {
-  $manager = New-Object -ComObject HNetCfg.HNetShare
-  foreach ($connection in $manager.EnumEveryConnection()) {
-    $props = $manager.NetConnectionProps($connection)
-    $config = $manager.INetSharingConfigurationForINetConnection($connection)
-    $connections += [pscustomobject]@{
-      Name=$props.Name
-      SharingEnabled=[bool]$config.SharingEnabled
-      SharingConnectionType=$(if($config.SharingEnabled){[int]$config.SharingConnectionType}else{$null})
+    """Collect independent configuration groups concurrently. Sessions are separate."""
+    scripts = {
+        "adapters": "Get-NetAdapter | Select-Object Name,InterfaceIndex,InterfaceDescription,Status,LinkSpeed",
+        "ips": "Get-NetIPAddress -AddressFamily IPv4 | Select-Object InterfaceAlias,InterfaceIndex,IPAddress,PrefixLength,AddressState",
+        "routes": "Get-NetRoute -AddressFamily IPv4 | Select-Object InterfaceAlias,InterfaceIndex,DestinationPrefix,NextHop,RouteMetric,InterfaceMetric",
+        "interfaces": "Get-NetIPInterface -AddressFamily IPv4 | Select-Object InterfaceAlias,InterfaceIndex,Forwarding,Dhcp,ConnectionState,InterfaceMetric",
+        "nats": "Get-NetNat | Select-Object Name,InternalIPInterfaceAddressPrefix,ExternalIPInterfaceAddressPrefix,Active",
+        "ics": "Get-Service SharedAccess | Select-Object Name,Status,StartType"
     }
-  }
-} catch { $connections += [pscustomobject]@{Name='ICS inspection error';Error=$_.Exception.Message} }
-[pscustomobject]@{adapters=$adapters;ips=$ips;routes=$routes;interfaces=$ifaces;nats=$nats;ics=$ics;icsConnections=$connections} | ConvertTo-Json -Depth 8 -Compress
-"""
-    return json.loads(ps(script))
+    def run_group(item):
+        key, expression = item
+        command = "$ErrorActionPreference='Stop'; @(" + expression + ") | ConvertTo-Json -Compress -Depth 6"
+        raw = ps(command)
+        value = json.loads(raw) if raw else []
+        return key, value if isinstance(value, list) else [value]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        result = dict(pool.map(run_group, scripts.items()))
+    result["ics"] = result["ics"][0] if result["ics"] else {}
+    # ICS COM discovery is separated so COM errors don't hide the other results.
+    try:
+        raw = ps(r"""
+$ErrorActionPreference='Stop'
+$manager=New-Object -ComObject HNetCfg.HNetShare
+@(
+foreach($connection in $manager.EnumEveryConnection()){
+  $props=$manager.NetConnectionProps($connection)
+  $config=$manager.INetSharingConfigurationForINetConnection($connection)
+  [pscustomobject]@{Name=$props.Name;SharingEnabled=[bool]$config.SharingEnabled;SharingConnectionType=$(if($config.SharingEnabled){[int]$config.SharingConnectionType}else{$null})}
+}
+) | ConvertTo-Json -Compress -Depth 5
+""")
+        value = json.loads(raw) if raw else []
+        result["icsConnections"] = value if isinstance(value, list) else [value]
+    except Exception as exc:
+        result["icsConnections"] = [{"Name": "ICS inspection error", "Error": str(exc)}]
+    return result
 
 def sessions():
     """Load active NAT sessions on demand, independently of interface discovery."""
@@ -177,3 +189,34 @@ if($ip -and $removeIp){Remove-NetIPAddress -InputObject $ip -Confirm:$false -Err
     result = ps(script)
     state_path().unlink(missing_ok=True)
     return result
+
+def remove_existing_configuration(lan, prefix, gateway, nat_names, data, remove_address=False):
+    """Explicitly remove selected pre-existing NATs and optionally the exact LAN IP.
+
+    Does not touch ICS, unrelated interfaces or forwarding. Backup is performed by caller.
+    """
+    subnet = ipaddress.IPv4Network(validate_prefix(prefix))
+    validate_gateway(gateway, subnet)
+    alias = validate_alias(lan, data)
+    existing = {n.get("Name") for n in data.get("nats", [])}
+    names = list(dict.fromkeys(validate_name(n) for n in nat_names))
+    if not names or any(n not in existing for n in names):
+        raise ValueError("Seleziona una o piu regole NAT esistenti.")
+    names_literal = ",".join("'" + n + "'" for n in names)
+    script = """
+$ErrorActionPreference='Stop'
+$names=@(%s)
+foreach($name in $names) {
+  $rule=Get-NetNat -Name $name -ErrorAction Stop
+  if($null -eq $rule) { throw "Regola NAT non trovata: $name" }
+}
+foreach($name in $names) { Remove-NetNat -Name $name -Confirm:$false -ErrorAction Stop }
+$removeAddress=$%s
+if($removeAddress) {
+  $addr=Get-NetIPAddress -InterfaceAlias '%s' -IPAddress '%s' -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+    Where-Object { $_.PrefixLength -eq %d }
+  if($addr) { $addr | Remove-NetIPAddress -Confirm:$false -ErrorAction Stop }
+}
+'Configuration removal completed'
+""" % (names_literal, 'true' if remove_address else 'false', alias, gateway, subnet.prefixlen)
+    return ps(script)
