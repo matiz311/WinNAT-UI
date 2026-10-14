@@ -2,12 +2,13 @@
 
 Formato basato su [Keep a Changelog](https://keepachangelog.com/it/1.1.0/); versioni secondo [Semantic Versioning](https://semver.org/lang/it/).
 
-Regole del progetto:
-- **MAJOR**: cambi incompatibili (es. formato dello stato salvato, requisiti di sistema).
-- **MINOR**: nuove funzioni o cambi visibili dell'interfaccia.
-- **PATCH**: sole correzioni, nessuna funzione nuova.
-- La versione si cambia solo in `version.py`; ogni release ha qui una sezione `## [x.y.z]`, da cui la CI prende le note.
-- I tag già pubblicati non vengono mai spostati o rinominati (gli ZIP e gli SHA256 distribuiti resterebbero orfani): eventuali errori si correggono qui e nelle note della release.
+Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
+- **MAJOR**: cambio incompatibile; approvazione manuale e riepilogo significativo obbligatori.
+- **MINOR**: pacchetto significativo di feature e correzioni: non incrementare per singole patch o a ogni build; richiede le sezioni **Sintesi**, **Funzionalità** e **Correzioni**, oltre all'approvazione manuale.
+- **PATCH**: correzioni e stabilizzazione della serie corrente, senza nuove funzionalità significative.
+- **BUILD**: ogni esecuzione GitHub Actions genera un artifact identificato con run number e SHA, senza incrementare la versione funzionale.
+- La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
+
 
 ## [1.9.2] - 2026-10-14
 ### Corretto
