@@ -35,9 +35,11 @@ def collect():
         "adapters": "Get-NetAdapter | Select-Object Name,InterfaceIndex,InterfaceDescription,Status,LinkSpeed",
         "ips": "Get-NetIPAddress -AddressFamily IPv4 | Select-Object InterfaceAlias,InterfaceIndex,IPAddress,PrefixLength,AddressState",
         "routes": "Get-NetRoute -AddressFamily IPv4 | Select-Object InterfaceAlias,InterfaceIndex,DestinationPrefix,NextHop,RouteMetric,InterfaceMetric",
-        "interfaces": "Get-NetIPInterface -AddressFamily IPv4 | Select-Object InterfaceAlias,InterfaceIndex,Forwarding,Dhcp,ConnectionState,InterfaceMetric",
+        "interfaces": "Get-NetIPInterface -AddressFamily IPv4 | Select-Object InterfaceAlias,InterfaceIndex,Forwarding,Dhcp,AutomaticMetric,ConnectionState,InterfaceMetric",
         "nats": "Get-NetNat | Select-Object Name,InternalIPInterfaceAddressPrefix,ExternalIPInterfaceAddressPrefix,Active",
-        "ics": "Get-Service SharedAccess | Select-Object Name,Status,StartType"
+        "ics": "Get-Service SharedAccess | Select-Object Name,Status,StartType",
+        "dns": "Get-DnsClientServerAddress -AddressFamily IPv4 | Select-Object InterfaceAlias,ServerAddresses",
+        "globalRouter": "(Get-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters' -Name IPEnableRouter -ErrorAction Stop).IPEnableRouter"
     }
     def run_group(item):
         key, expression = item
@@ -48,6 +50,7 @@ def collect():
     with ThreadPoolExecutor(max_workers=4) as pool:
         result = dict(pool.map(run_group, scripts.items()))
     result["ics"] = result["ics"][0] if result["ics"] else {}
+    result["globalRouter"] = int(result["globalRouter"][0]) if result["globalRouter"] else 0
     # ICS COM discovery is separated so COM errors don't hide the other results.
     try:
         raw = ps(r"""
