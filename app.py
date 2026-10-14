@@ -979,6 +979,8 @@ class App(tk.Tk):
         if "Aggiornamenti" in self.tasks or "Download aggiornamento" in self.tasks:
             return
         def found(info):
+            if info.get("error"):
+                return
             if not info["available"]:
                 if not silent:
                     messagebox.showinfo("WinNAT UI", "La versione " + VERSION
@@ -1008,7 +1010,15 @@ class App(tk.Tk):
                 return
             self.run_task("Download aggiornamento",
                           lambda: updater.prepare(info), self._install_update)
-        self.run_task("Aggiornamenti", lambda: updater.release_info(VERSION), found)
+        def lookup():
+            if silent:
+                try:
+                    return updater.release_info(VERSION)
+                except Exception:
+                    # Offline/blocked access at startup must not interrupt networking work.
+                    return {"error": "Controllo automatico non disponibile."}
+            return updater.release_info(VERSION)
+        self.run_task("Aggiornamenti", lookup, found)
 
     def _install_update(self, staging):
         if self.pending or self.tasks:
