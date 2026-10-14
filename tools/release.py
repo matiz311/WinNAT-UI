@@ -74,6 +74,8 @@ def publication_gate(previous, current, manual=False, minor_approved=False, cont
     """Return whether publication is permitted; CI may always create artifacts."""
     kind = release_kind(previous, current)
     validate_release_notes(kind, current, content)
+    if kind == "same":
+        return False, kind
     if kind in ("minor", "major") and not (manual and minor_approved):
         return False, kind
     return True, kind
