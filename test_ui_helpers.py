@@ -11,6 +11,37 @@ class HelperTests(unittest.TestCase):
             self.assertFalse(app.is_on(value))
         self.assertEqual(app.yes_no(None), "—")
 
+    def test_network_command_logger_is_scoped(self):
+        from unittest.mock import patch
+        import network
+        from types import SimpleNamespace
+        events = []
+        process = SimpleNamespace(returncode=0, stdout="OK\\n", stderr="")
+        with patch("network.subprocess.run", return_value=process):
+            token = network.command_logger.set(lambda kind, value: events.append((kind, value)))
+            try:
+                self.assertEqual(network.ps("Write-Output 'OK'"), "OK")
+            finally:
+                network.command_logger.reset(token)
+        self.assertEqual([name for name, _ in events], ["command", "stdout", "status"])
+        self.assertIn("Write-Output", events[0][1])
+
+    def test_network_command_logger_captures_stderr_before_raising(self):
+        from unittest.mock import patch
+        import network
+        from types import SimpleNamespace
+        events = []
+        process = SimpleNamespace(returncode=1, stdout="partial", stderr="failed")
+        with patch("network.subprocess.run", return_value=process):
+            token = network.command_logger.set(lambda kind, value: events.append((kind, value)))
+            try:
+                with self.assertRaises(RuntimeError):
+                    network.ps("throw 'failed'")
+            finally:
+                network.command_logger.reset(token)
+        self.assertEqual([name for name, _ in events], ["command", "stdout", "stderr", "status"])
+        self.assertEqual(events[2][1], "failed")
+
     def test_debug_retains_multiline_output(self):
         message = "PowerShell exit code: 1\n\nSTDERR:\nErrore di rete\n\nSTDOUT:\nL'oggetto esiste già."
         trace = 'Traceback (most recent call last):\n  File "app.py", line 50'
