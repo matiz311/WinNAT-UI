@@ -128,3 +128,10 @@ Per prudenza il commit applica **una modifica alla volta**, anche se è possibil
 **Test suggerito:** apri l'app con privilegi amministrativi → configura LAN/WAN → controlla Modifiche → Commit → riavvia se richiesto → verifica indirizzamento, default route, NAT e sessioni → Disabilita / Ripristina con un nuovo Commit.
 
 I test automatici di pianificazione sono in `test_network_guide.py`.
+
+## Correzione v1.6.1 — DHCP PersistentStore e IP statico
+In alcune configurazioni Windows 11, `New-NetIPAddress` fallisce con `Inconsistent parameters PolicyStore PersistentStore and Dhcp Enabled`, anche dopo la disabilitazione DHCP con `Set-NetIPInterface`. Il passaggio LAN a IPv4 statico utilizza ora `netsh interface ipv4 set address source=static ... gateway=none store=persistent`, con verifica dell'IP e dello stato DHCP dopo l'operazione. Il ripristino a DHCP utilizza analogamente `source=dhcp`.
+
+La configurazione candidata e il Commit restano invariati. Se un Commit fallisce, la GUI scarta il candidato non più affidabile e aggiorna lo stato reale di Windows: **controlla prima di riprovare**, perché alcune operazioni precedenti all'errore possono essere state eseguite.
+
+Il comando `netsh` è documentato da Microsoft: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/netsh-interface.
