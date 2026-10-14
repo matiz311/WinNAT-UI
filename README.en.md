@@ -99,7 +99,14 @@ For safety, the commit currently applies **one operation at a time**, although m
 
 Automated planning tests: `test_network_guide.py`.
 
-## Interface v1.7.0 — UX redesign
+## Fix v1.7.0 — PersistentStore DHCP vs. static IPv4
+Some Windows 11 network adapters can reject `New-NetIPAddress` with `Inconsistent parameters PolicyStore PersistentStore and Dhcp Enabled`, even after DHCP has been disabled using `Set-NetIPInterface`. The LAN static-IP operation now uses `netsh interface ipv4 set address source=static ... gateway=none store=persistent`, followed by explicit verification of the assigned IP and DHCP state. Resetting the LAN to DHCP uses `source=dhcp`.
+
+The candidate/commit process is unchanged. After a failed commit, the GUI discards the potentially stale candidate and re-reads the actual Windows configuration: **inspect the live state before trying again**, as earlier steps may already have run.
+
+Official Microsoft reference: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/netsh-interface.
+
+## Interface v1.8.0 — UX redesign
 - Sidebar navigation (Ctrl+1…6) with a permanent *Administrator / Read-only* indicator.
 - Overview with a single gateway verdict, WAN/WinNAT/Routing/ICS cards with text badges, interface and default-route tables; raw diagnostics under *Technical details*.
 - Gateway page: live LAN → PC → WAN → Internet diagram, 3-step form with inline validation and a numbered preview of what Commit will do.

@@ -129,7 +129,14 @@ Per prudenza il commit applica **una modifica alla volta**, anche se è possibil
 
 I test automatici di pianificazione sono in `test_network_guide.py`.
 
-## Interfaccia v1.7.0 — redesign UX
+## Correzione v1.7.0 — DHCP PersistentStore e IP statico
+In alcune configurazioni Windows 11, `New-NetIPAddress` fallisce con `Inconsistent parameters PolicyStore PersistentStore and Dhcp Enabled`, anche dopo la disabilitazione DHCP con `Set-NetIPInterface`. Il passaggio LAN a IPv4 statico utilizza ora `netsh interface ipv4 set address source=static ... gateway=none store=persistent`, con verifica dell'IP e dello stato DHCP dopo l'operazione. Il ripristino a DHCP utilizza analogamente `source=dhcp`.
+
+La configurazione candidata e il Commit restano invariati. Se un Commit fallisce, la GUI scarta il candidato non più affidabile e aggiorna lo stato reale di Windows: **controlla prima di riprovare**, perché alcune operazioni precedenti all'errore possono essere state eseguite.
+
+Il comando `netsh` è documentato da Microsoft: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/netsh-interface.
+
+## Interfaccia v1.8.0 — redesign UX
 - **Navigazione laterale** con sezioni Panoramica, Regole NAT, Gateway, Modifiche, Sessioni (Ctrl+1…6) e indicatore permanente *Amministratore / Sola lettura*.
 - **Panoramica** con verdetto unico sullo stato del gateway, riquadri WAN/WinNAT/Routing/ICS con badge testuali (mai solo colore), tabelle interfacce e default route; il testo diagnostico grezzo resta in *Dettagli tecnici*.
 - **Gateway**: schema topologico LAN → PC → WAN → Internet aggiornato in tempo reale, campi raggruppati in 3 passi con validazione inline e anteprima numerata di cosa farà il Commit; il pulsante si abilita solo con dati validi.

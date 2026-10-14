@@ -14,7 +14,7 @@ import network_guide
 import ui_theme as ui
 from ui_theme import C, F, S1, S2, S3, S4, S5
 
-VERSION = "1.7.0"
+VERSION = "1.8.0"
 REPO_URL = "https://github.com/matiz311/WinNAT-UI"
 
 PAGES = [  # key, label, icon, subtitle
@@ -764,7 +764,19 @@ class App(tk.Tk):
                     callback(value)
                 else:
                     self.notice.set("Errore: " + value[:120])
-                    messagebox.showerror("Operazione non riuscita", key + "\n\n" + value, parent=self)
+                    if key == "Commit":
+                        # A failed PowerShell script may have changed settings before
+                        # the error. Never present a stale candidate as safe to retry.
+                        self.pending.clear()
+                        self.render_candidate()
+                        messagebox.showerror(
+                            "Commit non riuscito",
+                            value + "\n\nLa configurazione potrebbe essere stata applicata solo in parte."
+                            " Verr\u00e0 riletta la configurazione Windows. Controlla lo stato"
+                            " e prepara un nuovo Commit: non ripetere quello precedente.", parent=self)
+                        self.refresh()
+                    else:
+                        messagebox.showerror("Operazione non riuscita", key + "\n\n" + value, parent=self)
                 self.render_changebar()
         except queue.Empty:
             pass
