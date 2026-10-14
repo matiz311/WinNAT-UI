@@ -26,7 +26,8 @@ def inventory():
 
 class GuideTests(unittest.TestCase):
     def setUp(self):
-        self.profile = dict(guide.DEFAULTS)
+        self.profile = copy.deepcopy(guide.DEFAULTS)
+        self.profile["wans"] = [{"alias": "USB-C", "metric": 10}, {"alias": "Wi-Fi", "metric": 50}]
         self.data = inventory()
 
     def test_failed_commit_includes_inventory_before_and_after(self):
@@ -182,13 +183,86 @@ class GuideTests(unittest.TestCase):
         ps.assert_not_called()
 
     def test_wan_aliases_distinct(self):
-        self.profile["wan1"] = "Ethernet"
+        self.profile["wans"][0]["alias"] = "Ethernet"
+        with self.assertRaisesRegex(ValueError,"distinte"):
+            guide.validate(self.profile,self.data,"apply")
+        self.profile["wans"] = [{"alias": "USB-C", "metric": 10}, {"alias": "USB-C", "metric": 50}]
         with self.assertRaisesRegex(ValueError,"distinte"):
             guide.validate(self.profile,self.data,"apply")
 
     def test_secondary_wan_can_be_omitted(self):
-        self.profile["wan2"] = ""
-        self.assertEqual(guide.validate(self.profile,self.data,"apply")["wan2"],"")
+        self.profile["wans"] = [{"alias": "USB-C", "metric": 10}]
+        p = guide.validate(self.profile,self.data,"apply")
+        self.assertEqual([w["alias"] for w in p["wans"]], ["USB-C"])
+        self.assertEqual(guide.DEFAULTS["wans"], [{"alias": "USB-C", "metric": 10}])
+
+    def test_at_least_one_wan(self):
+        self.profile["wans"] = [{"alias": "", "metric": 10}]
+        with self.assertRaisesRegex(ValueError,"almeno una WAN"):
+            guide.validate(self.profile,self.data,"apply")
+
+    def test_any_number_of_wans(self):
+        self.data["adapters"].append({"Name":"LTE","Status":"Up","InterfaceIndex":12})
+        self.data["interfaces"].append({"InterfaceAlias":"LTE","InterfaceIndex":12,"Forwarding":"Disabled",
+                                        "Dhcp":"Enabled","AutomaticMetric":"Enabled","InterfaceMetric":40})
+        self.data["routes"].append({"InterfaceAlias":"LTE","DestinationPrefix":"0.0.0.0/0",
+                                    "InterfaceIndex":12,"NextHop":"10.2.0.1","RouteMetric":0})
+        self.profile["wans"].append({"alias": "LTE", "metric": 90})
+        p = guide.validate(self.profile,self.data,"apply")
+        fp = guide.fingerprint(p, self.data)
+        with patch.object(guide.network,"ps",return_value="") as ps, \
+             patch.object(guide.network,"snapshot",return_value="b"):
+            guide.execute("apply",self.profile,self.data,fp)
+        text = ps.call_args[0][0]
+        self.assertIn("$wan3 = 'LTE'", text)
+        self.assertIn("-InterfaceAlias $wan3 -AddressFamily IPv4 -InterfaceMetric 90", text)
+        self.assertIn("WAN 3 LTE: metrica 90", guide.preview("apply", self.profile, self.data))
+        with patch.object(guide.network,"ps",return_value="") as ps, \
+             patch.object(guide.network,"snapshot",return_value="b"):
+            guide.execute("reset",self.profile,self.data,guide.fingerprint(p, self.data))
+        self.assertIn("-InterfaceAlias $wan3 -AddressFamily IPv4 -AutomaticMetric Enabled", ps.call_args[0][0])
+
+    def test_metrics_follow_priority(self):
+        self.profile["wans"][1]["metric"] = 10
+        with self.assertRaisesRegex(ValueError,"crescere"):
+            guide.validate(self.profile,self.data,"apply")
+        self.profile["wans"][1]["metric"] = "x"
+        with self.assertRaisesRegex(ValueError,"Metrica non valida"):
+            guide.validate(self.profile,self.data,"apply")
+
+    def test_wan_without_default_route_is_named(self):
+        self.data["routes"] = [r for r in self.data["routes"] if r["InterfaceAlias"] != "Wi-Fi"]
+        with self.assertRaisesRegex(ValueError,"WAN Wi-Fi senza default route"):
+            guide.validate(self.profile,self.data,"apply")
+
+    def test_legacy_two_wan_profile_still_accepted(self):
+        legacy = {"lan":"Ethernet","wan1":"USB-C","wan2":"Wi-Fi","metric1":10,"metric2":50,
+                  "prefix":"10.10.10.0/24","gateway":"10.10.10.1","nat":"NAT-Firewall"}
+        p = guide.validate(legacy,self.data,"apply")
+        self.assertEqual([(w["alias"], w["metric"]) for w in p["wans"]], [("USB-C",10),("Wi-Fi",50)])
+
+    def test_lan_subnet_must_not_overlap_wan(self):
+        self.data["ips"].append({"InterfaceAlias":"USB-C","IPAddress":"10.10.10.20","InterfaceIndex":10,"PrefixLength":24})
+        with self.assertRaisesRegex(ValueError,"si sovrappone"):
+            guide.validate(self.profile,self.data,"apply")
+        guide.validate(self.profile,self.data,"disable")   # teardown is not blocked
+
+    def test_detect_lan_subnet(self):
+        found = guide.detect_lan_subnet(self.data, "Ethernet")
+        self.assertEqual((found["prefix"], found["gateway"], found["source"]), ("192.168.90.0/24","192.168.90.254","rilevata"))
+        default = guide.detect_lan_subnet(self.data, "Wi-Fi")
+        self.assertEqual((default["prefix"], default["gateway"], default["source"]), ("10.10.10.0/24","10.10.10.1","predefinita"))
+        self.data["ips"] = [{"InterfaceAlias":"Ethernet","IPAddress":"169.254.10.3","PrefixLength":16},
+                            {"InterfaceAlias":"Ethernet","IPAddress":"172.16.5.9","PrefixLength":16,"PrefixOrigin":"Dhcp"},
+                            {"InterfaceAlias":"Ethernet","IPAddress":"192.168.7.1","PrefixLength":24,"PrefixOrigin":"Manual"}]
+        found = guide.detect_lan_subnet(self.data, "Ethernet")
+        self.assertEqual((found["prefix"], found["gateway"]), ("192.168.7.0/24","192.168.7.1"))
+        self.data["ips"] = self.data["ips"][:1]   # only APIPA -> default
+        self.assertEqual(guide.detect_lan_subnet(self.data, "Ethernet")["source"], "predefinita")
+
+    def test_suggest_metric(self):
+        self.assertEqual(guide.suggest_metric([]), 10)
+        self.assertEqual(guide.suggest_metric([{"alias":"a","metric":10},{"alias":"b","metric":50}]), 90)
 
     def test_unknown_action_is_rejected(self):
         with self.assertRaises(ValueError):
