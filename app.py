@@ -186,9 +186,11 @@ class App(tk.Tk):
 
     def render(self, data):
         self.data = data
-        adapter_names = [a["Name"] for a in data.get("adapters",[]) if str(a.get("Status")).lower() == "up"]
+        adapter_names = [a["Name"] for a in data.get("adapters",[])]
         self.lan_box["values"] = adapter_names
         self.wan2_box["values"] = [""] + adapter_names
+        if self.wan2.get() not in adapter_names:
+            self.wan2.set("Wi-Fi" if "Wi-Fi" in adapter_names else "")
         self.wan_box["values"] = adapter_names
         if adapter_names and self.lan.get() not in adapter_names:
             self.lan.set("Ethernet" if "Ethernet" in adapter_names else adapter_names[0])
@@ -204,10 +206,19 @@ class App(tk.Tk):
         lines.extend(["","NAT rilevate: "+str(len(data.get("nats",[]))),
                       "ICS: "+str(data.get("ics",{}).get("Status","sconosciuto")),
                       "Condivisioni ICS: "+str([c.get("Name") for c in data.get("icsConnections",[]) if c.get("SharingEnabled")])])
-        self.dashboard.configure(state="normal")
-        self.dashboard.delete("1.0","end")
-        self.dashboard.insert("end","\n".join(lines))
-        self.dashboard.configure(state="disabled")
+        lines.extend(["", "Routing IPv4 globale (IPEnableRouter): " + str(data.get("globalRouter", "?")),
+                      "", "Impostazioni IPv4 delle interfacce:"])
+        for iface in data.get("interfaces", []):
+            if iface.get("InterfaceAlias") in adapter_names:
+                lines.append("  %s: DHCP=%s | Forwarding=%s | Metrica=%s | Auto=%s" % (
+                    iface.get("InterfaceAlias"), iface.get("Dhcp"), iface.get("Forwarding"),
+                    iface.get("InterfaceMetric"), iface.get("AutomaticMetric")))
+        lines.extend(["", "Default route WAN:"])
+        for route in routes:
+            lines.append("  %s via %s | metrica route %s + interfaccia %s" % (
+                route.get("InterfaceAlias"), route.get("NextHop"),
+                route.get("RouteMetric"), route.get("InterfaceMetric")))
+        self.dashboard_base = "\n".join(lines)
         self.render_candidate()
         self.notice.set("Configurazione caricata" + (" | Modifiche da applicare" if self.pending else ""))
 
@@ -267,8 +278,8 @@ class App(tk.Tk):
         if hasattr(self, "dashboard_base"):
             shown = self.dashboard_base
             if self.pending:
-                shown += "\\n\\n=== CONFIGURAZIONE CANDIDATA (NON APPLICATA) ===\\n"
-                shown += "\\n".join(p["label"] + ": " + p["details"] for p in self.pending)
+                shown += "\n\n=== CONFIGURAZIONE CANDIDATA (NON APPLICATA) ===\n"
+                shown += "\n".join(p["label"] + ": " + p["details"] for p in self.pending)
             self.dashboard.configure(state="normal")
             self.dashboard.delete("1.0", "end")
             self.dashboard.insert("end", shown)
