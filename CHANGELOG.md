@@ -7,11 +7,13 @@ Regole del progetto:
 - **MINOR**: nuove funzioni o cambi visibili dell'interfaccia.
 - **PATCH**: sole correzioni, nessuna funzione nuova.
 - La versione si cambia solo in `version.py`; ogni release ha qui una sezione `## [x.y.z]`, da cui la CI prende le note.
+- I tag già pubblicati non vengono mai spostati o rinominati (gli ZIP e gli SHA256 distribuiti resterebbero orfani): eventuali errori si correggono qui e nelle note della release.
 
 ## [1.7.5] - 2026-10-14
 ### Corretto
 - Finestra d'errore: il riepilogo mostra il primo messaggio utile dello stderr invece delle intestazioni ("ESECUZIONE POWERSHELL NON RIUSCITA", exit code); finestra centrata, coerente con il tema chiaro/scuro, dettagli tecnici a scomparsa, Esc per chiudere. Anche il messaggio di stato nella barra laterale mostra una sola riga leggibile.
 - Output PowerShell letto in UTF-8: nomi di schede e messaggi con lettere accentate non risultano più corrotti (code page OEM 850 su Windows in italiano).
+- Note delle release già pubblicate riallineate al CHANGELOG tramite il workflow manuale "Sync release notes" (tag e file scaricabili invariati).
 - Versioning: unica fonte in `version.py`; versione file Windows, tag e note di release derivati automaticamente e verificati dai test. Le note di release non sono più scritte a mano nel workflow (in passato v1.3.0 e v1.6.1 avevano note copiate da altre versioni).
 
 ## [1.7.4] - 2026-10-14
@@ -34,7 +36,9 @@ Regole del progetto:
 
 ## [1.7.0] - 2026-10-14
 ### Corretto
-- IP statico LAN su schede con DHCP in PersistentStore (`netsh ... store=persistent`) e recupero dopo un Commit fallito. Interfaccia invariata rispetto alla 1.6.x.
+- IP statico LAN su schede con DHCP in PersistentStore (`netsh ... store=persistent`) e recupero dopo un Commit fallito.
+### Nota
+- Contiene ancora l'**interfaccia precedente** (1.6.x): la nuova grafica arriva con la 1.7.1.
 
 ## [1.6.1] - 2026-10-14
 ### Corretto
@@ -43,6 +47,9 @@ Regole del progetto:
 ## [1.6.0] - 2026-10-14
 ### Aggiunto
 - Configurazione completa da PC vergine secondo la guida «NAT e Routing IPv4 su Windows 11»: LAN, WAN primaria e secondaria con metriche, IPEnableRouter, forwarding, NAT; Disabilita e Ripristina espliciti.
+
+## [1.5.0] - non pubblicata
+- Numero saltato: nessuna release 1.5.0 è stata distribuita.
 
 ## [1.4.0] - 2026-10-14
 ### Aggiunto
@@ -55,3 +62,6 @@ Regole del progetto:
 ## [1.2.0] - 2026-10-14
 ### Aggiunto
 - Prima release binaria pubblica: modifiche pendenti e Commit una alla volta.
+### Nota
+- Incoerenza nota: il titolo della finestra mostra "1.1.0", la scheda Informazioni e le proprietà del file "1.2.0". La versione corretta è 1.2.0.
+
