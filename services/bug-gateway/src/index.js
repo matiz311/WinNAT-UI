@@ -46,10 +46,10 @@ async function github(env, endpoint, init={}) {
   return response.json();
 }
 async function lookup(env, sig) {
-  // Search Issue content only from own repo; client never supplies search queries.
-  const q=encodeURIComponent('repo:'+REPO+' is:issue label:bug-report "winnat-fingerprint:'+sig+'"');
-  const data=await github(env,"/search/issues?q="+q+"&per_page=10");
-  return (data.items||[]).find(x=>(x.body||"").includes("<!-- winnat-fingerprint:"+sig+" -->"))||null;
+  // GitHub Issue listing avoids search indexing delay for recently created bugs.
+  const issues = await github(env, "/repos/"+REPO+"/issues?state=all&labels=bug-report&per_page=100");
+  return issues.find(x=>!x.pull_request &&
+    (x.body||"").includes("<!-- winnat-fingerprint:"+sig+" -->"))||null;
 }
 export default {
   async fetch(request, env) {
