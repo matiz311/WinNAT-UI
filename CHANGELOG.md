@@ -14,12 +14,12 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 ### Corretto
 - Impronta anteprima del gateway normalizzata anche con WAN dinamiche: ignora stato/velocità adattatori, AddressState, APIPA e route connesse generate automaticamente, preservando i controlli di sicurezza su IP LAN, gateway WAN, NAT, forwarding, metriche e interfacce.
 - In caso di modifica effettiva tra anteprima e commit, il Debug identifica i gruppi di configurazione cambiati.
-### Nota
-- Lo stesso contenuto (1.9.1 + 1.9.2) è stato pubblicato per errore come **v1.10.1**; il progetto resta sulla serie 1.9.x.
+### Nota storica
+- Una release era stata distribuita per errore con il numero **v1.10.1**. La release errata e il relativo tag sono stati rimossi tramite procedura di manutenzione; utilizzare **v1.9.2**.
 
-## [1.10.1] - 2026-10-14 (pubblicata per errore)
-### Nota
-- Numero pubblicato per errore: il contenuto corrisponde alla **1.9.2**, che è la versione da usare. Il progetto prosegue sulla serie 1.9.x; la release resta disponibile per non invalidare download e SHA256 già distribuiti.
+## [1.10.1] - 2026-10-14 (release e tag ritirati)
+### Nota storica
+- Numero pubblicato per errore, successivamente ritirato: la build corretta è **v1.9.2**. I collegamenti diretti al tag precedente non sono più validi.
 
 ## [1.9.1] - 2026-10-14
 ### Cambiato

@@ -1,0 +1,43 @@
+name: One-time cleanup of misnumbered v1.10.1
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/remove-legacy-v1101.yml
+permissions:
+  contents: write
+jobs:
+  remove-misnumbered-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify correct replacement release and exact obsolete tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          gh release view v1.9.2 --repo "$repo" >/dev/null
+          expected="2422d78631ee8e6738c0439790eed6e526a97381"
+          actual="$(gh api "repos/$repo/git/ref/tags/v1.10.1" --jq '.object.sha')"
+          if [ "$actual" != "$expected" ]; then
+            echo "Unexpected v1.10.1 tag target: $actual" >&2
+            exit 1
+          fi
+          echo "Replacement v1.9.2 exists; obsolete v1.10.1 points to expected commit."
+      - name: Remove obsolete GitHub release and its tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release delete v1.10.1 --yes --cleanup-tag --repo "$GITHUB_REPOSITORY"
+          if gh release view v1.10.1 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release still exists after deletion" >&2
+            exit 1
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v1.10.1" >/dev/null 2>&1; then
+            echo "Tag still exists after deletion" >&2
+            exit 1
+          fi
+          echo "v1.10.1 release and tag removed; v1.9.2 preserved."
