@@ -7,7 +7,7 @@ Applicazione desktop per Windows 10/11 dedicata alla diagnostica e gestione di *
 - Riepilogo delle regole WinNAT, sessioni NAT e stato del servizio SharedAccess.
 - Identificazione *indicativa* della WAN tramite la default route e della LAN tramite la selezione manuale.
 - Creazione e rimozione di NAT con avvisi sui conflitti; un solo prefisso interno WinNAT è supportato ufficialmente.
-- Setup guidato LAN Ethernet -> Internet (IP LAN, prefisso, forwarding, WinNAT).
+- Setup guidato LAN Ethernet -> Internet (IP LAN, prefisso, forwarding, WinNAT) con rete predefinita `192.168.1.0/24` e IP PC `192.168.1.254`.\n- Rimozione guidata del setup creato dall'app, mantenendo gli IP preesistenti.
 - Esportazione diagnostica JSON e backup di configurazione prima dei cambiamenti.
 - Conferme esplicite per ogni intervento potenzialmente distruttivo.
 
@@ -36,3 +36,9 @@ WinNAT Microsoft è progettato per un singolo prefisso interno: più istanze con
 
 ## Stato
 Versione iniziale, da validare su Windows reale. Prima prova consigliata: diagnostica senza modifiche e successiva configurazione in ambiente di test.
+
+## Identità e attendibilità dell'eseguibile
+Windows mostra ProductName **WinNAT UI**, CompanyName **Matteo Cannizzo**, FileDescription e FileVersion **1.1.0.0** nelle proprietà dell'eseguibile. Questi campi sono dichiarazioni testuali del progetto, **non** attestano l'identità dell'editore. Un programma compilato da GitHub Actions senza certificato resta **non firmato** e Windows SmartScreen potrebbe avvisare l'utente. Per apparire come editore verificato serve un certificato di firma codice appropriato, mantenuto nei secret della CI o tramite servizio di signing, e una firma Authenticode verificabile con `Get-AuthenticodeSignature`. Nessun certificato o approvazione Microsoft è implicito.
+
+## Rimozione setup
+La funzione **Rimuovi setup gestito** è disponibile solo se il wizard ha registrato il proprio stato. Rimuove la regola `WinNAT-UI` dopo aver verificato nome e prefisso, e rimuove l'IP LAN soltanto se il wizard lo aveva aggiunto. Non disabilita genericamente l'IP forwarding, né rimuove NAT/ICS altrui. Il backup JSON è diagnostico, non un rollback automatico.
