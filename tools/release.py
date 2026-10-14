@@ -100,6 +100,12 @@ if __name__ == "__main__":
     elif cmd == "notes":
         sys.stdout.reconfigure(encoding="utf-8")
         print(notes())
+    elif cmd == "gate" and len(sys.argv) >= 3:
+        permitted, kind = publication_gate(
+            sys.argv[2], version(),
+            manual="--manual" in sys.argv[3:],
+            minor_approved="--approved" in sys.argv[3:])
+        print(("allowed" if permitted else "blocked") + ":" + kind)
     elif cmd == "bump" and len(sys.argv) == 3:
         bump(sys.argv[2])
     else:
