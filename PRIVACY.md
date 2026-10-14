@@ -1,5 +1,7 @@
 # Privacy Policy — WinNAT UI
 
+**English** | [Italiano](PRIVACY.it.md)
+
 Last updated: 14 October 2026
 
 WinNAT UI is an open-source, locally operated Windows networking utility maintained by Matteo Cannizzo. This policy describes the application's current source-code behavior.
