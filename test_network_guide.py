@@ -82,6 +82,20 @@ class GuideTests(unittest.TestCase):
         self.assertIn("AutomaticMetric Enabled",text)
         self.assertIn("IPEnableRouter -Value 0",text)
 
+    def test_reset_dhcp_is_idempotent(self):
+        """When DHCP is already enabled, reset must not fail on netsh exit 1."""
+        fp = guide.fingerprint(self.profile, self.data)
+        with patch("network_guide.network.snapshot", return_value="x"), patch(
+                "network_guide.network.ps", return_value="") as call, patch(
+                "network_guide.network.managed_state", return_value=None):
+            guide.execute("reset", self.profile, self.data, fp)
+        script = call.call_args.args[0]
+        self.assertIn("if ($lanDhcp -ne 'Enabled') {", script)
+        self.assertIn("$netshExitCode = $LASTEXITCODE", script)
+        self.assertIn("if ($lanDhcp -ne 'Enabled') { throw", script)
+        self.assertIn("LAN: DHCP IPv4 non attivo", script)
+        self.assertIn("Remove-NetRoute", script)
+
     def test_apply_after_partial_failed_commit(self):
         """Previous 1.6.0 commit may have removed LAN IP and disabled DHCP."""
         self.data["ips"] = []
