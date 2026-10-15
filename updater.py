@@ -21,14 +21,14 @@ ASSET_NAME = "WinNAT-UI-Windows.zip"
 MAX_ZIP_BYTES = 150 * 1024 * 1024
 MAX_EXPANDED_BYTES = 500 * 1024 * 1024
 MAX_ENTRIES = 3000
-VERSION_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
+VERSION_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?$")
 
 
 def version_tuple(value):
     matched = VERSION_RE.fullmatch(str(value))
     if not matched:
         raise ValueError("Versione GitHub non valida: " + str(value))
-    return tuple(int(n) for n in matched.groups())
+    return tuple(int(n or 0) for n in matched.groups())
 
 
 def newer(release_tag, installed):
