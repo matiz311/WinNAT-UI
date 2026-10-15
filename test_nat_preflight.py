@@ -14,11 +14,16 @@ class NatPreflightTests(unittest.TestCase):
         self.assertEqual(network.nat_add_preflight("NAT-A", "10.0.0.0/24", inventory),
                          "already-present")
 
-    def test_foreign_nat_blocked_with_name_and_prefix(self):
-        inventory = {"nats": [{"Name": "HyperV", "InternalIPInterfaceAddressPrefix": "172.20.0.0/16"}],
+    def test_foreign_nat_is_not_a_blocker(self):
+        inventory = {"nats": [{"Name": "NAT-Ethernet", "InternalIPInterfaceAddressPrefix": "192.168.192.0/24"}],
                      "icsConnections": []}
-        with self.assertRaisesRegex(ValueError, r"HyperV.*172.20.0.0/16"):
-            network.nat_add_preflight("NAT-A", "10.0.0.0/24", inventory)
+        self.assertEqual(network.nat_add_preflight("WinNAT-UI", "192.168.1.0/24", inventory), "create")
+
+    def test_identical_with_other_nats_is_noop(self):
+        inventory = {"nats": [
+            {"Name": "NAT-A", "InternalIPInterfaceAddressPrefix": "10.0.0.0/24"},
+            {"Name": "NAT-B", "InternalIPInterfaceAddressPrefix": "172.20.0.0/16"}]}
+        self.assertEqual(network.nat_add_preflight("NAT-A", "10.0.0.0/24", inventory), "already-present")
 
     def test_same_name_different_prefix_is_conflict(self):
         inventory = {"nats": [{"Name": "NAT-A", "InternalIPInterfaceAddressPrefix": "10.1.0.0/24"}],
@@ -26,10 +31,9 @@ class NatPreflightTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             network.nat_add_preflight("NAT-A", "10.0.0.0/24", inventory)
 
-    def test_ics_unverified_is_blocked(self):
-        with self.assertRaisesRegex(ValueError, "non verificabile"):
-            network.nat_add_preflight("NAT-A", "10.0.0.0/24",
-                {"nats": [], "icsConnections": [{"Error": "COM failure"}]})
+    def test_ics_inventory_does_not_block_independent_nat(self):
+        self.assertEqual(network.nat_add_preflight("NAT-A", "10.0.0.0/24",
+            {"nats": [], "icsConnections": [{"Error": "COM failure"}]}), "create")
 
 
 if __name__ == "__main__":
