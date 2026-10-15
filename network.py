@@ -129,6 +129,24 @@ def snapshot(data):
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     return str(path)
 
+
+def save_commit_state(stage, data, context=None):
+    """Persist a local diagnostic checkpoint for candidate/pre/post commit state."""
+    safe_stage = "".join(c if c.isalnum() or c in "-_" else "-" for c in str(stage)).strip("-") or "state"
+    folder = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "WinNAT-UI" / "commit-states"
+    folder.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now()
+    path = folder / (stamp.strftime("%Y%m%d-%H%M%S-%f") + "-" + safe_stage + ".json")
+    payload = {
+        "stage": str(stage),
+        "captured_at": stamp.isoformat(),
+        "inventory": data,
+    }
+    if context is not None:
+        payload["context"] = context
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+    return str(path)
+
 def validate_name(name):
     if not name or len(name) > 64 or any(c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for c in name):
         raise ValueError("Nome NAT non valido (solo lettere, numeri, - e _).")
