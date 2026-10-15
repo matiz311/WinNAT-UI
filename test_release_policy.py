@@ -12,6 +12,14 @@ class ReleasePolicyTests(unittest.TestCase):
         self.assertEqual(release.release_kind("1.9.1", "1.9.2"), "patch")
         self.assertTrue(release.publication_gate("1.9.1", "1.9.2")[0])
 
+    def test_four_digit_hotfix(self):
+        self.assertEqual(release.release_kind("1.9.15", "1.9.15.1"), "hotfix")
+        self.assertEqual(release.release_kind("1.9.15.1", "1.9.15.2"), "hotfix")
+        self.assertEqual(release.release_kind("1.9.15", "1.9.15.0"), "same")
+        self.assertTrue(release.publication_gate("1.9.15", "1.9.15.1")[0])
+        with self.assertRaises(ValueError):
+            release.release_kind("1.9.15", "1.9.15.3")
+
     def test_one_build_does_not_require_new_version(self):
         self.assertEqual(release.release_kind("1.9.2", "1.9.2"), "same")
         self.assertFalse(release.publication_gate("1.9.2", "1.9.2")[0])
