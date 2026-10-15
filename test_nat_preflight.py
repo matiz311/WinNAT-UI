@@ -18,8 +18,17 @@ class NatPreflightTests(unittest.TestCase):
 
     def test_insufficient_existing_prefix_requires_expansion(self):
         data = {"nats": [{"Name": "NAT-Ethernet", "InternalIPInterfaceAddressPrefix": "192.168.192.0/24"}]}
-        with self.assertRaisesRegex(ValueError, "prefisso interno aggregato"):
-            network.nat_add_preflight("WinNAT-UI", "192.168.1.0/24", data)
+        self.assertEqual(network.nat_add_preflight("WinNAT-UI", "192.168.1.0/24", data), "expand")
+        self.assertEqual(network.shared_nat_prefix("192.168.192.0/24", "192.168.1.0/24"),
+                         "192.168.0.0/16")
+        script = network.nat_expansion_script("192.168.1.0/24", data)
+        self.assertIn("$newPrefix = '192.168.0.0/16'", script)
+        self.assertIn("$name = 'NAT-Ethernet'", script)
+        self.assertIn("Get-NetNatStaticMapping", script)
+        self.assertIn("Restore-Mappings", script)
+        self.assertIn("RIPRISTINO INCOMPLETO", script)
+        self.assertIn("Get-NetNatExternalAddress", script)
+        self.assertNotIn("New-NetIPAddress", script)
 
     def test_two_physical_nats_are_not_created(self):
         data = {"nats": [

@@ -10,6 +10,14 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
 
 
+## [1.9.15] - 2026-10-15
+### Aggiunto
+- Aggiungi NAT e Configura gateway espandono automaticamente l'unica istanza WinNAT al minimo prefisso CIDR condiviso dalle subnet LAN richieste (es. 192.168.1.0/24 e 192.168.192.0/24 -> 192.168.0.0/16).
+- La migrazione preserva nome, prefisso esterno, mapping TCP/UDP statici e parametri WinNAT supportati; raccoglie lo stato attuale, verifica il risultato e tenta il ripristino immediato in caso d'errore.
+- Il Commit mostra l'impatto della ricreazione dell'istanza sulle sessioni NAT; non rinumera LAN/WAN né rimuove IP primari/secondari.
+- Allineati anche i percorsi legacy LAN/WAN e setup affinché riutilizzino il NAT esistente anziché crearne un secondo.
+- Il rollback include il WinNAT fisico e può ripristinare il suo prefisso precedente; copertura dei test su aggregazione e conservazione dei mapping.
+
 ## [1.9.14] - 2026-10-15
 ### Corretto
 - Un'unica istanza fisica WinNAT può coprire più subnet logiche LAN. Aggiungi NAT e Configura gateway riutilizzano l'istanza quando il suo prefisso comprende la subnet richiesta, indipendentemente dal nome.

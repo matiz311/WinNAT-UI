@@ -22,7 +22,7 @@ def scope_for(kind, args, before):
     """Bound potential rollback writes to affected adapters and NAT objects."""
     scope = {"interfaces": set(), "ips": set(), "routes": set(),
              "nats": set(), "router": False, "dhcp": set(), "metrics": set(),
-             "forwarding": set(), "notes": []}
+             "forwarding": set(), "notes": [], "nat_rebuild": False}
     if kind == "guide":
         action, profile = args[0], args[1]
         wans = {w["alias"] for w in network_guide.wan_list(profile)}
@@ -31,6 +31,7 @@ def scope_for(kind, args, before):
         scope["forwarding"] = set(involved)
         scope["router"] = True
         scope["nats"] = {n["Name"] for n in before.get("nats", [])} | {profile["nat"]}
+        scope["nat_rebuild"] = action == "apply"
         if action in ("apply", "reset"):
             scope["ips"].add(profile["lan"])
             scope["routes"].add(profile["lan"])
@@ -39,14 +40,23 @@ def scope_for(kind, args, before):
             scope["metrics"].update(wans)
     elif kind in ("add", "remove"):
         scope["nats"].add(args[0])
+        if kind == "add":
+            scope["nat_rebuild"] = True
+            # The Add action can expand the single physical WinNAT instead of
+            # creating the requested logical name: include that object in scope.
+            scope["nats"].update(n["Name"] for n in before.get("nats", []))
     elif kind == "setup":
+        scope["nat_rebuild"] = True
         scope["ips"].add(args[0])
         scope["forwarding"].add(args[0])
         scope["nats"].add("WinNAT-UI")
+        scope["nats"].update(n["Name"] for n in before.get("nats", []))
     elif kind == "profile":
+        scope["nat_rebuild"] = True
         scope["ips"].add(args[0]["lan"])
         scope["forwarding"].add(args[0]["lan"])
         scope["nats"].add("WinNAT-UI")
+        scope["nats"].update(n["Name"] for n in before.get("nats", []))
     elif kind == "reset":
         selected = args[0]
         scope["nats"].update(selected.get("nat_names", []))
@@ -180,7 +190,15 @@ def rollback(before, scope, backup_path):
         modified = after_nat[name]
         keys = ("InternalIPInterfaceAddressPrefix", "ExternalIPInterfaceAddressPrefix")
         if any(original.get(k) != modified.get(k) for k in keys):
-            failures.append("NAT " + name + ": prefisso modificato, ripristino automatico non sicuro")
+            if scope.get("nat_rebuild") and original.get("InternalIPInterfaceAddressPrefix"):
+                try:
+                    script = network.nat_expansion_script(
+                        original["InternalIPInterfaceAddressPrefix"], after, allow_restore=True)
+                    run("Ripristina prefisso NAT " + name, script)
+                except Exception as error:
+                    failures.append("NAT " + name + ": impossibile predisporre ripristino: " + str(error))
+            else:
+                failures.append("NAT " + name + ": prefisso modificato, ripristino automatico non sicuro")
 
     # LAN address/DHCP state is restored only for selected interfaces.
     for alias in sorted(scope["ips"] | scope["dhcp"]):

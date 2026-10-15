@@ -373,7 +373,8 @@ def apply_diff(profile, data):
                 ],
             })
 
-    if network.nat_add_preflight(p["nat"], p["prefix"], data) == "create":
+    nat_action = network.nat_add_preflight(p["nat"], p["prefix"], data)
+    if nat_action == "create":
         steps.append({
             "key": "nat",
             "label": "Crea WinNAT unico " + p["nat"] + " per " + p["prefix"],
@@ -382,6 +383,15 @@ def apply_diff(profile, data):
                 + " -InternalIPInterfaceAddressPrefix " + psquote(p["prefix"])
                 + " -ErrorAction Stop | Out-Null"
             ],
+        })
+    elif nat_action == "expand":
+        aggregate = network.shared_nat_prefix(
+            data["nats"][0]["InternalIPInterfaceAddressPrefix"], p["prefix"])
+        steps.append({
+            "key": "nat-expand",
+            "label": "Espandi WinNAT unico a " + aggregate
+                     + " (ricreazione, interruzione sessioni esistenti)",
+            "script": [network.nat_expansion_script(p["prefix"], data)],
         })
     return p, steps
 
