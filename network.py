@@ -174,32 +174,165 @@ def validate_gateway(address, network):
         raise ValueError("L'IP LAN deve essere un host utilizzabile nel prefisso.")
     return str(ip)
 
-def nat_add_preflight(name, prefix, data):
-    """One physical WinNAT for potentially many logical LAN subnets.
+def shared_nat_prefix(existing_prefix, requested_prefix):
+    """Smallest CIDR containing both subnet ranges; IPs themselves are unchanged."""
+    first = ipaddress.IPv4Network(existing_prefix)
+    second = ipaddress.IPv4Network(requested_prefix)
+    low = min(int(first.network_address), int(second.network_address))
+    high = max(int(first.broadcast_address), int(second.broadcast_address))
+    length = 32 - (low ^ high).bit_length()
+    return str(ipaddress.IPv4Network((low, length), strict=False))
 
-    An existing NAT is reused when its internal prefix covers the requested
-    subnet. No existing NAT is silently removed or reconfigured.
-    """
-    name = validate_name(name)
+
+def nat_add_preflight(name, prefix, data):
+    """Classify a logical subnet against the ONE physical Windows NAT."""
+    validate_name(name)
     prefix = validate_prefix(prefix)
-    requested = ipaddress.IPv4Network(prefix)
     nats = data.get("nats", [])
     if len(nats) > 1:
-        raise ValueError("Rilevate più istanze WinNAT: verifica la configurazione esistente prima di modificarla.")
-    if nats:
-        existing = nats[0]
-        try:
-            internal = ipaddress.IPv4Network(existing["InternalIPInterfaceAddressPrefix"])
-        except (KeyError, ValueError, TypeError):
-            raise ValueError("Prefisso WinNAT esistente non verificabile.")
-        if requested.subnet_of(internal):
-            return "already-covered"
-        raise ValueError(
-            "Il WinNAT unico '" + str(existing.get("Name")) + "' copre " + str(internal) +
-            ", ma la subnet richiesta " + prefix + " è esterna. "
-            "Serve un prefisso interno aggregato che comprenda entrambe le reti. "
-            "Nessuna modifica automatica al NAT esistente.")
-    return "create"
+        raise ValueError("Rilevate più istanze WinNAT. Non aggiungo un'altra istanza.")
+    if not nats:
+        return "create"
+    try:
+        internal = ipaddress.IPv4Network(nats[0]["InternalIPInterfaceAddressPrefix"])
+    except (KeyError, ValueError, TypeError):
+        raise ValueError("Prefisso WinNAT esistente non verificabile.")
+    if ipaddress.IPv4Network(prefix).subnet_of(internal):
+        return "already-covered"
+    return "expand"
+
+
+def nat_expansion_script(requested_prefix, inventory):
+    """Return guarded PowerShell for expanding one physical NAT with rollback.
+
+    Preserves its name, external prefix, TCP/UDP mappings and common tunables.
+    Rebuilding a WinNAT interrupts existing NAT sessions. Never touch LAN/WAN IPs.
+    """
+    requested_prefix = validate_prefix(requested_prefix)
+    if nat_add_preflight("WinNAT-UI", requested_prefix, inventory) != "expand":
+        raise ValueError("Espansione WinNAT non necessaria.")
+    previous = inventory["nats"][0]
+    name = validate_name(previous["Name"])
+    old_prefix = validate_prefix(previous["InternalIPInterfaceAddressPrefix"])
+    new_prefix = shared_nat_prefix(old_prefix, requested_prefix)
+    quote = lambda value: "'" + str(value).replace("'", "''") + "'"
+    script = r"""
+$ErrorActionPreference = 'Stop'
+$name = __NAME__
+$oldPrefix = __OLD__
+$newPrefix = __NEW__
+$oldObjects = @(Get-NetNat -ErrorAction Stop)
+if($oldObjects.Count -ne 1 -or $oldObjects[0].Name -ne $name -or
+   $oldObjects[0].InternalIPInterfaceAddressPrefix -ne $oldPrefix) {
+  throw 'WinNAT modificato dopo lo snapshot: nessuna migrazione eseguita'
+}
+$old = $oldObjects[0]
+$oldMappings = @(Get-NetNatStaticMapping -NatName $name -ErrorAction Stop)
+$oldExternalAddresses = @(Get-NetNatExternalAddress -NatName $name -ErrorAction Stop)
+if($oldExternalAddresses.Count -gt 0) {
+  throw 'WinNAT ha external addresses dedicate: migrazione automatica non sicura; nessuna modifica'
+}
+foreach($entry in $oldMappings) {
+  if($entry.Protocol.ToString() -notin @('TCP','UDP','6','17')) {
+    throw 'Mapping NAT con protocollo non ripristinabile: nessuna modifica'
+  }
+}
+function Make-Nat([string]$prefix) {
+  $args = @{Name=$name;InternalIPInterfaceAddressPrefix=$prefix;ErrorAction='Stop'}
+  if($old.ExternalIPInterfaceAddressPrefix) {
+    $args.ExternalIPInterfaceAddressPrefix = $old.ExternalIPInterfaceAddressPrefix
+  }
+  if($old.InternalRoutingDomainId) {
+    $args.InternalRoutingDomainId = $old.InternalRoutingDomainId
+  }
+  New-NetNat @args | Out-Null
+  $options = @{}
+  $setParameters = (Get-Command Set-NetNat -ErrorAction Stop).Parameters
+  foreach($key in @('TcpEstablishedConnectionTimeout','TcpTransientConnectionTimeout',
+                   'UdpIdleSessionTimeout','IcmpQueryTimeout','TcpFilteringBehavior',
+                   'UdpFilteringBehavior','UdpInboundRefresh')) {
+    if($setParameters.ContainsKey($key) -and $old.PSObject.Properties[$key] -and
+       $null -ne $old.$key) { $options[$key] = $old.$key }
+  }
+  if($options.Count -gt 0) { Set-NetNat -Name $name @options -ErrorAction Stop | Out-Null }
+}
+function Restore-Mappings {
+  foreach($entry in $oldMappings) {
+    $protocol = if($entry.Protocol.ToString() -in @('6','TCP')) {'TCP'} else {'UDP'}
+    $args = @{NatName=$name;Protocol=$protocol;ExternalIPAddress=$entry.ExternalIPAddress;
+              ExternalPort=[int]$entry.ExternalPort;InternalIPAddress=$entry.InternalIPAddress;
+              InternalPort=[int]$entry.InternalPort;ErrorAction='Stop'}
+    if($entry.RemoteExternalIPAddressPrefix) {
+      $args.RemoteExternalIPAddressPrefix = $entry.RemoteExternalIPAddressPrefix
+    }
+    if($entry.InternalRoutingDomainId) {
+      $args.InternalRoutingDomainId = $entry.InternalRoutingDomainId
+    }
+    Add-NetNatStaticMapping @args | Out-Null
+  }
+}
+function Verify-State([string]$expectedPrefix) {
+  $nats = @(Get-NetNat -ErrorAction Stop)
+  if($nats.Count -ne 1 -or $nats[0].Name -ne $name -or
+     $nats[0].InternalIPInterfaceAddressPrefix -ne $expectedPrefix) {
+    throw 'WinNAT non corrisponde al prefisso richiesto'
+  }
+  $present = @(Get-NetNatStaticMapping -NatName $name -ErrorAction Stop)
+  if($present.Count -ne $oldMappings.Count) {
+    throw 'Il numero di mapping statici non coincide dopo la migrazione'
+  }
+  foreach($entry in $oldMappings) {
+    $same = @($present | Where-Object {
+      $_.Protocol.ToString() -eq $entry.Protocol.ToString() -and
+      $_.ExternalIPAddress -eq $entry.ExternalIPAddress -and
+      $_.ExternalPort -eq $entry.ExternalPort -and
+      $_.InternalIPAddress -eq $entry.InternalIPAddress -and
+      $_.InternalPort -eq $entry.InternalPort
+    })
+    if($same.Count -ne 1) { throw 'Mapping statico originale non ripristinato correttamente' }
+  }
+}
+$removed = $false
+try {
+  Remove-NetNat -Name $name -Confirm:$false -ErrorAction Stop
+  $removed = $true
+  Make-Nat $newPrefix
+  Restore-Mappings
+  Verify-State $newPrefix
+} catch {
+  $cause = $_
+  if(-not $removed) { throw $cause }
+  try {
+    $replacement = @(Get-NetNat -Name $name -ErrorAction SilentlyContinue)
+    if($replacement.Count -gt 0) { Remove-NetNat -Name $name -Confirm:$false -ErrorAction Stop }
+    Make-Nat $oldPrefix
+    Restore-Mappings
+    Verify-State $oldPrefix
+  } catch {
+    throw ('Espansione WinNAT fallita; RIPRISTINO INCOMPLETO: ' +
+           $cause.Exception.Message + '; ripristino: ' + $_.Exception.Message)
+  }
+  throw ('Espansione WinNAT fallita; configurazione originale ripristinata: ' +
+         $cause.Exception.Message)
+}
+"""
+    return (script.replace("__NAME__", quote(name))
+                  .replace("__OLD__", quote(old_prefix))
+                  .replace("__NEW__", quote(new_prefix)))
+
+
+def expand_nat(requested_prefix, inventory):
+    """Apply an explicit, reversible rebuild of the existing physical WinNAT."""
+    script = nat_expansion_script(requested_prefix, inventory)
+    ps(script)
+    state = collect()
+    if len(state.get("nats", [])) != 1:
+        raise RuntimeError("Verifica WinNAT dopo espansione fallita: istanze inattese.")
+    expected = shared_nat_prefix(inventory["nats"][0]["InternalIPInterfaceAddressPrefix"],
+                                 requested_prefix)
+    if state["nats"][0].get("InternalIPInterfaceAddressPrefix") != expected:
+        raise RuntimeError("Verifica WinNAT dopo espansione fallita: prefisso diverso.")
+    return state
 
 
 
