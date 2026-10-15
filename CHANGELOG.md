@@ -10,6 +10,18 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
 
 
+## [1.9.9] - 2026-10-15
+### Corretto
+- **Commit idempotente a differenze:** «Configura gateway» tratta il candidato come stato desiderato, rilegge Windows al momento del Commit e applica soltanto IP/DHCP, route LAN, `IPEnableRouter`, forwarding, metriche WAN e WinNAT che non coincidono già con il target.
+- Un NAT già presente con stesso nome e prefisso del candidato viene riutilizzato; NAT differenti o concorrenti continuano a bloccare l'applicazione.
+- Dopo un Commit parzialmente riuscito il candidato non viene più scartato: al tentativo successivo viene ricalcolato il diff sullo stato reale, evitando di ripetere operazioni già completate.
+- Verifica di convergenza dopo l'applicazione: il Commit è considerato riuscito soltanto se una nuova lettura non rileva operazioni ancora mancanti.
+
+### Diagnostica
+- Salvataggio locale degli stati `candidate-commit`, `pre-commit`, `post-commit` e, quando necessario, `post-rollback` in `%LOCALAPPDATA%\WinNAT-UI\commit-states`, oltre al backup usato dal rollback.
+- L'anteprima delle Modifiche viene ricalcolata sulla configurazione rilevata più recente, così mostra il delta residuo invece della sequenza originaria completa.
+
+
 ## [1.9.8] - 2026-10-15
 ### Corretto
 - L'invio di un bug non richiede più che la lettura pubblica dell'elenco delle Issue GitHub abbia successo: il gateway riceve direttamente il report e gestisce autonomamente i duplicati.
