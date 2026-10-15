@@ -213,7 +213,9 @@ def nat_expansion_script(requested_prefix, inventory, allow_restore=False):
     if action != "expand" and not (allow_restore and action == "already-covered"):
         raise ValueError("Espansione WinNAT non necessaria.")
     previous = inventory["nats"][0]
-    name = validate_name(previous["Name"])
+    name = str(previous["Name"])
+    if not name:
+        raise ValueError("Nome WinNAT esistente mancante.")
     old_prefix = validate_prefix(previous["InternalIPInterfaceAddressPrefix"])
     new_prefix = requested_prefix if allow_restore else shared_nat_prefix(old_prefix, requested_prefix)
     quote = lambda value: "'" + str(value).replace("'", "''") + "'"
