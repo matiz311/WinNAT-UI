@@ -208,6 +208,25 @@ def nat_add_preflight(name, prefix, data):
 
 
 
+def nat_network_preflight(name, prefix, data):
+    """Gateway profile compatibility, separate from direct Add NAT semantics."""
+    validate_name(name)
+    prefix = validate_prefix(prefix)
+    nats = data.get("nats", [])
+    if len(nats) > 1:
+        raise ValueError("Più WinNAT rilevati: la migrazione automatica del gateway non è applicabile.")
+    if not nats:
+        return "create"
+    try:
+        internal = ipaddress.IPv4Network(nats[0]["InternalIPInterfaceAddressPrefix"])
+    except (KeyError, ValueError, TypeError):
+        raise ValueError("Prefisso WinNAT esistente non verificabile.")
+    if ipaddress.IPv4Network(prefix).subnet_of(internal):
+        return "already-covered"
+    return "expand"
+
+
+
 def nat_expansion_script(requested_prefix, inventory, allow_restore=False):
     """Return guarded PowerShell for expanding one physical NAT with rollback.
 
@@ -215,7 +234,7 @@ def nat_expansion_script(requested_prefix, inventory, allow_restore=False):
     Rebuilding a WinNAT interrupts existing NAT sessions. Never touch LAN/WAN IPs.
     """
     requested_prefix = validate_prefix(requested_prefix)
-    action = nat_add_preflight("WinNAT-UI", requested_prefix, inventory)
+    action = nat_network_preflight("WinNAT-UI", requested_prefix, inventory)
     if action != "expand" and not (allow_restore and action == "already-covered"):
         raise ValueError("Espansione WinNAT non necessaria.")
     previous = inventory["nats"][0]
@@ -360,7 +379,7 @@ def setup(lan, prefix, gateway, data):
     subnet = ipaddress.IPv4Network(validate_prefix(prefix))
     validate_gateway(gateway, subnet)
     alias = validate_alias(lan, data)
-    if nat_add_preflight("WinNAT-UI", prefix, data) == "expand":
+    if nat_network_preflight("WinNAT-UI", prefix, data) == "expand":
         data = expand_nat(prefix, data)
     # Existing primary/secondary addresses, gateways and routes remain untouched.
     script = """
