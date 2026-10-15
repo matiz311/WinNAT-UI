@@ -63,8 +63,12 @@ Windows mostra ProductName **WinNAT UI**, CompanyName **Matteo Cannizzo**, FileD
 ## Rimozione setup
 La funzione **Rimuovi setup gestito** è disponibile solo se il wizard ha registrato il proprio stato. Rimuove la regola `WinNAT-UI` dopo aver verificato nome e prefisso, e rimuove l'IP LAN soltanto se il wizard lo aveva aggiunto. Non disabilita genericamente l'IP forwarding, né rimuove NAT/ICS altrui. Il backup JSON è diagnostico, non un rollback automatico.
 
-## Modifiche pendenti e commit (v1.2.0)
-Le azioni di creazione, eliminazione NAT, configurazione iniziale e rimozione del setup **non vengono applicate al click del relativo comando**: sono registrate nella scheda **Modifiche pendenti**. Da qui è possibile scartarle oppure eseguire **Applica (Commit)** dopo un riepilogo e una conferma. Per ridurre operazioni parziali, il prototipo permette una modifica per commit. Prima del commit rileva nuovamente lo stato e salva un backup diagnostico. Non esiste ancora un rollback transazionale automatico.
+## Modifiche pendenti e commit
+Le azioni di creazione, eliminazione NAT, configurazione iniziale e rimozione del setup **non vengono applicate al click del relativo comando**: sono registrate nella scheda **Modifiche pendenti**. Da qui è possibile scartarle oppure eseguire **Applica (Commit)** dopo un riepilogo e una conferma. Viene applicata una modifica candidata per commit.
+
+Per **Configura gateway**, il candidato rappresenta lo **stato desiderato**: immediatamente prima del Commit l'app rilegge Windows, calcola il delta e applica soltanto ciò che manca. Un retry dopo un errore non ripete quindi IP, forwarding, metriche o NAT già convergenti. Dopo le scritture viene eseguita una nuova lettura per verificare che il delta sia vuoto. Le operazioni distruttive **Disabilita/Ripristina** mantengono invece il controllo stretto dell'impronta e si bloccano se la configurazione rilevante è cambiata dall'anteprima.
+
+L'app salva checkpoint locali `candidate-commit`, `pre-commit`, `post-commit` e, se necessario, `post-rollback` in `%LOCALAPPDATA%\WinNAT-UI\commit-states`. Il rollback resta compensativo e best-effort: Windows non offre una transazione atomica della configurazione di rete.
 
 ## Microsoft Defender
 Un utilizzatore ha segnalato il rilevamento `Trojan:Win32/Bearfoos.B!ml` su una build precedente. Il rilevamento **non va ignorato** e non possiamo certificare che sia un falso positivo. Non ripristinare dalla quarantena e non aggiungere esclusioni antivirus. Conservare l'ID del rilevamento, controllare la cronologia di protezione, verificare il codice sorgente e il processo di build e inviare il file a Microsoft per analisi qualora sia stato verificato come legittimo. Le nuove build usano distribuzione `--onedir` e richiedono uno scan Microsoft Defender prima dell'upload; questo non costituisce garanzia di assenza di malware. L'eseguibile rimane non firmato digitalmente.
@@ -125,7 +129,7 @@ Per prudenza il commit applica **una modifica alla volta**, anche se è possibil
 - **Configura:** disabilita DHCP sulla LAN, elimina indirizzi e route IPv4 della LAN, assegna l'IP statico senza default gateway, imposta `IPEnableRouter=1`, abilita il forwarding sulle interfacce selezionate, applica le metriche WAN e crea il NAT. Le WAN devono già essere operative con gateway verso Internet; non vengono cambiati indirizzo, DHCP e DNS delle WAN.
 - **Disabilita:** elimina **tutti gli oggetti WinNAT**, anche quelli creati manualmente o da altre applicazioni; disabilita il forwarding sulle interfacce LAN/WAN selezionate e imposta `IPEnableRouter=0`. Conserva indirizzamento LAN e metriche WAN.
 - **Ripristina:** oltre alla disabilitazione, rimuove tutti gli IPv4 e le route della LAN selezionata, ripristina il DHCP sulla LAN e le metriche automatiche delle WAN selezionate. Non ripristina la configurazione originale preesistente né elimina le configurazioni WAN.
-- **Candidate → Commit:** mostra l'elenco dettagliato delle operazioni e richiede conferma. Raccoglie nuovamente la configurazione prima di applicare; se è cambiata, blocca il commit. Salva uno snapshot JSON prima delle modifiche, **non** un rollback automatico.
+- **Candidate → Commit:** mostra il delta operativo e richiede conferma. Per Configura rilegge lo stato reale e applica soltanto ciò che manca; Disabilita/Ripristina restano protetti dall'impronta dell'anteprima. Salva checkpoint candidate/pre/post e usa un rollback compensativo best-effort in caso di errore.
 - **Riavvio:** dopo la modifica di `IPEnableRouter` è raccomandato riavviare Windows prima di validare il routing.
 
 **Avviso:** la rimozione di tutti gli oggetti WinNAT può interrompere Hyper-V, WSL2 e ambienti container. Anche il reset di IPv4 o delle route può far perdere una connessione di amministrazione remota. Usare una console locale, controllare tutte le interfacce selezionate e verificare l'anteprima prima del Commit. Un commit fallito può aver già applicato alcune modifiche.
@@ -137,7 +141,7 @@ I test automatici di pianificazione sono in `test_network_guide.py`.
 ## Correzione v1.7.0 — DHCP PersistentStore e IP statico
 In alcune configurazioni Windows 11, `New-NetIPAddress` fallisce con `Inconsistent parameters PolicyStore PersistentStore and Dhcp Enabled`, anche dopo la disabilitazione DHCP con `Set-NetIPInterface`. Il passaggio LAN a IPv4 statico utilizza ora `netsh interface ipv4 set address source=static ... gateway=none store=persistent`, con verifica dell'IP e dello stato DHCP dopo l'operazione. Il ripristino a DHCP utilizza analogamente `source=dhcp`.
 
-La configurazione candidata e il Commit restano invariati. Se un Commit fallisce, la GUI scarta il candidato non più affidabile e aggiorna lo stato reale di Windows: **controlla prima di riprovare**, perché alcune operazioni precedenti all'errore possono essere state eseguite.
+Dalla v1.9.9, se un Commit di Configura fallisce la GUI mantiene il candidato e aggiorna lo stato reale di Windows. Il tentativo successivo ricalcola il diff e applica soltanto le parti ancora mancanti; l'anteprima mostra il delta residuo.
 
 Il comando `netsh` è documentato da Microsoft: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/netsh-interface.
 
@@ -148,6 +152,12 @@ Il comando `netsh` è documentato da Microsoft: https://learn.microsoft.com/en-u
 - **Barra modifiche** fissa in basso: unico punto per Scarta / Rivedi / Applica; il commit richiede una conferma esplicita della possibile interruzione di rete.
 - Tema chiaro/scuro che segue Windows, testo nitido su schermi high-DPI, notifiche non bloccanti al posto dei popup informativi. Nessuna nuova dipendenza: solo Tkinter/ttk (`ui_theme.py`).
 
+
+## Versione 1.9.9 — Commit a differenze e checkpoint
+- **Configura gateway è idempotente:** il Commit ricalcola il delta sullo stato Windows corrente e non ripete operazioni già applicate.
+- Un WinNAT identico al candidato viene riconosciuto come già convergente; configurazioni NAT differenti restano un conflitto.
+- Il candidato sopravvive a un errore di Commit e viene ricalcolato dopo l'aggiornamento dell'inventario.
+- Gli stati candidate/pre/post commit sono salvati localmente e il post-commit viene verificato prima di dichiarare l'operazione completata.
 
 ## Versione 1.9.1 — WAN dinamiche e subnet LAN automatica
 - **Gateway → Configura** parte con una sola WAN; **+ Aggiungi WAN** ne aggiunge altre (fino al numero di interfacce del PC), con priorità riordinabile e metriche crescenti.

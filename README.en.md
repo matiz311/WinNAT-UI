@@ -47,7 +47,11 @@ Microsoft WinNAT supports a single internal prefix: multiple independent WinNAT 
 **Rimuovi setup gestito** (Remove managed setup) is available only when the wizard saved a setup record. It checks the managed `WinNAT-UI` rule and prefix before removal. It deletes the LAN address only if the wizard added it, and preserves other NAT rules and global forwarding settings. Local JSON snapshots are diagnostic backups, **not an automatic rollback**.
 
 ## Candidate configuration and commit
-Creating or removing NAT rules and adding or removing a guided setup does **not** change Windows immediately. These actions are staged under **Modifiche pendenti** (Pending changes), where they can be discarded or committed after confirmation. State is refreshed before commit and a diagnostic snapshot is taken. This prototype supports one operation per commit and has no transactional rollback.
+Creating or removing NAT rules and adding or removing a guided setup does **not** change Windows immediately. These actions are staged under **Modifiche pendenti** (Pending changes), where they can be discarded or committed after confirmation. One candidate operation is applied per commit.
+
+For **Configure gateway**, the candidate is a **desired state**. Immediately before Commit the application re-reads Windows, computes the delta, and writes only what is still missing. Retrying after a partial failure therefore skips IP, forwarding, metric, and NAT settings that already match. A second inventory verifies convergence after the writes. Destructive **Disable/Reset** operations retain strict preview fingerprint checks and stop when relevant state changed externally.
+
+Local `candidate-commit`, `pre-commit`, `post-commit`, and when needed `post-rollback` checkpoints are stored under `%LOCALAPPDATA%\WinNAT-UI\commit-states`. Rollback is compensating and best-effort; Windows network configuration is not an atomic transaction.
 
 ## Windows Defender
 A previous unsigned development build was reported as `Trojan:Win32/Bearfoos.B!ml`. It has not been conclusively established whether the detection was a false positive. Do not bypass Defender or restore quarantined files without independent verification. Preserve detection details, review the source and build, and submit the sample to Microsoft when appropriate. New builds use `--onedir --noupx` and require a Defender scan before publication.
@@ -94,7 +98,7 @@ For safety, the commit currently applies **one operation at a time**, although m
 - **Configura (Configure):** disables LAN DHCP, clears existing LAN IPv4 addresses and routes, assigns a static gateway without a LAN default route, sets `IPEnableRouter=1`, enables forwarding on selected LAN/WAN interfaces, sets WAN metrics and creates the NAT. WAN interfaces must already have connectivity and default routes. Existing WAN DHCP, DNS and IP settings are preserved.
 - **Disabilita (Disable):** removes **every WinNAT object**, regardless of which tool created it; disables forwarding on selected interfaces and sets `IPEnableRouter=0`. LAN IPs and WAN metrics are preserved.
 - **Ripristina (Reset):** additionally clears all IPv4 addresses and routes on the selected LAN, enables its DHCP client, and restores automatic interface metrics on selected WANs. This does not restore an earlier exact state or clear WAN configurations.
-- **Candidate → Commit:** shows an operation-by-operation preview, requires confirmation, and rechecks the live settings before execution. A JSON diagnostic snapshot is stored, but it is **not an automatic rollback**.
+- **Candidate → Commit:** shows the remaining delta and requires confirmation. Configure re-reads live state and applies only missing changes; Disable/Reset keep strict preview-fingerprint protection. Candidate/pre/post checkpoints are stored and failures use a best-effort compensating rollback.
 - **Restart:** restart Windows after changing `IPEnableRouter` before full connectivity verification.
 
 **Warning:** removing all WinNAT objects can disrupt Hyper-V, WSL2 and containers. LAN IP/route changes can terminate remote access. Operate from the local console, verify interface selections and review the plan before committing. Operations are not transactional; partial changes can remain after an error.
@@ -104,7 +108,7 @@ Automated planning tests: `test_network_guide.py`.
 ## Fix v1.7.0 — PersistentStore DHCP vs. static IPv4
 Some Windows 11 network adapters can reject `New-NetIPAddress` with `Inconsistent parameters PolicyStore PersistentStore and Dhcp Enabled`, even after DHCP has been disabled using `Set-NetIPInterface`. The LAN static-IP operation now uses `netsh interface ipv4 set address source=static ... gateway=none store=persistent`, followed by explicit verification of the assigned IP and DHCP state. Resetting the LAN to DHCP uses `source=dhcp`.
 
-The candidate/commit process is unchanged. After a failed commit, the GUI discards the potentially stale candidate and re-reads the actual Windows configuration: **inspect the live state before trying again**, as earlier steps may already have run.
+Since v1.9.9, after a failed Configure commit the GUI keeps the desired-state candidate and re-reads Windows. The next attempt recomputes the diff and applies only the remaining changes; the preview reflects that residual delta.
 
 Official Microsoft reference: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/netsh-interface.
 
@@ -115,6 +119,12 @@ Official Microsoft reference: https://learn.microsoft.com/en-us/windows-server/a
 - Persistent change bar (Discard / Review / Apply); commit requires explicit acknowledgement of possible network interruption.
 - Light/dark theme following Windows, high-DPI aware, non-blocking toasts. No new dependencies: Tkinter/ttk only (`ui_theme.py`).
 
+
+## Version 1.9.9 — diff-based commits and checkpoints
+- **Configure gateway is idempotent:** Commit recomputes the delta from current Windows state and skips settings already applied.
+- A WinNAT object identical to the candidate is recognized as converged; different NAT configurations remain a conflict.
+- The candidate survives a failed Commit and is recomputed after inventory refresh.
+- Candidate/pre/post commit states are stored locally, and post-commit convergence is verified before success is reported.
 
 ## Version 1.9.1 — dynamic WANs and automatic LAN subnet
 - **Gateway → Configure** starts with a single WAN; **+ Add WAN** adds more (up to the number of adapters), with reorderable priority and increasing metrics.
