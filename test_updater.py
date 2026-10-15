@@ -18,6 +18,12 @@ class UpdaterTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             updater.newer("v1.9.3-rc1", "1.9.2")
 
+    def test_four_digit_hotfix_updates(self):
+        self.assertTrue(updater.newer("v1.9.15.1", "1.9.15"))
+        self.assertFalse(updater.newer("v1.9.15", "1.9.15.1"))
+        self.assertTrue(updater.newer("v1.9.16", "1.9.15.9"))
+        self.assertFalse(updater.newer("v1.9.15.0", "1.9.15"))
+
     def test_latest_release_requires_verified_official_asset(self):
         digest = "a" * 64
         data = {"tag_name": "v1.9.3", "draft": False, "prerelease": False,

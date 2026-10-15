@@ -1,14 +1,14 @@
 # Politica di versioning e build
 
 ## Identificatori distinti
-- **Versione funzionale**: `MAJOR.MINOR.PATCH` in `version.py`, riportata nelle proprietà Windows dell'EXE, nelle release ufficiali e nel changelog.
-- **Identificativo build**: `MAJOR.MINOR.PATCH+ci.<run_number>.<short_sha>`, registrato nel file `BUILD_INFO.txt` all'interno dell'artifact. Ogni esecuzione CI ha un artifact univoco anche se la versione funzionale rimane invariata.
+- **Versione funzionale**: `MAJOR.MINOR.PATCH[.HOTFIX]` in `version.py`, riportata nelle proprietà Windows dell'EXE, nelle release ufficiali e nel changelog.
+- **Identificativo build**: `MAJOR.MINOR.PATCH[.HOTFIX]+ci.<run_number>.<short_sha>`, registrato nel file `BUILD_INFO.txt` all'interno dell'artifact. Ogni esecuzione CI ha un artifact univoco anche se la versione funzionale rimane invariata.
 - Un test di compilazione, refactoring, revisione documentale o ripetizione della pipeline **non incrementa automaticamente** la versione funzionale.
 
 ## Quando aggiornare la versione
 | Tipo | Esempio | Criterio |
 | --- | --- | --- |
-| PATCH | 1.9.2 → 1.9.3 | Bugfix, sicurezza, stabilità, diagnostica o miglioramenti senza nuove funzionalità rilevanti. |
+| HOTFIX | 1.9.15 → 1.9.15.1 | Correzione piccolissima sul comportamento esistente, senza nuova funzione. |\n| PATCH | 1.9.2 → 1.9.3 | Bugfix, sicurezza, stabilità, diagnostica o miglioramenti senza nuove funzionalità rilevanti. |
 | MINOR | 1.9.x → 1.10.0 | Pacchetto significativo di nuove funzionalità, miglioramenti operativi e correzioni, consolidato e verificato. |
 | MAJOR | 1.x.y → 2.0.0 | Cambi incompatibili, revisione sostanziale dei requisiti o del modello applicativo. |
 
@@ -21,7 +21,7 @@ Il passaggio MINOR **non deriva dal numero di build** e non avviene automaticame
 4. La CI esegue comunque build e test a ogni push/PR, ma **non pubblica automaticamente** un cambio MINOR/MAJOR. Il controllo blocca salti numerici e pubblicazioni prive di note strutturate.
 5. Conservare immutabili i tag già pubblicati; non sovrascrivere pacchetti o SHA256 esistenti.
 
-Per la versione PATCH la pipeline può pubblicare automaticamente una release quando `version.py` aumenta di un solo PATCH e il changelog corrispondente è presente. A versione invariata produce esclusivamente artifact numerati.
+Per la versione PATCH e HOTFIX la pipeline può pubblicare automaticamente una release quando `version.py` aumenta di un solo PATCH e il changelog corrispondente è presente. A versione invariata produce esclusivamente artifact numerati.
 
 ## Eccezioni storiche
 Eccezione storica autorizzata: la release erronea `v1.10.1` e il relativo tag sono stati ritirati, mantenendo disponibile la versione corretta `v1.9.2`. I vecchi URL diretti non funzionano più. Nei prossimi rilasci evitare salti numerici non giustificati; non rinominare retroattivamente altre release senza un processo esplicito di migrazione.

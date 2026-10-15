@@ -12,14 +12,15 @@ from version import VERSION  # noqa: E402
 
 class VersionTests(unittest.TestCase):
     def test_semver(self):
-        self.assertRegex(VERSION, r"^\d+\.\d+\.\d+$")
+        self.assertRegex(VERSION, r"^\d+\.\d+\.\d+(?:\.\d+)?$")
 
     def test_windows_metadata_matches(self):
         text = (ROOT / "version_info.txt").read_text(encoding="utf-8")
-        tup = "(%s, 0)" % ", ".join(VERSION.split("."))
+        parts = [int(x) for x in VERSION.split(".")]
+        tup = "(" + ", ".join(map(str, parts + [0] * (4 - len(parts)))) + ")"
         self.assertIn("filevers=" + tup, text)
         self.assertIn("prodvers=" + tup, text)
-        self.assertEqual(re.findall(r"'(?:FileVersion|ProductVersion)', '([^']*)'", text), [VERSION + ".0"] * 2)
+        self.assertEqual(re.findall(r"'(?:FileVersion|ProductVersion)', '([^']*)'", text), [VERSION if VERSION.count(".") == 3 else VERSION + ".0"] * 2)
 
     def test_changelog_has_section(self):
         self.assertTrue(release.notes(VERSION))

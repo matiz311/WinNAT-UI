@@ -39,12 +39,9 @@ def scope_for(kind, args, before):
         if action in ("apply", "reset"):
             scope["metrics"].update(wans)
     elif kind in ("add", "remove"):
+        # Add NAT creates a resource under the requested name only. A failed
+        # commit must never roll back or rebuild unrelated existing NATs.
         scope["nats"].add(args[0])
-        if kind == "add":
-            scope["nat_rebuild"] = True
-            # The Add action can expand the single physical WinNAT instead of
-            # creating the requested logical name: include that object in scope.
-            scope["nats"].update(n["Name"] for n in before.get("nats", []))
     elif kind == "setup":
         scope["nat_rebuild"] = True
         scope["ips"].add(args[0])

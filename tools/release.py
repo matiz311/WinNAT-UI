@@ -9,7 +9,7 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SEMVER = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
+SEMVER = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?$")
 
 
 def version():
@@ -30,23 +30,28 @@ def release_kind(previous, current):
     """Classify an actual version change, not an individual CI build."""
     before, after = SEMVER.fullmatch(previous), SEMVER.fullmatch(current)
     if not before or not after:
-        raise ValueError("Versione non valida: usare MAJOR.MINOR.PATCH.")
-    a, b = tuple(map(int, before.groups())), tuple(map(int, after.groups()))
+        raise ValueError("Versione non valida: usare MAJOR.MINOR.PATCH[.HOTFIX].")
+    a = tuple(int(x or 0) for x in before.groups())
+    b = tuple(int(x or 0) for x in after.groups())
     if a == b:
         return "same"
     if b < a:
         raise ValueError("La versione non può diminuire.")
-    if b[0] > a[0]:
-        if b[1:] != (0, 0) or b[0] != a[0] + 1:
+    if b[0] != a[0]:
+        if b != (a[0] + 1, 0, 0, 0):
             raise ValueError("Incremento MAJOR non sequenziale.")
         return "major"
-    if b[1] > a[1]:
-        if b[0] != a[0] or b[1] != a[1] + 1 or b[2] != 0:
-            raise ValueError("Incremento MINOR non sequenziale: atteso X.Y+1.0.")
+    if b[1] != a[1]:
+        if b != (a[0], a[1] + 1, 0, 0):
+            raise ValueError("Incremento MINOR non sequenziale.")
         return "minor"
-    if b[2] != a[2] + 1:
-        raise ValueError("Incremento PATCH non sequenziale.")
-    return "patch"
+    if b[2] != a[2]:
+        if b != (a[0], a[1], a[2] + 1, 0):
+            raise ValueError("Incremento PATCH non sequenziale.")
+        return "patch"
+    if b[3] == a[3] + 1:
+        return "hotfix"
+    raise ValueError("Incremento HOTFIX non sequenziale.")
 
 
 def validate_release_notes(kind, current, content=None):
@@ -82,15 +87,16 @@ def publication_gate(previous, current, manual=False, minor_approved=False, cont
 
 
 def bump(new):
-    if not SEMVER.match(new):
-        raise SystemExit("Versione non valida (atteso MAJOR.MINOR.PATCH): " + new)
+    if not SEMVER.fullmatch(new):
+        raise SystemExit("Versione non valida (atteso MAJOR.MINOR.PATCH[.HOTFIX]): " + new)
     vp = ROOT / "version.py"
     vp.write_text(re.sub(r'VERSION = "[^"]+"', 'VERSION = "%s"' % new, vp.read_text(encoding="utf-8")), encoding="utf-8")
     vi = ROOT / "version_info.txt"
     text = vi.read_text(encoding="utf-8")
-    tup = "(%s, 0)" % ", ".join(SEMVER.match(new).groups())
+    parts = [int(n or 0) for n in SEMVER.fullmatch(new).groups()]
+    tup = "(" + ", ".join(map(str, parts)) + ")"
     text = re.sub(r"(filevers|prodvers)=\([^)]*\)", lambda m: m.group(1) + "=" + tup, text)
-    text = re.sub(r"('(?:FileVersion|ProductVersion)', ')[^']*'", lambda m: m.group(1) + new + ".0'", text)
+    text = re.sub(r"('(?:FileVersion|ProductVersion)', ')[^']*'", lambda m: m.group(1) + new + ("" if new.count(".") == 3 else ".0") + "'", text)
     vi.write_text(text, encoding="utf-8")
     print("Versione impostata a " + new + ". Aggiungi la sezione ## [" + new + "] in CHANGELOG.md.")
 
