@@ -283,7 +283,9 @@ function Verify-State([string]$expectedPrefix) {
   }
   foreach($entry in $oldMappings) {
     $same = @($present | Where-Object {
-      $_.Protocol.ToString() -eq $entry.Protocol.ToString() -and
+      ($_.Protocol.ToString() -eq $entry.Protocol.ToString() -or
+       ($_.Protocol.ToString() -in @('6','TCP') -and $entry.Protocol.ToString() -in @('6','TCP')) -or
+       ($_.Protocol.ToString() -in @('17','UDP') -and $entry.Protocol.ToString() -in @('17','UDP'))) -and
       $_.ExternalIPAddress -eq $entry.ExternalIPAddress -and
       $_.ExternalPort -eq $entry.ExternalPort -and
       $_.InternalIPAddress -eq $entry.InternalIPAddress -and
