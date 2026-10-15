@@ -327,8 +327,8 @@ def apply_diff(profile, data):
         mask = str(ipaddress.IPv4Network(p["prefix"]).netmask)
         steps.append({
             "key": "lan-address",
-            "label": "LAN " + p["lan"] + ": imposta " + p["gateway"] + "/"
-                     + str(prefixlen) + " statico e disabilita DHCP",
+            "label": "LAN " + p["lan"] + ": DHCP IPv4 disabilitato; imposta " + p["gateway"] + "/"
+                     + str(prefixlen) + " statico",
             "script": [
                 "$lanIP = " + psquote(p["gateway"]),
                 "$lanMask = " + psquote(mask),
@@ -412,7 +412,7 @@ def apply_diff(profile, data):
                          + w["alias"] + ": imposta metrica " + str(w["metric"]),
                 "script": [
                     "Set-NetIPInterface -InterfaceAlias $wan%d -AddressFamily IPv4 "
-                    "-AutomaticMetric Disabled -InterfaceMetric %d -ErrorAction Stop"
+                    "-InterfaceMetric %d -AutomaticMetric Disabled -ErrorAction Stop"
                     % (i, w["metric"])
                 ],
             })
