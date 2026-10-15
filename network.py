@@ -202,19 +202,20 @@ def nat_add_preflight(name, prefix, data):
     return "expand"
 
 
-def nat_expansion_script(requested_prefix, inventory):
+def nat_expansion_script(requested_prefix, inventory, allow_restore=False):
     """Return guarded PowerShell for expanding one physical NAT with rollback.
 
     Preserves its name, external prefix, TCP/UDP mappings and common tunables.
     Rebuilding a WinNAT interrupts existing NAT sessions. Never touch LAN/WAN IPs.
     """
     requested_prefix = validate_prefix(requested_prefix)
-    if nat_add_preflight("WinNAT-UI", requested_prefix, inventory) != "expand":
+    action = nat_add_preflight("WinNAT-UI", requested_prefix, inventory)
+    if action != "expand" and not (allow_restore and action == "already-covered"):
         raise ValueError("Espansione WinNAT non necessaria.")
     previous = inventory["nats"][0]
     name = validate_name(previous["Name"])
     old_prefix = validate_prefix(previous["InternalIPInterfaceAddressPrefix"])
-    new_prefix = shared_nat_prefix(old_prefix, requested_prefix)
+    new_prefix = requested_prefix if allow_restore else shared_nat_prefix(old_prefix, requested_prefix)
     quote = lambda value: "'" + str(value).replace("'", "''") + "'"
     script = r"""
 $ErrorActionPreference = 'Stop'
