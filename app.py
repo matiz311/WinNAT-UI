@@ -1814,8 +1814,12 @@ class App(tk.Tk):
                             if not any(n.get("Name") == args[0] and
                                        n.get("InternalIPInterfaceAddressPrefix") == args[1]
                                        for n in verified.get("nats", [])):
-                                raise RuntimeError("Verifica post-creazione NAT fallita: la regola non compare nell'inventario.")
+                                raise RuntimeError("Verifica post-creazione WinNAT fallita.")
                             post_inventory = verified
+                        else:
+                            # Logical subnet covered by the existing WinNAT:
+                            # do not create a second physical instance.
+                            post_inventory = current
                     elif kind == "remove":
                         if any(n.get("Name") == args[0] for n in nats):
                             network.remove_nat(*args)
