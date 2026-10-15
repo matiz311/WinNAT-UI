@@ -330,18 +330,8 @@ def apply_diff(profile, data):
             ],
         })
 
-    routed = _routed_lan_routes(data, p["lan"])
-    if routed:
-        steps.append({
-            "key": "lan-routes",
-            "label": "LAN " + p["lan"] + ": rimuovi " + str(len(routed))
-                     + " route/default gateway residui",
-            "script": [
-                "Get-NetRoute -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue | "
-                "Where-Object { $_.DestinationPrefix -eq '0.0.0.0/0' -or $_.NextHop -notin @('0.0.0.0', '::') } | "
-                "Remove-NetRoute -Confirm:$false -ErrorAction Stop"
-            ],
-        })
+    # Existing LAN routes are left untouched; their ownership is unknown.
+    # Modifying a NAT profile must not silently remove firewall/site routes.
 
     if _safe_int(data.get("globalRouter"), 0) != 1:
         steps.append({
