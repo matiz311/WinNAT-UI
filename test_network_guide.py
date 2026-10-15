@@ -53,6 +53,7 @@ class GuideTests(unittest.TestCase):
         self.profile = copy.deepcopy(guide.DEFAULTS)
         self.profile["wans"] = [{"alias": "USB-C", "metric": 10}, {"alias": "Wi-Fi", "metric": 50}]
         self.data = inventory()
+        self.data["interfaces"][0]["Dhcp"] = "Disabled"  # Existing LAN has static primary IPv4.
 
     def test_failed_commit_includes_inventory_before_and_after(self):
         fp = guide.fingerprint(self.profile, self.data)
@@ -83,7 +84,7 @@ class GuideTests(unittest.TestCase):
 
     def test_apply_from_existing_lan(self):
         lines = guide.preview("apply", self.profile, self.data)
-        self.assertTrue(any("DHCP IPv4 disabilitato" in line for line in lines))
+        self.assertTrue(any("aggiungi IP" in line for line in lines))
         self.assertTrue(any("IPEnableRouter = 1" in line for line in lines))
         fp = guide.fingerprint(self.profile, self.data)
         with patch("network_guide.network.snapshot",return_value="backup.json"),patch(
@@ -180,9 +181,9 @@ class GuideTests(unittest.TestCase):
                 "network_guide.network.ps", return_value="") as call:
             guide.execute("apply", self.profile, self.data, fp)
         text = call.call_args.args[0]
-        self.assertIn('"source=static"', text)
-        self.assertIn("gateway=none", text)
-        self.assertNotIn("New-NetIPAddress", text)
+        self.assertIn("New-NetIPAddress", text)
+        self.assertIn("-SkipAsSource $true", text)
+        self.assertNotIn("netsh.exe interface ipv4 set address", text)
 
     def test_static_setup_with_non_default_subnet(self):
         self.profile["prefix"] = "192.168.192.0/25"
@@ -192,9 +193,9 @@ class GuideTests(unittest.TestCase):
                 "network_guide.network.ps", return_value="") as call:
             guide.execute("apply", self.profile, self.data, fp)
         text = call.call_args.args[0]
-        self.assertIn("255.255.255.128", text)
+        self.assertIn("$lanPrefix = 25", text)
         self.assertIn("192.168.192.126", text)
-        self.assertIn('"gateway=none"', text)
+        self.assertNotIn("netsh.exe interface ipv4 set address", text)
 
     def test_apply_diff_is_empty_when_target_already_present(self):
         current = converged_inventory(self.profile)
