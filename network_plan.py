@@ -19,8 +19,6 @@ def preflight(plan, inventory):
     external_routes=[r for r in inventory.get("routes",[]) if r.get("DestinationPrefix")=="0.0.0.0/0" and r.get("InterfaceAlias")==wan]
     if not external_routes:
         raise ValueError("La WAN selezionata non ha una route predefinita. Configura prima la connettività WAN.")
-    if inventory.get("nats"):
-        raise ValueError("WinNAT preesistenti: rimuovili esplicitamente prima di creare il nuovo.")
     if any(i.get("SharingEnabled") for i in inventory.get("icsConnections",[])):
         raise ValueError("Condivisione ICS già attiva: disabilitarla esplicitamente prima del setup WinNAT.")
     return lan,wan,prefix,gateway
@@ -37,13 +35,14 @@ $wan={quote(wan)}
 if(-not (Get-NetAdapter -Name $lan -ErrorAction Stop)) {{throw 'LAN non disponibile'}}
 if(-not (Get-NetAdapter -Name $wan -ErrorAction Stop)) {{throw 'WAN non disponibile'}}
 if(-not (Get-NetRoute -InterfaceAlias $wan -DestinationPrefix '0.0.0.0/0' -AddressFamily IPv4 -ErrorAction SilentlyContinue)) {{throw 'WAN senza default route'}}
-if(@(Get-NetNat).Count -gt 0) {{throw 'WinNAT gia presente'}}
+$existingNat=@(Get-NetNat -Name 'WinNAT-UI' -ErrorAction SilentlyContinue)
+if($existingNat.Count -gt 0 -and $existingNat[0].InternalIPInterfaceAddressPrefix -ne {quote(str(prefix))}) {{throw 'Nome NAT esistente con prefisso differente'}}
 $ip={quote(gateway)}
 if(-not (Get-NetIPAddress -InterfaceAlias $lan -IPAddress $ip -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object {{$_.PrefixLength -eq {prefix.prefixlen}}})) {{
     New-NetIPAddress -InterfaceAlias $lan -IPAddress $ip -PrefixLength {prefix.prefixlen} -ErrorAction Stop | Out-Null
 }}
 Set-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -Forwarding Enabled -ErrorAction Stop
-New-NetNat -Name 'WinNAT-UI' -InternalIPInterfaceAddressPrefix {quote(str(prefix))} -ErrorAction Stop | Out-Null
+if($existingNat.Count -eq 0) {{ New-NetNat -Name 'WinNAT-UI' -InternalIPInterfaceAddressPrefix {quote(str(prefix))} -ErrorAction Stop | Out-Null }}
 """
     network.ps(script)
     return {"lan":lan,"wan":wan,"prefix":str(prefix),"gateway":gateway,"existing_ip":existing_ip}
