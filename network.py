@@ -185,21 +185,27 @@ def shared_nat_prefix(existing_prefix, requested_prefix):
 
 
 def nat_add_preflight(name, prefix, data):
-    """Classify a logical subnet against the ONE physical Windows NAT."""
-    validate_name(name)
+    """Idempotent check for Add NAT, not a network topology validator.
+
+    Unrelated NAT objects do not block creation. No change to any existing NAT
+    object is ever made by this action.
+    """
+    name = validate_name(name)
     prefix = validate_prefix(prefix)
-    nats = data.get("nats", [])
-    if len(nats) > 1:
-        raise ValueError("Rilevate più istanze WinNAT. Non aggiungo un'altra istanza.")
-    if not nats:
+    matches = [n for n in data.get("nats", []) if n.get("Name") == name]
+    if not matches:
         return "create"
-    try:
-        internal = ipaddress.IPv4Network(nats[0]["InternalIPInterfaceAddressPrefix"])
-    except (KeyError, ValueError, TypeError):
-        raise ValueError("Prefisso WinNAT esistente non verificabile.")
-    if ipaddress.IPv4Network(prefix).subnet_of(internal):
-        return "already-covered"
-    return "expand"
+    if len(matches) == 1 and (
+        matches[0].get("InternalIPInterfaceAddressPrefix") == prefix
+        and not matches[0].get("ExternalIPInterfaceAddressPrefix")
+    ):
+        return "already-present"
+    raise ValueError(
+        "Esiste già un NAT con nome '" + name +
+        "' e configurazione differente. Scegli un nome diverso oppure modifica "
+        "esplicitamente la regola esistente."
+    )
+
 
 
 def nat_expansion_script(requested_prefix, inventory, allow_restore=False):
