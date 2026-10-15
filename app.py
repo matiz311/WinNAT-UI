@@ -10,6 +10,7 @@ import tkinter as tk
 import webbrowser
 from tkinter import ttk, messagebox, filedialog
 import network
+import nat_backend  # Include headless NAT/IP capabilities in packaged Windows executable.
 import network_plan
 import network_guide
 import network_rollback
