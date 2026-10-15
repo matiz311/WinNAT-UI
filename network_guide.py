@@ -444,7 +444,7 @@ def _guard_script(p):
     return "\n".join(lines)
 
 
-def execute(action, profile, current, expected_fingerprint):
+def execute(action, profile, current, expected_fingerprint, verify=False):
     # Apply is convergent: if a previous attempt already changed part of the
     # managed state, rebase on the fresh inventory and continue with the diff.
     # Destructive actions keep strict optimistic concurrency.
@@ -507,8 +507,9 @@ def execute(action, profile, current, expected_fingerprint):
 
     try:
         result = network.ps("\n".join(script))
-        post = network.collect()
-        if action == "apply":
+        post = None
+        if action == "apply" and verify:
+            post = network.collect()
             _verified, remaining = apply_diff(p, post)
             if remaining:
                 raise RuntimeError("Commit eseguito ma stato candidato non raggiunto. Operazioni ancora mancanti: "
