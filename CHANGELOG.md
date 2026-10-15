@@ -10,6 +10,13 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
 
 
+## [1.9.11] - 2026-10-15
+### Aggiunto (solo backend)
+- Inventario completo dei mapping statici WinNAT e funzioni idempotenti per configurare più port mapping TCP/UDP sull'unica rete WinNAT supportata da Windows.
+- Funzione per aggiungere indirizzi IPv4 secondari su interfacce statiche, senza rimuovere gli IP già configurati e senza modificare i gateway.
+- Rifiuto esplicito di NAT indipendenti con prefissi differenti, non supportati da WinNAT; verifiche su conflitti, DHCP e prefisso del mapping.
+- Nuovi test automatici. Nessuna nuova opzione esposta nella UI.
+
 ## [1.9.10] - 2026-10-15
 ### Corretto
 - «Aggiungi NAT» distingue configurazione assente, già identica (nessuna operazione necessaria) e NAT incompatibile o concorrente.

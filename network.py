@@ -76,6 +76,7 @@ def collect():
         "routes": "Get-NetRoute -AddressFamily IPv4 | Select-Object InterfaceAlias,InterfaceIndex,DestinationPrefix,NextHop,RouteMetric,InterfaceMetric",
         "interfaces": "Get-NetIPInterface -AddressFamily IPv4 | Select-Object InterfaceAlias,InterfaceIndex,Forwarding,Dhcp,AutomaticMetric,ConnectionState,InterfaceMetric",
         "nats": "Get-NetNat | Select-Object Name,InternalIPInterfaceAddressPrefix,ExternalIPInterfaceAddressPrefix,Active",
+        "natMappings": "Get-NetNatStaticMapping | Select-Object NatName,Protocol,ExternalIPAddress,ExternalPort,InternalIPAddress,InternalPort",
         "ics": "Get-Service SharedAccess | Select-Object Name,Status,StartType",
         "dns": "Get-DnsClientServerAddress -AddressFamily IPv4 | Select-Object InterfaceAlias,ServerAddresses",
         "globalRouter": "(Get-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters' -Name IPEnableRouter -ErrorAction SilentlyContinue).IPEnableRouter"
