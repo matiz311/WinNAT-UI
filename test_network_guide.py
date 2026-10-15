@@ -94,7 +94,7 @@ class GuideTests(unittest.TestCase):
         self.assertIn("InterfaceMetric 10",text)
         self.assertIn("InterfaceMetric 50",text)
         self.assertIn("New-NetNat -Name 'NAT-Firewall'",text)
-        self.assertIn("Remove-NetRoute",text)
+        self.assertNotIn("Remove-NetRoute",text)  # no routed/default LAN residue in this inventory
         self.assertIn("netsh.exe interface ipv4 set address",text)
         self.assertIn('"source=static"',text)
         self.assertIn('"gateway=none"',text)
@@ -105,6 +105,18 @@ class GuideTests(unittest.TestCase):
         self.assertNotIn("New-NetIPAddress",text)
         self.assertNotIn("Remove-NetIPAddress",text)
         self.assertEqual(result["backup"],"backup.json")
+
+    def test_apply_removes_only_detected_routed_lan_residue(self):
+        self.data["routes"].append({
+            "InterfaceAlias": "Ethernet", "DestinationPrefix": "172.16.0.0/16",
+            "InterfaceIndex": 5, "NextHop": "192.168.90.1", "RouteMetric": 5})
+        fp = guide.fingerprint(self.profile, self.data)
+        with patch("network_guide.network.snapshot", return_value="x"), patch(
+                "network_guide.network.ps", return_value="") as call:
+            guide.execute("apply", self.profile, self.data, fp)
+        self.assertIn("Remove-NetRoute", call.call_args.args[0])
+        self.assertTrue(any("route/default gateway residui" in line
+                            for line in guide.preview("apply", self.profile, self.data)))
 
     def test_static_lan_checks_existing_address_before_netsh(self):
         fp = guide.fingerprint(self.profile, self.data)
