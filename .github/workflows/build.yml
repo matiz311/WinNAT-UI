@@ -74,7 +74,8 @@ jobs:
           }
           Add-Type -AssemblyName System.Drawing
           if (-not [System.Drawing.Icon]::ExtractAssociatedIcon($exe)) { throw 'Executable has no icon.' }
-          $expected = (python tools/release.py version).Trim() + '.0'
+          $expected = (python tools/release.py version).Trim()
+          if ($expected.Split('.').Count -eq 3) { $expected += '.0' }
           if ($info.FileVersion -ne $expected -or $info.ProductVersion -ne $expected) { throw "Version mismatch: exe $($info.FileVersion), version.py $expected" }
           $signature = Get-AuthenticodeSignature -FilePath $exe
           Write-Host "Authenticode status: $($signature.Status)"
@@ -146,7 +147,71 @@ jobs:
           # matters is from what users have, not from the previous commit
           # (squash merges, docs-only commits, shallow checkouts).
           $tag = gh api "repos/$env:GITHUB_REPOSITORY/releases/latest" --jq '.tag_name' 2>$null
-          if ($LASTEXITCODE -eq 0 -and $tag -match '^v(\d+\.\d+\.\d+)$') {
+          if ($LASTEXITCODE -eq 0 -and $tag -match '^v(\d+\.\d+\.\d+(?:\.\d+)?)) {
+            $previous = $Matches[1]
+          } else {
+            $previousFile = git show HEAD^:version.py
+            if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect the previous version for release approval.' }
+            if (($previousFile -join "`n") -notmatch 'VERSION = "([^"]+)"') { throw 'Previous version not found.' }
+            $previous = $Matches[1]
+          }
+          $options = @()
+          if ($env:IS_MANUAL -eq 'true') { $options += '--manual' }
+          if ($env:FEATURE_APPROVED -eq 'true') { $options += '--approved' }
+          $decision = python tools/release.py gate $previous @options
+          if ($LASTEXITCODE -ne 0) { throw "Release policy check failed: $decision" }
+          Write-Host "Release decision: $decision (previous=$previous)"
+          if ($decision -like 'allowed:*') {
+            "allowed=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          } else {
+            "allowed=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Host "::notice::MINOR/MAJOR richiede riepilogo e approvazione tramite workflow_dispatch. Build artifact disponibile."
+          }
+      - name: Publish public GitHub release
+        if: github.ref == 'refs/heads/main' && steps.release_gate.outputs.allowed == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (python tools/release.py version).Trim()
+          $tag = "v$version"
+          $head = gh api "repos/$env:GITHUB_REPOSITORY/branches/main" --jq '.commit.sha'
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot verify main branch HEAD.' }
+          if ($head.Trim() -ne $env:GITHUB_SHA) {
+            Write-Host 'A newer commit exists. Skip release of a stale build.'
+            exit 0
+          }
+          gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag already exists. No overwrite performed."
+            exit 0
+          }
+          $sourceDir = (Resolve-Path 'dist/WinNAT-UI').Path
+          $zip = (Join-Path $env:RUNNER_TEMP 'WinNAT-UI-Windows.zip')
+          Compress-Archive -Path (Join-Path $sourceDir '*') -DestinationPath $zip -Force
+          [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+          $changes = (python tools/release.py notes) -join "`n"
+          if ($LASTEXITCODE -ne 0) { throw 'CHANGELOG.md section missing for this version.' }
+          $footer = @'
+
+          ---
+          **UNSIGNED DEVELOPMENT BUILD**. The project is applying to SignPath Foundation for free code signing. No SignPath certificate has yet been issued, and this version is not signed or endorsed by SignPath Foundation.
+
+          Signing policy: https://github.com/matiz311/WinNAT-UI/blob/main/CODE_SIGNING_POLICY.md
+          Privacy policy: https://github.com/matiz311/WinNAT-UI/blob/main/PRIVACY.md
+          Changelog: https://github.com/matiz311/WinNAT-UI/blob/main/CHANGELOG.md
+
+          This ZIP contains the complete application directory and the SHA256.txt and DEFENDER_SCAN.txt manifests. GitHub Actions performed a Microsoft Defender scan before release. Scan success does not guarantee that the software is harmless; users should verify downloads locally.
+
+          When approved and signing is activated, the required attribution will be: "Free code signing provided by SignPath.io, certificate by SignPath Foundation".
+          '@
+          $releaseNotes = $changes + "`n" + ($footer -replace '(?m)^          ', '')
+          $notesFile = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          Set-Content -Path $notesFile -Value $releaseNotes -Encoding utf8
+          gh release create $tag $zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "WinNAT UI $tag" --notes-file $notesFile --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Release creation failed.' }
+) {
             $previous = $Matches[1]
           } else {
             $previousFile = git show HEAD^:version.py
