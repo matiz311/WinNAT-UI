@@ -126,8 +126,19 @@ def validate(profile, data, action):
                              + alias + " (" + str(net) + "): scegli un'altra subnet.")
     normalized = dict(lan=lan, wans=wans, prefix=str(prefix), gateway=gateway, nat=nat)
     if action == "apply":
-        if data.get("nats"):
-            raise ValueError("WinNAT esistente: usa Ripristina o elimina le regole prima di applicare il profilo.")
+        # Desired-state semantics: an already-present NAT is acceptable only when
+        # it is exactly the requested object. This lets a retry continue after a
+        # partial commit without recreating the same NAT.
+        nats = data.get("nats", [])
+        matching = [
+            n for n in nats
+            if n.get("Name") == nat
+            and n.get("InternalIPInterfaceAddressPrefix") == str(prefix)
+            and not n.get("ExternalIPInterfaceAddressPrefix")
+        ]
+        conflicts = [n for n in nats if n not in matching]
+        if conflicts or len(matching) > 1:
+            raise ValueError("WinNAT esistente ma diverso dal candidato: usa Ripristina o elimina le regole concorrenti prima di applicare il profilo.")
         if any(c.get("SharingEnabled") for c in data.get("icsConnections", [])):
             raise ValueError("ICS attivo: disabilita la condivisione prima di usare WinNAT.")
         if any(c.get("Error") for c in data.get("icsConnections", [])):
@@ -156,18 +167,10 @@ def preview(action, profile, data):
     involved = [p["lan"]] + _wan_aliases(p)
     names = [n.get("Name") for n in data.get("nats", [])]
     if action == "apply":
-        items = [
-            "LAN " + p["lan"] + ": DHCP IPv4 disabilitato",
-            "LAN: sostituisce gli indirizzi IPv4 esistenti con un unico indirizzo statico persistente (netsh)",
-            "LAN: rimuove il vecchio default gateway e le route instradate residue (" + str(len(lan_routes)) + " route rilevate)",
-            "LAN: configura " + p["gateway"] + "/" + p["prefix"].split("/")[1] + " senza gateway",
-            "Routing globale: IPEnableRouter = 1 (riavvio raccomandato)",
-            "Forwarding IPv4: abilita su " + ", ".join(involved),
-        ]
-        for i, w in enumerate(p["wans"]):
-            items.append(("WAN primaria " if i == 0 else "WAN " + str(i + 1) + " ") + w["alias"]
-                         + ": metrica " + str(w["metric"]))
-        items.append("Crea NAT " + p["nat"] + " per " + p["prefix"])
+        _p, steps = apply_diff(profile, data)
+        items = [step["label"] for step in steps]
+        if not items:
+            return ["Nessuna modifica necessaria: la configurazione rilevata coincide già con il candidato."]
         items.append("WAN: DHCP, gateway e DNS esistenti NON vengono modificati.")
     elif action == "disable":
         items = ["Elimina tutti gli oggetti WinNAT (" + str(len(names)) + "): " + (", ".join(names) or "nessuno"),
@@ -254,6 +257,179 @@ def fingerprint_differences(expected, actual):
 
 
 
+
+def _enabled(value):
+    return str(value).lower() in ("1", "true", "enabled")
+
+
+def _safe_int(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _relevant_lan_ips(data, alias):
+    rows = []
+    for row in data.get("ips", []):
+        if row.get("InterfaceAlias") != alias:
+            continue
+        try:
+            address = ipaddress.ip_address(row.get("IPAddress"))
+        except (ValueError, TypeError):
+            continue
+        # APIPA is transient and must not make an otherwise-converged candidate
+        # look dirty forever.
+        if address.is_link_local:
+            continue
+        rows.append(row)
+    return rows
+
+
+def _routed_lan_routes(data, alias):
+    return [
+        row for row in data.get("routes", [])
+        if row.get("InterfaceAlias") == alias
+        and (row.get("DestinationPrefix") == "0.0.0.0/0"
+             or row.get("NextHop") not in ("0.0.0.0", "::", None))
+    ]
+
+
+def _target_nat_present(data, p):
+    return any(
+        n.get("Name") == p["nat"]
+        and n.get("InternalIPInterfaceAddressPrefix") == p["prefix"]
+        and not n.get("ExternalIPInterfaceAddressPrefix")
+        for n in data.get("nats", [])
+    )
+
+
+def apply_diff(profile, data):
+    """Return the minimal operations still required to reach the apply target.
+
+    The current Windows inventory is the source of truth. Re-running the same
+    candidate therefore becomes a no-op once the requested state is present.
+    """
+    p = validate(profile, data, "apply")
+    steps = []
+    lan_iface = _iface(data, p["lan"])
+    lan_ips = _relevant_lan_ips(data, p["lan"])
+    prefixlen = ipaddress.IPv4Network(p["prefix"]).prefixlen
+    lan_matches = [
+        row for row in lan_ips
+        if row.get("IPAddress") == p["gateway"]
+        and _safe_int(row.get("PrefixLength"), -1) == prefixlen
+    ]
+    lan_converged = (not _enabled(lan_iface.get("Dhcp"))
+                     and len(lan_ips) == 1 and len(lan_matches) == 1)
+
+    if not lan_converged:
+        mask = str(ipaddress.IPv4Network(p["prefix"]).netmask)
+        steps.append({
+            "key": "lan-address",
+            "label": "LAN " + p["lan"] + ": imposta " + p["gateway"] + "/"
+                     + str(prefixlen) + " statico e disabilita DHCP",
+            "script": [
+                "$lanIP = " + psquote(p["gateway"]),
+                "$lanMask = " + psquote(mask),
+                "$lanPrefix = " + str(prefixlen),
+                "$duplicate = @(Get-NetIPAddress -AddressFamily IPv4 -IPAddress $lanIP -ErrorAction SilentlyContinue | "
+                "Where-Object { $_.InterfaceIndex -ne $lanIndex })",
+                "if ($duplicate.Count -gt 0) { throw ('IP LAN ' + $lanIP + ' già assegnato ad altre interfacce: ' + "
+                "(($duplicate | ForEach-Object { $_.InterfaceAlias + ' (ifIndex ' + $_.InterfaceIndex + ')' }) -join ', ')) }",
+                "$lanAddresses = @(Get-NetIPAddress -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue)",
+                "$iface = Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop",
+                "$alreadyConfigured = ($iface.Dhcp -eq 'Disabled' -and "
+                "@($lanAddresses | Where-Object { $_.IPAddress -eq $lanIP -and $_.PrefixLength -eq $lanPrefix }).Count -eq 1 "
+                "-and @($lanAddresses | Where-Object { $_.IPAddress -notlike '169.254.*' }).Count -eq 1)",
+                "$netshExitCode = 0",
+                "$netshOutput = @()",
+                "if (-not $alreadyConfigured) {",
+                "  $netshOutput = & netsh.exe interface ipv4 set address "
+                "(\"name=\" + $lan) \"source=static\" (\"address=\" + $lanIP) "
+                "(\"mask=\" + $lanMask) \"gateway=none\" \"store=persistent\" 2>&1",
+                "  $netshExitCode = $LASTEXITCODE",
+                "}",
+                "$iface = Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop",
+                "$lanAddresses = @(Get-NetIPAddress -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue)",
+                "$configuredIP = @($lanAddresses | Where-Object { $_.IPAddress -eq $lanIP -and $_.PrefixLength -eq $lanPrefix })",
+                "$relevantAddresses = @($lanAddresses | Where-Object { $_.IPAddress -notlike '169.254.*' })",
+                "$validState = ($iface.Dhcp -eq 'Disabled' -and $configuredIP.Count -eq 1 -and $relevantAddresses.Count -eq 1)",
+                "if (-not $validState) {",
+                "  $addressSummary = ($lanAddresses | ForEach-Object { $_.IPAddress + '/' + $_.PrefixLength }) -join ', '",
+                "  throw ('Impossibile impostare IP statico LAN tramite netsh (codice ' + $netshExitCode + '). ' + "
+                "'DHCP=' + $iface.Dhcp + '; IPv4 rilevati=[' + $addressSummary + ']; atteso=' + $lanIP + '/' + "
+                "$lanPrefix + '. Output: ' + ($netshOutput | Out-String))",
+                "}",
+            ],
+        })
+
+    routed = _routed_lan_routes(data, p["lan"])
+    if routed:
+        steps.append({
+            "key": "lan-routes",
+            "label": "LAN " + p["lan"] + ": rimuovi " + str(len(routed))
+                     + " route/default gateway residui",
+            "script": [
+                "Get-NetRoute -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue | "
+                "Where-Object { $_.DestinationPrefix -eq '0.0.0.0/0' -or $_.NextHop -notin @('0.0.0.0', '::') } | "
+                "Remove-NetRoute -Confirm:$false -ErrorAction Stop"
+            ],
+        })
+
+    if _safe_int(data.get("globalRouter"), 0) != 1:
+        steps.append({
+            "key": "global-router",
+            "label": "Routing globale: imposta IPEnableRouter = 1 (riavvio raccomandato)",
+            "script": [
+                "Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters' "
+                "-Name IPEnableRouter -Value 1 -ErrorAction Stop"
+            ],
+        })
+
+    aliases = [(p["lan"], "$lan")] + [
+        (w["alias"], "$wan%d" % i) for i, w in enumerate(p["wans"], 1)
+    ]
+    for alias, variable in aliases:
+        iface = _iface(data, alias)
+        if not _enabled(iface.get("Forwarding")):
+            steps.append({
+                "key": "forwarding:" + alias,
+                "label": "Forwarding IPv4: abilita su " + alias,
+                "script": [
+                    "Set-NetIPInterface -InterfaceAlias " + variable
+                    + " -AddressFamily IPv4 -Forwarding Enabled -ErrorAction Stop"
+                ],
+            })
+
+    for i, w in enumerate(p["wans"], 1):
+        iface = _iface(data, w["alias"])
+        if (_enabled(iface.get("AutomaticMetric"))
+                or _safe_int(iface.get("InterfaceMetric"), -1) != w["metric"]):
+            steps.append({
+                "key": "metric:" + w["alias"],
+                "label": ("WAN primaria " if i == 1 else "WAN " + str(i) + " ")
+                         + w["alias"] + ": imposta metrica " + str(w["metric"]),
+                "script": [
+                    "Set-NetIPInterface -InterfaceAlias $wan%d -AddressFamily IPv4 "
+                    "-AutomaticMetric Disabled -InterfaceMetric %d -ErrorAction Stop"
+                    % (i, w["metric"])
+                ],
+            })
+
+    if not _target_nat_present(data, p):
+        steps.append({
+            "key": "nat",
+            "label": "Crea NAT " + p["nat"] + " per " + p["prefix"],
+            "script": [
+                "New-NetNat -Name " + psquote(p["nat"])
+                + " -InternalIPInterfaceAddressPrefix " + psquote(p["prefix"])
+                + " -ErrorAction Stop | Out-Null"
+            ],
+        })
+    return p, steps
+
+
 def _guard_script(p):
     """Bind $lan, $wan1..$wanN and refuse to run if two names share an adapter."""
     lines = ["", "$ErrorActionPreference = 'Stop'", "$lan = " + psquote(p["lan"])]
@@ -269,92 +445,55 @@ def _guard_script(p):
 
 
 def execute(action, profile, current, expected_fingerprint):
-    p = validate(profile, current, action)
-    actual_fingerprint = fingerprint(p, current)
-    if actual_fingerprint != expected_fingerprint:
-        differences = fingerprint_differences(expected_fingerprint, actual_fingerprint)
-        raise ValueError("Configurazione rilevante modificata dopo l'anteprima. "
-                         "Aggiorna e prepara nuovamente.\nDifferenze:\n"
-                         + "\n".join(differences))
+    # Apply is convergent: if a previous attempt already changed part of the
+    # managed state, rebase on the fresh inventory and continue with the diff.
+    # Destructive actions keep strict optimistic concurrency.
+    rebased = False
+    if action == "apply":
+        p, steps = apply_diff(profile, current)
+        actual_fingerprint = fingerprint(p, current)
+        rebased = actual_fingerprint != expected_fingerprint
+    else:
+        p = validate(profile, current, action)
+        actual_fingerprint = fingerprint(p, current)
+        if actual_fingerprint != expected_fingerprint:
+            differences = fingerprint_differences(expected_fingerprint, actual_fingerprint)
+            raise ValueError("Configurazione rilevante modificata dopo l'anteprima. "
+                             "Aggiorna e prepara nuovamente.\nDifferenze:\n"
+                             + "\n".join(differences))
+        steps = []
 
-    # Save a diagnostic snapshot (not a transactional rollback).
     backup = network.snapshot(current)
     script = [_guard_script(p)]
-    lan = "$lan"
     if action == "apply":
-        # The guide deliberately replaces ALL IPv4 LAN configuration, but never WAN IPs.
-        script += [
-            "if (@(Get-NetNat).Count -gt 0) { throw 'NAT preesistente: esegui prima Ripristina' }",
-            # Windows can retain DHCP=Enabled in PersistentStore even after
-            # Set-NetIPInterface -Dhcp Disabled. New-NetIPAddress then raises
-            # "Inconsistent parameters PolicyStore PersistentStore and Dhcp Enabled".
-            # netsh 'set address' changes the static source and IP persistently
-            # in one operation, removing previous interface IPs/default gateway.
-            "$lanIP = %s" % psquote(p["gateway"]),
-            "$lanMask = %s" % psquote(str(ipaddress.IPv4Network(p["prefix"]).netmask)),
-            "$lanPrefix = %d" % ipaddress.IPv4Network(p["prefix"]).prefixlen,
-            # Detect actual address conflict, not just a localized netsh string.
-            "$duplicate = @(Get-NetIPAddress -AddressFamily IPv4 -IPAddress $lanIP -ErrorAction SilentlyContinue | "
-            "Where-Object { $_.InterfaceIndex -ne $lanIndex })",
-            "if ($duplicate.Count -gt 0) { throw ('IP LAN ' + $lanIP + ' già assegnato ad altre interfacce: ' + "
-            "(($duplicate | ForEach-Object { $_.InterfaceAlias + ' (ifIndex ' + $_.InterfaceIndex + ')' }) -join ', ')) }",
-            "$lanAddresses = @(Get-NetIPAddress -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue)",
-            "$iface = Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop",
-            # If LAN already has precisely the requested static IP, netsh is unnecessary.
-            "$alreadyConfigured = ($iface.Dhcp -eq 'Disabled' -and $lanAddresses.Count -eq 1 -and "
-            "@($lanAddresses | Where-Object { $_.IPAddress -eq $lanIP -and $_.PrefixLength -eq $lanPrefix }).Count -eq 1)",
-            "$netshExitCode = 0",
-            "$netshOutput = @()",
-            "if (-not $alreadyConfigured) {",
-            "  $netshOutput = & netsh.exe interface ipv4 set address "
-            '("name=" + $lan) "source=static" ("address=" + $lanIP) '
-            '("mask=" + $lanMask) "gateway=none" "store=persistent" 2>&1',
-            "  $netshExitCode = $LASTEXITCODE",
-            "}",
-            # A nonzero netsh status can coexist with an already-applied change:
-            # decide by inspecting effective state, never by error text.
-            "$iface = Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop",
-            "$lanAddresses = @(Get-NetIPAddress -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue)",
-            "$configuredIP = @($lanAddresses | Where-Object { $_.IPAddress -eq $lanIP -and $_.PrefixLength -eq $lanPrefix })",
-            "$validState = ($iface.Dhcp -eq 'Disabled' -and $configuredIP.Count -eq 1 -and $lanAddresses.Count -eq 1)",
-            "if (-not $validState) {",
-            "  $addressSummary = ($lanAddresses | ForEach-Object { $_.IPAddress + '/' + $_.PrefixLength }) -join ', '",
-            "  throw ('Impossibile impostare IP statico LAN tramite netsh (codice ' + $netshExitCode + '). ' + "
-            "'DHCP=' + $iface.Dhcp + '; IPv4 rilevati=[' + $addressSummary + ']; atteso=' + $lanIP + '/' + "
-            "$lanPrefix + '. Output: ' + ($netshOutput | Out-String))",
-            "}",
-            # netsh clears previous IPs and default gateway; remove any leftover
-            # routed entries while preserving the new connected/on-link route.
-            "Get-NetRoute -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue | "
-            "Where-Object { $_.DestinationPrefix -eq '0.0.0.0/0' -or $_.NextHop -notin @('0.0.0.0', '::') } | "
-            "Remove-NetRoute -Confirm:$false -ErrorAction Stop",
-            "Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters' -Name IPEnableRouter -Value 1 -ErrorAction Stop",
-            "Set-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -Forwarding Enabled -ErrorAction Stop",
-        ]
-        for i, w in enumerate(p["wans"], 1):
-            script += ["Set-NetIPInterface -InterfaceAlias $wan%d -AddressFamily IPv4 -Forwarding Enabled -ErrorAction Stop" % i,
-                       "Set-NetIPInterface -InterfaceAlias $wan%d -AddressFamily IPv4 -InterfaceMetric %d -ErrorAction Stop"
-                       % (i, w["metric"])]
-        script.append("New-NetNat -Name %s -InternalIPInterfaceAddressPrefix %s -ErrorAction Stop | Out-Null"
-                      % (psquote(p["nat"]), psquote(p["prefix"])))
+        for step in steps:
+            script.extend(step["script"])
+        if not steps:
+            return {"backup": backup, "output": "", "action": action,
+                    "applied_steps": [], "rebased": rebased,
+                    "post_inventory": current}
     else:
-        script += [
-            # Unrestricted by creator: every existing WinNAT is removed as explicitly previewed.
-            "Get-NetNat -ErrorAction Stop | Remove-NetNat -Confirm:$false -ErrorAction Stop",
-            "Set-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -Forwarding Disabled -ErrorAction Stop",
-        ]
-        for i in range(1, len(p["wans"]) + 1):
-            script.append("Set-NetIPInterface -InterfaceAlias $wan%d -AddressFamily IPv4 -Forwarding Disabled -ErrorAction Stop" % i)
-        if action == "reset":
+        lan = "$lan"
+        if action == "disable":
+            script += [
+                "Get-NetNat -ErrorAction Stop | Remove-NetNat -Confirm:$false -ErrorAction Stop",
+                "Set-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -Forwarding Disabled -ErrorAction Stop",
+            ]
             for i in range(1, len(p["wans"]) + 1):
+                script.append("Set-NetIPInterface -InterfaceAlias $wan%d -AddressFamily IPv4 -Forwarding Disabled -ErrorAction Stop" % i)
+        else:
+            script += [
+                "Get-NetNat -ErrorAction Stop | Remove-NetNat -Confirm:$false -ErrorAction Stop",
+                "Set-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -Forwarding Disabled -ErrorAction Stop",
+            ]
+            for i in range(1, len(p["wans"]) + 1):
+                script.append("Set-NetIPInterface -InterfaceAlias $wan%d -AddressFamily IPv4 -Forwarding Disabled -ErrorAction Stop" % i)
                 script.append("Set-NetIPInterface -InterfaceAlias $wan%d -AddressFamily IPv4 -AutomaticMetric Enabled -ErrorAction Stop" % i)
             script += [
-                # Reset all manually configured addresses/default gateway
-                # while setting DHCP, without an intermediate inconsistent store.
                 "$lanDhcp = (Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop).Dhcp",
                 "if ($lanDhcp -ne 'Enabled') {",
                 "  $netshOutput = & netsh.exe interface ipv4 set address "
-                '("name=" + $lan) "source=dhcp" "store=persistent" 2>&1',
+                "(\"name=\" + $lan) \"source=dhcp\" \"store=persistent\" 2>&1",
                 "  $netshExitCode = $LASTEXITCODE",
                 "  $lanDhcp = (Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop).Dhcp",
                 "  if ($lanDhcp -ne 'Enabled') { throw ('Impossibile ripristinare DHCP LAN tramite netsh (codice ' + $netshExitCode + '): ' + ($netshOutput | Out-String)) }",
@@ -365,12 +504,16 @@ def execute(action, profile, current, expected_fingerprint):
                 "Remove-NetRoute -Confirm:$false -ErrorAction Stop",
             ]
         script.append("Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters' -Name IPEnableRouter -Value 0 -ErrorAction Stop")
-    # A single PowerShell invocation makes operation order clear, but not atomic.
+
     try:
         result = network.ps("\n".join(script))
+        post = network.collect()
+        if action == "apply":
+            _verified, remaining = apply_diff(p, post)
+            if remaining:
+                raise RuntimeError("Commit eseguito ma stato candidato non raggiunto. Operazioni ancora mancanti: "
+                                   + "; ".join(step["label"] for step in remaining))
     except Exception as error:
-        # The operation is not atomic; gather a NEW read-only inventory after
-        # failure without hiding the original error if diagnostics also fail.
         try:
             after = network.collect()
             after_text = json.dumps(after, indent=2, ensure_ascii=False, default=str)
@@ -389,9 +532,11 @@ def execute(action, profile, current, expected_fingerprint):
             "CONFIGURAZIONE RILEVATA PRIMA DEL COMMIT:\n"
             + json.dumps(current, indent=2, ensure_ascii=False, default=str) + "\n\n"
             "CONFIGURAZIONE RILEVATA DOPO L'ERRORE:\n" + after_text + "\n\n"
-            "ATTENZIONE: nessun rollback automatico; verificare lo stato prima di riprovare."
+            "Il candidato viene mantenuto: al prossimo Commit verrà ricalcolato il diff sullo stato reale."
         )
         raise RuntimeError(details) from error
     if action == "reset" and network.managed_state():
         network.state_path().unlink(missing_ok=True)
-    return {"backup": backup, "output": result, "action": action}
+    return {"backup": backup, "output": result, "action": action,
+            "applied_steps": [step["label"] for step in steps],
+            "rebased": rebased, "post_inventory": post}
