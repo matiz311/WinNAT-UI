@@ -24,6 +24,30 @@ def inventory():
     }
 
 
+def converged_inventory(profile):
+    data = inventory()
+    prefix_len = int(profile["prefix"].split("/")[1])
+    data["ips"] = [{"InterfaceAlias": profile["lan"], "IPAddress": profile["gateway"],
+                    "InterfaceIndex": 5, "PrefixLength": prefix_len, "AddressState": "Preferred"}]
+    data["routes"][0] = {"InterfaceAlias": profile["lan"], "DestinationPrefix": profile["prefix"],
+                         "InterfaceIndex": 5, "NextHop": "0.0.0.0", "RouteMetric": 256}
+    metrics = {w["alias"]: w["metric"] for w in profile["wans"]}
+    for iface in data["interfaces"]:
+        if iface["InterfaceAlias"] == profile["lan"]:
+            iface["Dhcp"] = "Disabled"
+            iface["Forwarding"] = "Enabled"
+        elif iface["InterfaceAlias"] in metrics:
+            iface["Forwarding"] = "Enabled"
+            iface["AutomaticMetric"] = "Disabled"
+            iface["InterfaceMetric"] = metrics[iface["InterfaceAlias"]]
+    data["globalRouter"] = 1
+    data["nats"] = [{"Name": profile["nat"],
+                     "InternalIPInterfaceAddressPrefix": profile["prefix"],
+                     "ExternalIPInterfaceAddressPrefix": None,
+                     "Active": True}]
+    return data
+
+
 class GuideTests(unittest.TestCase):
     def setUp(self):
         self.profile = copy.deepcopy(guide.DEFAULTS)
@@ -166,6 +190,48 @@ class GuideTests(unittest.TestCase):
         self.assertIn("255.255.255.128", text)
         self.assertIn("192.168.192.126", text)
         self.assertIn('"gateway=none"', text)
+
+    def test_apply_diff_is_empty_when_target_already_present(self):
+        current = converged_inventory(self.profile)
+        normalized, steps = guide.apply_diff(self.profile, current)
+        self.assertEqual(normalized["nat"], "NAT-Firewall")
+        self.assertEqual(steps, [])
+        self.assertEqual(
+            guide.preview("apply", self.profile, current),
+            ["Nessuna modifica necessaria: la configurazione rilevata coincide già con il candidato."])
+
+    def test_retry_rebases_partial_commit_and_skips_existing_nat(self):
+        original = copy.deepcopy(self.data)
+        expected = guide.fingerprint(self.profile, original)
+        partial = converged_inventory(self.profile)
+        partial["globalRouter"] = 0
+        with patch("network_guide.network.snapshot", return_value="retry.json"), patch(
+                "network_guide.network.ps", return_value="OK") as call:
+            result = guide.execute("apply", self.profile, partial, expected)
+        script = call.call_args.args[0]
+        self.assertTrue(result["rebased"])
+        self.assertIn("IPEnableRouter -Value 1", script)
+        self.assertNotIn("New-NetNat -Name", script)
+        self.assertNotIn("netsh.exe interface ipv4 set address", script)
+
+    def test_matching_nat_is_allowed_but_foreign_nat_is_not(self):
+        current = copy.deepcopy(self.data)
+        current["nats"] = [{"Name": self.profile["nat"],
+                            "InternalIPInterfaceAddressPrefix": self.profile["prefix"],
+                            "ExternalIPInterfaceAddressPrefix": None}]
+        guide.validate(self.profile, current, "apply")
+        current["nats"].append({"Name": "HyperV",
+                                "InternalIPInterfaceAddressPrefix": "172.20.0.0/16"})
+        with self.assertRaisesRegex(ValueError, "diverso dal candidato"):
+            guide.validate(self.profile, current, "apply")
+
+    def test_verified_apply_fails_if_target_did_not_converge(self):
+        fp = guide.fingerprint(self.profile, self.data)
+        with patch("network_guide.network.snapshot", return_value="verify.json"), patch(
+                "network_guide.network.ps", return_value="OK"), patch(
+                "network_guide.network.collect", return_value=self.data):
+            with self.assertRaisesRegex(RuntimeError, "stato candidato non raggiunto"):
+                guide.execute("apply", self.profile, self.data, fp, verify=True)
 
     def test_detect_conflicts_before_apply(self):
         self.data["nats"]=[{"Name":"HyperV","InternalIPInterfaceAddressPrefix":"172.20.0.0/16"}]
