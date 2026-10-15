@@ -25,6 +25,8 @@ def preflight(plan, inventory):
 
 def apply_profile(plan, inventory):
     lan,wan,prefix,gateway=preflight(plan,inventory)
+    if network.nat_add_preflight("WinNAT-UI", str(prefix), inventory) == "expand":
+        inventory = network.expand_nat(str(prefix), inventory)
     existing_ip=any(i.get("InterfaceAlias")==lan and i.get("IPAddress")==gateway and int(i.get("PrefixLength") or 0)==prefix.prefixlen for i in inventory.get("ips",[]))
     # Keep WAN's IP and default route intact. Use the target interface names to avoid
     # modifying a different adapter if an interface is renamed between steps.
@@ -35,8 +37,8 @@ $wan={quote(wan)}
 if(-not (Get-NetAdapter -Name $lan -ErrorAction Stop)) {{throw 'LAN non disponibile'}}
 if(-not (Get-NetAdapter -Name $wan -ErrorAction Stop)) {{throw 'WAN non disponibile'}}
 if(-not (Get-NetRoute -InterfaceAlias $wan -DestinationPrefix '0.0.0.0/0' -AddressFamily IPv4 -ErrorAction SilentlyContinue)) {{throw 'WAN senza default route'}}
-$existingNat=@(Get-NetNat -Name 'WinNAT-UI' -ErrorAction SilentlyContinue)
-if($existingNat.Count -gt 0 -and $existingNat[0].InternalIPInterfaceAddressPrefix -ne {quote(str(prefix))}) {{throw 'Nome NAT esistente con prefisso differente'}}
+$existingNat=@(Get-NetNat -ErrorAction Stop)
+if($existingNat.Count -gt 1) {{throw 'Istanze WinNAT multiple rilevate'}}
 $ip={quote(gateway)}
 if(-not (Get-NetIPAddress -InterfaceAlias $lan -IPAddress $ip -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object {{$_.PrefixLength -eq {prefix.prefixlen}}})) {{
     New-NetIPAddress -InterfaceAlias $lan -IPAddress $ip -PrefixLength {prefix.prefixlen} -ErrorAction Stop | Out-Null
