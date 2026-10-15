@@ -349,7 +349,9 @@ def setup(lan, prefix, gateway, data):
     subnet = ipaddress.IPv4Network(validate_prefix(prefix))
     validate_gateway(gateway, subnet)
     alias = validate_alias(lan, data)
-    # No implicit removal of existing addresses, gateways, NATs or ICS.
+    if nat_add_preflight("WinNAT-UI", prefix, data) == "expand":
+        data = expand_nat(prefix, data)
+    # Existing primary/secondary addresses, gateways and routes remain untouched.
     script = """
 $ErrorActionPreference='Stop'
 $alias='%s'
@@ -360,11 +362,11 @@ if($existing.Count -eq 0) { New-NetIPAddress -InterfaceAlias $alias -IPAddress $
 Set-NetIPInterface -InterfaceAlias $alias -AddressFamily IPv4 -Forwarding Enabled -ErrorAction Stop
 $routes = @(Get-NetRoute -DestinationPrefix '0.0.0.0/0' -AddressFamily IPv4 -ErrorAction SilentlyContinue)
 if($routes.Count -eq 0) { throw 'Nessuna route predefinita disponibile: impossibile individuare la WAN.' }
-$existingNat = @(Get-NetNat -Name 'WinNAT-UI' -ErrorAction SilentlyContinue)
-if($existingNat.Count -gt 0 -and $existingNat[0].InternalIPInterfaceAddressPrefix -ne '%s') { throw 'WinNAT-UI esistente con prefisso differente' }
+$existingNat = @(Get-NetNat -ErrorAction Stop)
+if($existingNat.Count -gt 1) { throw 'Istanze WinNAT multiple rilevate' }
 if($existingNat.Count -eq 0) { New-NetNat -Name 'WinNAT-UI' -InternalIPInterfaceAddressPrefix '%s' -ErrorAction Stop | Out-Null }
 'Configuration complete'
-""" % (alias, gateway, subnet.prefixlen, prefix, prefix)
+""" % (alias, gateway, subnet.prefixlen, prefix)
     result = ps(script)
     # Registra solo ciò che il wizard ha predisposto. Il teardown è conservativo.
     state = {
