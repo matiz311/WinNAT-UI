@@ -127,7 +127,7 @@ def validate(profile, data, action):
     normalized = dict(lan=lan, wans=wans, prefix=str(prefix), gateway=gateway, nat=nat)
     if action == "apply":
         # One physical WinNAT: any LAN prefix it covers is a logical network.
-        network.nat_add_preflight(nat, str(prefix), data)
+        network.nat_network_preflight(nat, str(prefix), data)
         for i, w in enumerate(wans):
             if not any(r.get("InterfaceAlias") == w["alias"] and r.get("DestinationPrefix") == "0.0.0.0/0"
                        for r in data.get("routes", [])):
@@ -373,7 +373,7 @@ def apply_diff(profile, data):
                 ],
             })
 
-    nat_action = network.nat_add_preflight(p["nat"], p["prefix"], data)
+    nat_action = network.nat_network_preflight(p["nat"], p["prefix"], data)
     if nat_action == "create":
         steps.append({
             "key": "nat",
