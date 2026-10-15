@@ -236,10 +236,15 @@ class GuideTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "stato candidato non raggiunto"):
                 guide.execute("apply", self.profile, self.data, fp, verify=True)
 
-    def test_detect_uncovered_prefix_before_apply(self):
+    def test_uncovered_prefix_generates_one_nat_expansion(self):
         self.data["nats"]=[{"Name":"NAT-Ethernet","InternalIPInterfaceAddressPrefix":"172.20.0.0/16"}]
-        with self.assertRaisesRegex(ValueError,"aggregato"):
-            guide.validate(self.profile,self.data,"apply")
+        guide.validate(self.profile, self.data, "apply")
+        _, steps = guide.apply_diff(self.profile, self.data)
+        self.assertEqual(len([step for step in steps if step["key"] == "nat-expand"]), 1)
+        self.assertEqual(len([step for step in steps if step["key"] == "nat"]), 0)
+        script = next(step["script"][0] for step in steps if step["key"] == "nat-expand")
+        self.assertIn("Restore-Mappings", script)
+        self.assertIn("Remove-NetNat -Name $name", script)
 
     def test_dynamic_adapter_status_and_apipa_do_not_invalidate_preview(self):
         old = copy.deepcopy(self.data)
