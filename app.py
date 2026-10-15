@@ -1633,7 +1633,7 @@ class App(tk.Tk):
         name, prefix = tk.StringVar(value="WinNAT-UI"), tk.StringVar(value="192.168.1.0/24")
         if self.data.get("nats"):
             ui.Callout(dlg.body, kind="warning", wraplength=380,
-                       text="Esiste già una regola WinNAT: Windows supporta un solo prefisso interno e il commit verrà bloccato.").pack(fill="x", pady=(0, S3))
+                       text="Esiste già una regola WinNAT: il Commit sarà un no-op se coincide esattamente con il candidato; altrimenti mostrerà il conflitto senza modificare Windows.").pack(fill="x", pady=(0, S3))
         entries = {}
         for key, label, var in (("name", "Nome della regola", name), ("prefix", "Rete interna (CIDR)", prefix)):
             ttk.Label(dlg.body, text=label, style="Card.TLabel").pack(anchor="w")
@@ -1809,14 +1809,8 @@ class App(tk.Tk):
                     nats = current.get("nats", [])
                     post_inventory = None
                     if kind == "add":
-                        exact = any(n.get("Name") == args[0]
-                                    and n.get("InternalIPInterfaceAddressPrefix") == args[1]
-                                    for n in nats)
-                        if exact:
-                            pass
-                        elif nats or any(c.get("SharingEnabled") for c in current.get("icsConnections", [])):
-                            raise ValueError("WinNAT/ICS presente: rimuovi prima la configurazione concorrente.")
-                        else:
+                        disposition = network.nat_add_preflight(args[0], args[1], current)
+                        if disposition == "create":
                             network.create_nat(*args)
                     elif kind == "remove":
                         if any(n.get("Name") == args[0] for n in nats):
@@ -1844,6 +1838,12 @@ class App(tk.Tk):
                     completed.append(p)
                     current = post_inventory if post_inventory is not None else network.collect()
                 except Exception as original:
+                    # A failed read-only preflight cannot have modified Windows.
+                    # Avoid a pointless rollback and preserve the actionable error.
+                    if kind == "add" and isinstance(original, ValueError):
+                        raise RuntimeError("COMMIT BLOCCATO PRIMA DELLE MODIFICHE: "
+                                           + str(original)
+                                           + "\nStato pre-commit: " + str(pre_state_path)) from original
                     try:
                         report = network_rollback.rollback(current, scope, backup_path)
                         try:
