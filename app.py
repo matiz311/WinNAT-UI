@@ -1321,10 +1321,9 @@ class App(tk.Tk):
                     error_message, error_traceback = value
                     self.notice.set("Errore: " + error_summary(error_message)[:80])
                     if key == "Commit":
-                        # The script is not transactional: the previous steps may
-                        # already have changed Windows even though one step failed.
-                        # Do not allow a stale candidate to be re-committed.
-                        self.pending.clear()
+                        # Keep the desired-state candidate. The refresh below reads
+                        # Windows again; the next Apply recomputes a minimal diff and
+                        # only retries what is still missing.
                         self.render_candidate()
                         self.show_error_dialog("Commit non riuscito", key,
                                                error_message, error_traceback, commit=True)
@@ -1484,6 +1483,15 @@ class App(tk.Tk):
     def render_candidate(self):
         self.nat_table.delete(*self.nat_table.get_children())
         nats = {n["Name"]: n for n in (self.data or {}).get("nats", [])}
+        # Keep the displayed candidate aligned with the latest live inventory.
+        # For convergent gateway apply this is a fresh diff, not the original script.
+        for p in self.pending:
+            if p["kind"] == "guide" and self.data:
+                try:
+                    action, profile, _fingerprint = p["args"]
+                    p["details"] = "\n".join(network_guide.preview(action, profile, self.data))
+                except Exception as exc:
+                    p["details"] = "Verifica candidato: " + str(exc)
         removals = {p["args"][0] for p in self.pending if p["kind"] == "remove"}
         for name, n in nats.items():
             self.nat_table.insert("", "end", values=("- Da eliminare" if name in removals else "Applicata", name,
@@ -1492,7 +1500,12 @@ class App(tk.Tk):
             if p["kind"] == "guide":
                 act, profile, _fingerprint = p["args"]
                 if act == "apply":
-                    self.nat_table.insert("", "end", values=("+ Da creare", profile["nat"], profile["prefix"], "Non ancora"))
+                    existing = nats.get(profile["nat"])
+                    exact = (existing
+                             and existing.get("InternalIPInterfaceAddressPrefix") == profile["prefix"]
+                             and not existing.get("ExternalIPInterfaceAddressPrefix"))
+                    if not exact:
+                        self.nat_table.insert("", "end", values=("+ Da creare", profile["nat"], profile["prefix"], "Non ancora"))
                 else:
                     for item in self.nat_table.get_children():
                         v = list(self.nat_table.item(item, "values"))
@@ -1605,7 +1618,11 @@ class App(tk.Tk):
     def stage(self, kind, args, label, details):
         if any(p["kind"] == kind and p["args"] == args for p in self.pending):
             return
-        self.pending.append(dict(kind=kind, args=args, label=label, details=details))
+        checkpoint = network.save_commit_state(
+            "candidate-commit", self.data or {},
+            {"kind": kind, "label": label, "details": details})
+        self.pending.append(dict(kind=kind, args=args, label=label, details=details,
+                                 candidate_snapshot=checkpoint))
         self.render_candidate()
         self.toast.show("«" + label + "» aggiunta alle modifiche in attesa.", "info")
 
@@ -1771,8 +1788,18 @@ class App(tk.Tk):
             return
 
         def execute():
-            # Not an atomic transaction: a failure keeps remaining operations candidate.
+            # The pending item is a desired state. Read Windows immediately before
+            # writing, persist the checkpoint and let each operation converge from
+            # that fresh inventory.
             current = network.collect()
+            commit_context = {
+                "changes": [
+                    {"kind": p["kind"], "label": p["label"], "details": p["details"],
+                     "candidate_snapshot": p.get("candidate_snapshot")}
+                    for p in changes
+                ]
+            }
+            pre_state_path = network.save_commit_state("pre-commit", current, commit_context)
             backup_path = network.snapshot(current)
             completed = []
             for p in changes:
@@ -1780,20 +1807,27 @@ class App(tk.Tk):
                 scope = network_rollback.scope_for(kind, args, current)
                 try:
                     nats = current.get("nats", [])
+                    post_inventory = None
                     if kind == "add":
-                        if nats or any(c.get("SharingEnabled") for c in current.get("icsConnections", [])):
+                        exact = any(n.get("Name") == args[0]
+                                    and n.get("InternalIPInterfaceAddressPrefix") == args[1]
+                                    for n in nats)
+                        if exact:
+                            pass
+                        elif nats or any(c.get("SharingEnabled") for c in current.get("icsConnections", [])):
                             raise ValueError("WinNAT/ICS presente: rimuovi prima la configurazione concorrente.")
-                        network.create_nat(*args)
+                        else:
+                            network.create_nat(*args)
                     elif kind == "remove":
-                        if not any(n.get("Name") == args[0] for n in nats):
-                            raise ValueError("NAT non presente: " + args[0])
-                        network.remove_nat(*args)
+                        if any(n.get("Name") == args[0] for n in nats):
+                            network.remove_nat(*args)
                     elif kind == "setup":
                         if nats or any(c.get("SharingEnabled") for c in current.get("icsConnections", [])):
                             raise ValueError("Setup bloccato da WinNAT/ICS esistente.")
                         network.setup(*args, current)
                     elif kind == "guide":
-                        network_guide.execute(args[0], args[1], current, args[2])
+                        result = network_guide.execute(args[0], args[1], current, args[2])
+                        post_inventory = result.get("post_inventory")
                     elif kind == "profile":
                         network_plan.apply_profile(args[0], current)
                     elif kind == "reset":
@@ -1808,21 +1842,36 @@ class App(tk.Tk):
                     elif kind == "external_teardown":
                         network.remove_existing_configuration(args[0], args[1], args[2], args[3], current, args[4])
                     completed.append(p)
-                    current = network.collect()
+                    current = post_inventory if post_inventory is not None else network.collect()
                 except Exception as original:
                     try:
                         report = network_rollback.rollback(current, scope, backup_path)
+                        try:
+                            rollback_state = network.collect()
+                            rollback_path = network.save_commit_state(
+                                "post-rollback", rollback_state,
+                                {"pre_commit": pre_state_path, "error": str(original)})
+                            report += "\nStato post-rollback: " + rollback_path
+                        except Exception:
+                            pass
                     except Exception as rollback_error:
                         raise RuntimeError(
                             "COMMIT FALLITO: " + str(original) + "\n\n"
                             "ROLLBACK INCOMPLETO O NON VERIFICABILE:\n" + str(rollback_error)
-                            + "\nSnapshot: " + str(backup_path)) from original
+                            + "\nSnapshot: " + str(backup_path)
+                            + "\nStato pre-commit: " + str(pre_state_path)) from original
                     raise RuntimeError(
                         "COMMIT FALLITO: " + str(original) + "\n\n" + report
-                        + "\nSnapshot: " + str(backup_path)) from original
-            return completed
+                        + "\nSnapshot: " + str(backup_path)
+                        + "\nStato pre-commit: " + str(pre_state_path)) from original
+            post_state_path = network.save_commit_state(
+                "post-commit", current,
+                {"pre_commit": pre_state_path, "changes": commit_context["changes"]})
+            return {"completed": completed, "pre_state": pre_state_path,
+                    "post_state": post_state_path}
 
-        def success(applied):
+        def success(result):
+            applied = result["completed"] if isinstance(result, dict) else result
             self.pending = [p for p in self.pending if p not in applied]
             self.render_candidate()
             router_changed = any(p["kind"] == "guide" for p in applied)
@@ -1841,6 +1890,11 @@ class App(tk.Tk):
                 self.work.put(("__commit_log__", True,
                                ("info", "Snapshot della configurazione e verifiche preliminari"), None))
                 result = execute()
+                if isinstance(result, dict):
+                    self.work.put(("__commit_log__", True,
+                                   ("info", "Stato pre-commit: " + result.get("pre_state", "n/d")), None))
+                    self.work.put(("__commit_log__", True,
+                                   ("info", "Stato post-commit: " + result.get("post_state", "n/d")), None))
                 self.work.put(("__commit_log__", True, ("info", "Commit completato"), None))
                 return result
             except Exception as exc:
