@@ -175,19 +175,30 @@ def validate_gateway(address, network):
     return str(ip)
 
 def nat_add_preflight(name, prefix, data):
-    """Allow unrelated WinNAT instances; only a same-name mismatch is invalid."""
+    """One physical WinNAT for potentially many logical LAN subnets.
+
+    An existing NAT is reused when its internal prefix covers the requested
+    subnet. No existing NAT is silently removed or reconfigured.
+    """
     name = validate_name(name)
     prefix = validate_prefix(prefix)
-    matches = [n for n in data.get("nats", []) if n.get("Name") == name]
-    if len(matches) > 1:
-        raise ValueError("Nome NAT duplicato nell'inventario: " + name)
-    if matches:
-        existing = matches[0]
-        if (existing.get("InternalIPInterfaceAddressPrefix") == prefix
-                and not existing.get("ExternalIPInterfaceAddressPrefix")):
-            return "already-present"
-        raise ValueError("Il NAT '" + name + "' esiste già con un prefisso differente: "
-                         + str(existing.get("InternalIPInterfaceAddressPrefix")))
+    requested = ipaddress.IPv4Network(prefix)
+    nats = data.get("nats", [])
+    if len(nats) > 1:
+        raise ValueError("Rilevate più istanze WinNAT: verifica la configurazione esistente prima di modificarla.")
+    if nats:
+        existing = nats[0]
+        try:
+            internal = ipaddress.IPv4Network(existing["InternalIPInterfaceAddressPrefix"])
+        except (KeyError, ValueError, TypeError):
+            raise ValueError("Prefisso WinNAT esistente non verificabile.")
+        if requested.subnet_of(internal):
+            return "already-covered"
+        raise ValueError(
+            "Il WinNAT unico '" + str(existing.get("Name")) + "' copre " + str(internal) +
+            ", ma la subnet richiesta " + prefix + " è esterna. "
+            "Serve un prefisso interno aggregato che comprenda entrambe le reti. "
+            "Nessuna modifica automatica al NAT esistente.")
     return "create"
 
 

@@ -10,6 +10,14 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
 
 
+## [1.9.14] - 2026-10-15
+### Corretto
+- Un'unica istanza fisica WinNAT può coprire più subnet logiche LAN. Aggiungi NAT e Configura gateway riutilizzano l'istanza quando il suo prefisso comprende la subnet richiesta, indipendentemente dal nome.
+- Aggiunta IPv4 LAN non distruttiva mediante New-NetIPAddress; gli IP primari e secondari esistenti non vengono sostituiti con netsh.
+- Applicazione gateway non elimina più automaticamente route LAN non gestite dall'operazione.
+- Se il prefisso dell'istanza NAT esistente non copre una nuova subnet, il Commit preserva la configurazione e richiede un piano di espansione/migrazione del NAT; nessun reset implicito.
+- Test di coesistenza /24 con NAT /16, conservazione degli IP e prevenzione di più istanze fisiche.
+
 ## [1.9.13] - 2026-10-15
 ### Corretto
 - «Aggiungi NAT»: permette la creazione di un WinNAT distinto anche in presenza di altri oggetti NAT. Rileva soltanto duplicati di nome/configurazione; l'eventuale rifiuto operativo viene da Windows PowerShell.

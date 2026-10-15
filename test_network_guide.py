@@ -53,6 +53,7 @@ class GuideTests(unittest.TestCase):
         self.profile = copy.deepcopy(guide.DEFAULTS)
         self.profile["wans"] = [{"alias": "USB-C", "metric": 10}, {"alias": "Wi-Fi", "metric": 50}]
         self.data = inventory()
+        self.data["interfaces"][0]["Dhcp"] = "Disabled"  # Existing LAN has static primary IPv4.
 
     def test_failed_commit_includes_inventory_before_and_after(self):
         fp = guide.fingerprint(self.profile, self.data)
@@ -83,7 +84,7 @@ class GuideTests(unittest.TestCase):
 
     def test_apply_from_existing_lan(self):
         lines = guide.preview("apply", self.profile, self.data)
-        self.assertTrue(any("DHCP IPv4 disabilitato" in line for line in lines))
+        self.assertTrue(any("aggiungi IP" in line for line in lines))
         self.assertTrue(any("IPEnableRouter = 1" in line for line in lines))
         fp = guide.fingerprint(self.profile, self.data)
         with patch("network_guide.network.snapshot",return_value="backup.json"),patch(
@@ -95,18 +96,15 @@ class GuideTests(unittest.TestCase):
         self.assertIn("InterfaceMetric 50",text)
         self.assertIn("New-NetNat -Name 'NAT-Firewall'",text)
         self.assertNotIn("Remove-NetRoute",text)  # no routed/default LAN residue in this inventory
-        self.assertIn("netsh.exe interface ipv4 set address",text)
-        self.assertIn('"source=static"',text)
-        self.assertIn('"gateway=none"',text)
-        self.assertIn('"store=persistent"',text)
-        self.assertIn("255.255.255.0",text)
+        self.assertNotIn("netsh.exe interface ipv4 set address",text)
+        self.assertIn("New-NetIPAddress",text)
+        self.assertIn("-SkipAsSource $true",text)
         self.assertIn("10.10.10.1",text)
         self.assertIn("Get-NetIPInterface -InterfaceAlias $lan",text)
-        self.assertNotIn("New-NetIPAddress",text)
         self.assertNotIn("Remove-NetIPAddress",text)
         self.assertEqual(result["backup"],"backup.json")
 
-    def test_apply_removes_only_detected_routed_lan_residue(self):
+    def test_apply_preserves_existing_routed_lan_residue(self):
         self.data["routes"].append({
             "InterfaceAlias": "Ethernet", "DestinationPrefix": "172.16.0.0/16",
             "InterfaceIndex": 5, "NextHop": "192.168.90.1", "RouteMetric": 5})
@@ -114,25 +112,21 @@ class GuideTests(unittest.TestCase):
         with patch("network_guide.network.snapshot", return_value="x"), patch(
                 "network_guide.network.ps", return_value="") as call:
             guide.execute("apply", self.profile, self.data, fp)
-        self.assertIn("Remove-NetRoute", call.call_args.args[0])
-        self.assertTrue(any("route/default gateway residui" in line
-                            for line in guide.preview("apply", self.profile, self.data)))
+        self.assertNotIn("Remove-NetRoute", call.call_args.args[0])
+        self.assertFalse(any("route/default gateway residui" in line
+                             for line in guide.preview("apply", self.profile, self.data)))
 
-    def test_static_lan_checks_existing_address_before_netsh(self):
+    def test_static_lan_adds_secondary_without_overwriting(self):
         fp = guide.fingerprint(self.profile, self.data)
         with patch("network_guide.network.snapshot", return_value="x"), patch(
                 "network_guide.network.ps", return_value="") as call:
             guide.execute("apply", self.profile, self.data, fp)
         script = call.call_args.args[0]
         self.assertIn("$duplicate = @(Get-NetIPAddress", script)
-        self.assertIn("$_ .InterfaceIndex".replace(" ", ""), script)
-        self.assertIn("$alreadyConfigured =", script)
-        self.assertIn("if (-not $alreadyConfigured) {", script)
-        self.assertIn("$netshExitCode = $LASTEXITCODE", script)
-        self.assertIn("$validState =", script)
-        self.assertIn("if (-not $validState) {", script)
-        self.assertIn("IPv4 rilevati=[", script)
-        self.assertNotIn("if ($LASTEXITCODE -ne 0) { throw ('Impossibile impostare IP statico LAN", script)
+        self.assertIn("New-NetIPAddress -InterfaceAlias $lan", script)
+        self.assertIn("-SkipAsSource $true", script)
+        self.assertNotIn("netsh.exe interface ipv4 set address", script)
+        self.assertNotIn("Remove-NetIPAddress", script)
 
     def test_disable_preserves_ip_addresses(self):
         self.data["nats"]=[{"Name":"FromAnotherApp","InternalIPInterfaceAddressPrefix":"10.10.10.0/24"}]
@@ -187,9 +181,9 @@ class GuideTests(unittest.TestCase):
                 "network_guide.network.ps", return_value="") as call:
             guide.execute("apply", self.profile, self.data, fp)
         text = call.call_args.args[0]
-        self.assertIn('"source=static"', text)
-        self.assertIn("gateway=none", text)
-        self.assertNotIn("New-NetIPAddress", text)
+        self.assertIn("New-NetIPAddress", text)
+        self.assertIn("-SkipAsSource $true", text)
+        self.assertNotIn("netsh.exe interface ipv4 set address", text)
 
     def test_static_setup_with_non_default_subnet(self):
         self.profile["prefix"] = "192.168.192.0/25"
@@ -199,9 +193,9 @@ class GuideTests(unittest.TestCase):
                 "network_guide.network.ps", return_value="") as call:
             guide.execute("apply", self.profile, self.data, fp)
         text = call.call_args.args[0]
-        self.assertIn("255.255.255.128", text)
+        self.assertIn("$lanPrefix = 25", text)
         self.assertIn("192.168.192.126", text)
-        self.assertIn('"gateway=none"', text)
+        self.assertNotIn("netsh.exe interface ipv4 set address", text)
 
     def test_apply_diff_is_empty_when_target_already_present(self):
         current = converged_inventory(self.profile)
@@ -226,15 +220,13 @@ class GuideTests(unittest.TestCase):
         self.assertNotIn("New-NetNat -Name", script)
         self.assertNotIn("netsh.exe interface ipv4 set address", script)
 
-    def test_matching_nat_with_foreign_nat_is_allowed(self):
+    def test_matching_single_nat_with_covered_logical_subnets(self):
         current = copy.deepcopy(self.data)
-        current["nats"] = [{"Name": self.profile["nat"],
-                            "InternalIPInterfaceAddressPrefix": self.profile["prefix"],
-                            "ExternalIPInterfaceAddressPrefix": None}]
+        current["nats"] = [{"Name": "NAT-Ethernet",
+                            "InternalIPInterfaceAddressPrefix": "10.0.0.0/8"}]
         guide.validate(self.profile, current, "apply")
-        current["nats"].append({"Name": "HyperV",
-                                "InternalIPInterfaceAddressPrefix": "172.20.0.0/16"})
-        guide.validate(self.profile, current, "apply")
+        _profile, steps = guide.apply_diff(self.profile, current)
+        self.assertFalse(any(step["key"] == "nat" for step in steps))
 
     def test_verified_apply_fails_if_target_did_not_converge(self):
         fp = guide.fingerprint(self.profile, self.data)
@@ -244,9 +236,9 @@ class GuideTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "stato candidato non raggiunto"):
                 guide.execute("apply", self.profile, self.data, fp, verify=True)
 
-    def test_detect_same_name_conflicts_before_apply(self):
-        self.data["nats"]=[{"Name":self.profile["nat"],"InternalIPInterfaceAddressPrefix":"172.20.0.0/16"}]
-        with self.assertRaisesRegex(ValueError,"differente"):
+    def test_detect_uncovered_prefix_before_apply(self):
+        self.data["nats"]=[{"Name":"NAT-Ethernet","InternalIPInterfaceAddressPrefix":"172.20.0.0/16"}]
+        with self.assertRaisesRegex(ValueError,"aggregato"):
             guide.validate(self.profile,self.data,"apply")
 
     def test_dynamic_adapter_status_and_apipa_do_not_invalidate_preview(self):

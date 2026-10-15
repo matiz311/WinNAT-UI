@@ -126,14 +126,8 @@ def validate(profile, data, action):
                              + alias + " (" + str(net) + "): scegli un'altra subnet.")
     normalized = dict(lan=lan, wans=wans, prefix=str(prefix), gateway=gateway, nat=nat)
     if action == "apply":
-        # Different NAT names/prefixes are independent resources. Only reject a
-        # same-name mismatch, never an unrelated WinNAT instance.
-        conflicts = [n for n in data.get("nats", [])
-                     if n.get("Name") == nat
-                     and (n.get("InternalIPInterfaceAddressPrefix") != str(prefix)
-                          or n.get("ExternalIPInterfaceAddressPrefix"))]
-        if conflicts:
-            raise ValueError("Il NAT " + nat + " ha già una configurazione differente.")
+        # One physical WinNAT: any LAN prefix it covers is a logical network.
+        network.nat_add_preflight(nat, str(prefix), data)
         for i, w in enumerate(wans):
             if not any(r.get("InterfaceAlias") == w["alias"] and r.get("DestinationPrefix") == "0.0.0.0/0"
                        for r in data.get("routes", [])):
@@ -311,62 +305,33 @@ def apply_diff(profile, data):
         if row.get("IPAddress") == p["gateway"]
         and _safe_int(row.get("PrefixLength"), -1) == prefixlen
     ]
-    lan_converged = (not _enabled(lan_iface.get("Dhcp"))
-                     and len(lan_ips) == 1 and len(lan_matches) == 1)
+    lan_converged = len(lan_matches) == 1
 
     if not lan_converged:
-        mask = str(ipaddress.IPv4Network(p["prefix"]).netmask)
+        if _enabled(lan_iface.get("Dhcp")):
+            raise ValueError("LAN con DHCP attivo: nessuna sostituzione automatica della configurazione IPv4.")
         steps.append({
             "key": "lan-address",
-            "label": "LAN " + p["lan"] + ": DHCP IPv4 disabilitato; imposta " + p["gateway"] + "/"
-                     + str(prefixlen) + " statico",
+            "label": "LAN " + p["lan"] + ": aggiungi IP " + p["gateway"] + "/" + str(prefixlen),
             "script": [
                 "$lanIP = " + psquote(p["gateway"]),
-                "$lanMask = " + psquote(mask),
                 "$lanPrefix = " + str(prefixlen),
                 "$duplicate = @(Get-NetIPAddress -AddressFamily IPv4 -IPAddress $lanIP -ErrorAction SilentlyContinue | "
-                "Where-Object { $_.InterfaceIndex -ne $lanIndex })",
-                "if ($duplicate.Count -gt 0) { throw ('IP LAN ' + $lanIP + ' già assegnato ad altre interfacce: ' + "
-                "(($duplicate | ForEach-Object { $_.InterfaceAlias + ' (ifIndex ' + $_.InterfaceIndex + ')' }) -join ', ')) }",
-                "$lanAddresses = @(Get-NetIPAddress -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue)",
-                "$iface = Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop",
-                "$alreadyConfigured = ($iface.Dhcp -eq 'Disabled' -and "
-                "@($lanAddresses | Where-Object { $_.IPAddress -eq $lanIP -and $_.PrefixLength -eq $lanPrefix }).Count -eq 1 "
-                "-and @($lanAddresses | Where-Object { $_.IPAddress -notlike '169.254.*' }).Count -eq 1)",
-                "$netshExitCode = 0",
-                "$netshOutput = @()",
-                "if (-not $alreadyConfigured) {",
-                "  $netshOutput = & netsh.exe interface ipv4 set address "
-                "(\"name=\" + $lan) \"source=static\" (\"address=\" + $lanIP) "
-                "(\"mask=\" + $lanMask) \"gateway=none\" \"store=persistent\" 2>&1",
-                "  $netshExitCode = $LASTEXITCODE",
-                "}",
-                "$iface = Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop",
-                "$lanAddresses = @(Get-NetIPAddress -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue)",
-                "$configuredIP = @($lanAddresses | Where-Object { $_.IPAddress -eq $lanIP -and $_.PrefixLength -eq $lanPrefix })",
-                "$relevantAddresses = @($lanAddresses | Where-Object { $_.IPAddress -notlike '169.254.*' })",
-                "$validState = ($iface.Dhcp -eq 'Disabled' -and $configuredIP.Count -eq 1 -and $relevantAddresses.Count -eq 1)",
-                "if (-not $validState) {",
-                "  $addressSummary = ($lanAddresses | ForEach-Object { $_.IPAddress + '/' + $_.PrefixLength }) -join ', '",
-                "  throw ('Impossibile impostare IP statico LAN tramite netsh (codice ' + $netshExitCode + '). ' + "
-                "'DHCP=' + $iface.Dhcp + '; IPv4 rilevati=[' + $addressSummary + ']; atteso=' + $lanIP + '/' + "
-                "$lanPrefix + '. Output: ' + ($netshOutput | Out-String))",
+                "Where-Object { $_.InterfaceIndex -ne $lanIndex -or $_.PrefixLength -ne $lanPrefix })",
+                "if ($duplicate.Count -gt 0) { throw ('IP LAN in conflitto: ' + $lanIP) }",
+                "$already = @(Get-NetIPAddress -InterfaceAlias $lan -AddressFamily IPv4 -IPAddress $lanIP "
+                "-ErrorAction SilentlyContinue | Where-Object { $_.PrefixLength -eq $lanPrefix })",
+                "if ($already.Count -eq 0) {",
+                "  $iface = Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop",
+                "  if ($iface.Dhcp -ne 'Disabled') { throw 'DHCP LAN attivo: configurazione mantenuta' }",
+                "  New-NetIPAddress -InterfaceAlias $lan -IPAddress $lanIP -PrefixLength $lanPrefix "
+                "-SkipAsSource $true -ErrorAction Stop | Out-Null",
                 "}",
             ],
         })
 
-    routed = _routed_lan_routes(data, p["lan"])
-    if routed:
-        steps.append({
-            "key": "lan-routes",
-            "label": "LAN " + p["lan"] + ": rimuovi " + str(len(routed))
-                     + " route/default gateway residui",
-            "script": [
-                "Get-NetRoute -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue | "
-                "Where-Object { $_.DestinationPrefix -eq '0.0.0.0/0' -or $_.NextHop -notin @('0.0.0.0', '::') } | "
-                "Remove-NetRoute -Confirm:$false -ErrorAction Stop"
-            ],
-        })
+    # Existing LAN routes are left untouched; their ownership is unknown.
+    # Modifying a NAT profile must not silently remove firewall/site routes.
 
     if _safe_int(data.get("globalRouter"), 0) != 1:
         steps.append({
@@ -408,10 +373,10 @@ def apply_diff(profile, data):
                 ],
             })
 
-    if not _target_nat_present(data, p):
+    if network.nat_add_preflight(p["nat"], p["prefix"], data) == "create":
         steps.append({
             "key": "nat",
-            "label": "Crea NAT " + p["nat"] + " per " + p["prefix"],
+            "label": "Crea WinNAT unico " + p["nat"] + " per " + p["prefix"],
             "script": [
                 "New-NetNat -Name " + psquote(p["nat"])
                 + " -InternalIPInterfaceAddressPrefix " + psquote(p["prefix"])
