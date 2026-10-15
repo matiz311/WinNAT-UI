@@ -1661,7 +1661,19 @@ class App(tk.Tk):
         dlg.bind("<Return>", lambda e: dlg.accept())
         if dlg.run(focus=entries["name"][0]):
             n, pfx = name.get().strip(), network.validate_prefix(prefix.get().strip())
-            self.stage("add", (n, pfx), "Aggiungi NAT", n + " / " + pfx)
+            details = n + " / " + pfx
+            if self.data.get("nats") and len(self.data["nats"]) == 1:
+                existing = self.data["nats"][0]
+                try:
+                    if network.nat_add_preflight(n, pfx, self.data) == "expand":
+                        aggregated = network.shared_nat_prefix(
+                            existing["InternalIPInterfaceAddressPrefix"], pfx)
+                        details += ("\nEspansione WinNAT unico " + existing["Name"]
+                                    + " a " + aggregated
+                                    + "\nL'operazione ricrea l'istanza e interrompe le sessioni NAT correnti.")
+                except ValueError:
+                    pass
+            self.stage("add", (n, pfx), "Aggiungi NAT", details)
 
     def remove(self):
         selected = self.nat_table.selection()
@@ -1816,9 +1828,12 @@ class App(tk.Tk):
                                        for n in verified.get("nats", [])):
                                 raise RuntimeError("Verifica post-creazione WinNAT fallita.")
                             post_inventory = verified
+                        elif disposition == "expand":
+                            # Existing physical WinNAT is rebuilt with a shared prefix.
+                            # The PowerShell operation snapshots/remakes static mappings
+                            # and compensates on failure within the same execution.
+                            post_inventory = network.expand_nat(args[1], current)
                         else:
-                            # Logical subnet covered by the existing WinNAT:
-                            # do not create a second physical instance.
                             post_inventory = current
                     elif kind == "remove":
                         if any(n.get("Name") == args[0] for n in nats):
