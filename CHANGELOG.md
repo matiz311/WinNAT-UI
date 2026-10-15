@@ -10,6 +10,10 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
 
 
+## [1.9.12] - 2026-10-15
+### Corretto
+- Include esplicitamente il modulo backend headless NAT/IP nell'eseguibile PyInstaller, senza nuove opzioni UI.
+
 ## [1.9.11] - 2026-10-15
 ### Aggiunto (solo backend)
 - Inventario completo dei mapping statici WinNAT e funzioni idempotenti per configurare più port mapping TCP/UDP sull'unica rete WinNAT supportata da Windows.
