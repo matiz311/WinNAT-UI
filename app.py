@@ -1662,17 +1662,6 @@ class App(tk.Tk):
         if dlg.run(focus=entries["name"][0]):
             n, pfx = name.get().strip(), network.validate_prefix(prefix.get().strip())
             details = n + " / " + pfx
-            if self.data.get("nats") and len(self.data["nats"]) == 1:
-                existing = self.data["nats"][0]
-                try:
-                    if network.nat_add_preflight(n, pfx, self.data) == "expand":
-                        aggregated = network.shared_nat_prefix(
-                            existing["InternalIPInterfaceAddressPrefix"], pfx)
-                        details += ("\nEspansione WinNAT unico " + existing["Name"]
-                                    + " a " + aggregated
-                                    + "\nL'operazione ricrea l'istanza e interrompe le sessioni NAT correnti.")
-                except ValueError:
-                    pass
             self.stage("add", (n, pfx), "Aggiungi NAT", details)
 
     def remove(self):
@@ -1821,19 +1810,18 @@ class App(tk.Tk):
                     if kind == "add":
                         disposition = network.nat_add_preflight(args[0], args[1], current)
                         if disposition == "create":
+                            # Aggiungi NAT means exactly New-NetNat. Never migrate,
+                            # widen, delete or rebuild a pre-existing NAT object.
                             network.create_nat(*args)
                             verified = network.collect()
-                            if not any(n.get("Name") == args[0] and
-                                       n.get("InternalIPInterfaceAddressPrefix") == args[1]
-                                       for n in verified.get("nats", [])):
-                                raise RuntimeError("Verifica post-creazione WinNAT fallita.")
+                            created = [n for n in verified.get("nats", [])
+                                       if n.get("Name") == args[0] and
+                                       n.get("InternalIPInterfaceAddressPrefix") == args[1]]
+                            if len(created) != 1:
+                                raise RuntimeError("New-NetNat eseguito, ma verifica del NAT creato non riuscita.")
                             post_inventory = verified
-                        elif disposition == "expand":
-                            # Existing physical WinNAT is rebuilt with a shared prefix.
-                            # The PowerShell operation snapshots/remakes static mappings
-                            # and compensates on failure within the same execution.
-                            post_inventory = network.expand_nat(args[1], current)
                         else:
+                            # Idempotent retry for an identical rule.
                             post_inventory = current
                     elif kind == "remove":
                         if any(n.get("Name") == args[0] for n in nats):
