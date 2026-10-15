@@ -10,6 +10,13 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
 
 
+## [1.9.13] - 2026-10-15
+### Corretto
+- «Aggiungi NAT»: permette la creazione di un WinNAT distinto anche in presenza di altri oggetti NAT. Rileva soltanto duplicati di nome/configurazione; l'eventuale rifiuto operativo viene da Windows PowerShell.
+- Verifica la presenza del NAT dopo la creazione e preserva lo snapshot pre-commit.
+- Rimuove i blocchi globali sul numero di NAT dai percorsi Configura gateway, LAN/WAN e Setup, mantenendo il controllo di conflitto sul medesimo nome e prefisso.
+- Nessuna rimozione automatica dei NAT preesistenti e nessuna nuova opzione visibile nella UI.
+
 ## [1.9.12] - 2026-10-15
 ### Corretto
 - Include esplicitamente il modulo backend headless NAT/IP nell'eseguibile PyInstaller, senza nuove opzioni UI.
