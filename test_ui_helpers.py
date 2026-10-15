@@ -70,6 +70,33 @@ class HelperTests(unittest.TestCase):
         self.assertIn("issue_tracker.submit(payload, endpoint=endpoint)", segment)
         self.assertNotIn("issue_tracker.public_issues()", segment)
 
+    def test_commit_failure_keeps_candidate_for_diff_retry(self):
+        from pathlib import Path
+        source = Path(__file__).with_name("app.py").read_text(encoding="utf-8")
+        start = source.index('                    if key == "Commit":')
+        end = source.index('                    elif key == "Segnala bug":', start)
+        segment = source[start:end]
+        self.assertNotIn("self.pending.clear()", segment)
+        self.assertIn("self.refresh()", segment)
+
+    def test_commit_state_checkpoint_is_persisted_with_stage(self):
+        import json
+        import os
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        import network
+        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {"LOCALAPPDATA": folder}):
+            path = Path(network.save_commit_state(
+                "pre-commit", {"nats": []}, {"label": "Configura gateway"}))
+            self.assertTrue(path.exists())
+            self.assertEqual(path.parent, Path(folder) / "WinNAT-UI" / "commit-states")
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["stage"], "pre-commit")
+        self.assertEqual(payload["inventory"], {"nats": []})
+        self.assertEqual(payload["context"]["label"], "Configura gateway")
+        self.assertIn("captured_at", payload)
+
     def test_debug_retains_multiline_output(self):
         message = "PowerShell exit code: 1\n\nSTDERR:\nErrore di rete\n\nSTDOUT:\nL'oggetto esiste già."
         trace = 'Traceback (most recent call last):\n  File "app.py", line 50'
