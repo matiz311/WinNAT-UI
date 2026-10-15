@@ -126,23 +126,14 @@ def validate(profile, data, action):
                              + alias + " (" + str(net) + "): scegli un'altra subnet.")
     normalized = dict(lan=lan, wans=wans, prefix=str(prefix), gateway=gateway, nat=nat)
     if action == "apply":
-        # Desired-state semantics: an already-present NAT is acceptable only when
-        # it is exactly the requested object. This lets a retry continue after a
-        # partial commit without recreating the same NAT.
-        nats = data.get("nats", [])
-        matching = [
-            n for n in nats
-            if n.get("Name") == nat
-            and n.get("InternalIPInterfaceAddressPrefix") == str(prefix)
-            and not n.get("ExternalIPInterfaceAddressPrefix")
-        ]
-        conflicts = [n for n in nats if n not in matching]
-        if conflicts or len(matching) > 1:
-            raise ValueError("WinNAT esistente ma diverso dal candidato: usa Ripristina o elimina le regole concorrenti prima di applicare il profilo.")
-        if any(c.get("SharingEnabled") for c in data.get("icsConnections", [])):
-            raise ValueError("ICS attivo: disabilita la condivisione prima di usare WinNAT.")
-        if any(c.get("Error") for c in data.get("icsConnections", [])):
-            raise ValueError("Stato ICS non verificabile: operazione bloccata.")
+        # Different NAT names/prefixes are independent resources. Only reject a
+        # same-name mismatch, never an unrelated WinNAT instance.
+        conflicts = [n for n in data.get("nats", [])
+                     if n.get("Name") == nat
+                     and (n.get("InternalIPInterfaceAddressPrefix") != str(prefix)
+                          or n.get("ExternalIPInterfaceAddressPrefix"))]
+        if conflicts:
+            raise ValueError("Il NAT " + nat + " ha già una configurazione differente.")
         for i, w in enumerate(wans):
             if not any(r.get("InterfaceAlias") == w["alias"] and r.get("DestinationPrefix") == "0.0.0.0/0"
                        for r in data.get("routes", [])):
