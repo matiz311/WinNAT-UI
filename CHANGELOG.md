@@ -10,6 +10,14 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
 
 
+## [1.9.15.1] - 2026-10-15
+### Corretto
+- **Aggiungi NAT:** esegue direttamente `New-NetNat` per il nome e prefisso richiesti, senza controllare quanti altri NAT siano presenti.
+- Un NAT con nome e prefisso identici resta idempotente; solo la collisione dello stesso nome con configurazione diversa viene diagnosticata prima dell'invio a PowerShell.
+- Nessuna espansione automatica, `Remove-NetNat`, ricostruzione di prefissi o modifica di IP LAN/WAN durante **Aggiungi NAT**. I percorsi avanzati «Configura gateway» mantengono logiche separate.
+- Scope del rollback limitato al nome della regola appena richiesta: non comprende e non modifica altri NAT preesistenti.
+- Supporto a versioni HOTFIX `1.x.y.z` in Windows, GitHub Actions, updater e policy di pubblicazione; aggiunti test regressione.
+
 ## [1.9.15] - 2026-10-15
 ### Aggiunto
 - Aggiungi NAT e Configura gateway espandono automaticamente l'unica istanza WinNAT al minimo prefisso CIDR condiviso dalle subnet LAN richieste (es. 192.168.1.0/24 e 192.168.192.0/24 -> 192.168.0.0/16).
