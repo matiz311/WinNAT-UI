@@ -62,7 +62,7 @@ class NatPreflightTests(unittest.TestCase):
         data = {"nats": [
             {"Name": "NAT-A", "InternalIPInterfaceAddressPrefix": "192.168.1.0/24"},
             {"Name": "NAT-B", "InternalIPInterfaceAddressPrefix": "192.168.192.0/24"}]}
-        with self.assertRaisesRegex(ValueError, "più istanze"):
+        with self.assertRaisesRegex(ValueError, "WinNAT rilevati"):
             network.nat_network_preflight("NAT-C", "192.168.1.0/24", data)
 
 
