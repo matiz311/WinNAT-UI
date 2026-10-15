@@ -226,7 +226,7 @@ class GuideTests(unittest.TestCase):
         self.assertNotIn("New-NetNat -Name", script)
         self.assertNotIn("netsh.exe interface ipv4 set address", script)
 
-    def test_matching_nat_is_allowed_but_foreign_nat_is_not(self):
+    def test_matching_nat_with_foreign_nat_is_allowed(self):
         current = copy.deepcopy(self.data)
         current["nats"] = [{"Name": self.profile["nat"],
                             "InternalIPInterfaceAddressPrefix": self.profile["prefix"],
@@ -234,8 +234,7 @@ class GuideTests(unittest.TestCase):
         guide.validate(self.profile, current, "apply")
         current["nats"].append({"Name": "HyperV",
                                 "InternalIPInterfaceAddressPrefix": "172.20.0.0/16"})
-        with self.assertRaisesRegex(ValueError, "diverso dal candidato"):
-            guide.validate(self.profile, current, "apply")
+        guide.validate(self.profile, current, "apply")
 
     def test_verified_apply_fails_if_target_did_not_converge(self):
         fp = guide.fingerprint(self.profile, self.data)
@@ -245,9 +244,9 @@ class GuideTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "stato candidato non raggiunto"):
                 guide.execute("apply", self.profile, self.data, fp, verify=True)
 
-    def test_detect_conflicts_before_apply(self):
-        self.data["nats"]=[{"Name":"HyperV","InternalIPInterfaceAddressPrefix":"172.20.0.0/16"}]
-        with self.assertRaisesRegex(ValueError,"WinNAT"):
+    def test_detect_same_name_conflicts_before_apply(self):
+        self.data["nats"]=[{"Name":self.profile["nat"],"InternalIPInterfaceAddressPrefix":"172.20.0.0/16"}]
+        with self.assertRaisesRegex(ValueError,"differente"):
             guide.validate(self.profile,self.data,"apply")
 
     def test_dynamic_adapter_status_and_apipa_do_not_invalidate_preview(self):

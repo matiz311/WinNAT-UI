@@ -175,36 +175,21 @@ def validate_gateway(address, network):
     return str(ip)
 
 def nat_add_preflight(name, prefix, data):
-    """Classify a requested WinNAT without mutating the host.
-
-    Returns 'already-present' or 'create'.  Fail closed for NAT conflicts
-    and unverified/active ICS, with actionable inventory details.
-    """
+    """Allow unrelated WinNAT instances; only a same-name mismatch is invalid."""
     name = validate_name(name)
     prefix = validate_prefix(prefix)
-    nats = data.get("nats", [])
-    ics = data.get("icsConnections", [])
-    if any(c.get("Error") for c in ics):
-        raise ValueError("Stato ICS non verificabile: interrompo la creazione NAT.")
-    enabled_ics = [c.get("Name", "(senza nome)") for c in ics if c.get("SharingEnabled")]
-    if enabled_ics:
-        raise ValueError("ICS attivo sulle interfacce: " + ", ".join(map(str, enabled_ics)))
-    exact = [n for n in nats if n.get("Name") == name
-             and n.get("InternalIPInterfaceAddressPrefix") == prefix
-             and not n.get("ExternalIPInterfaceAddressPrefix")]
-    if len(exact) == 1 and len(nats) == 1:
-        return "already-present"
-    if nats:
-        description = "; ".join(
-            str(n.get("Name", "(senza nome)")) + " [" +
-            str(n.get("InternalIPInterfaceAddressPrefix", "senza prefisso")) + "]"
-            for n in nats)
-        raise ValueError(
-            "Impossibile creare il NAT '" + name + "' [" + prefix +
-            "]: WinNAT esistente non coincidente o concorrente: " +
-            description + ". Nessuna configurazione modificata. "
-            "Verifica la regola in Regole NAT; non viene rimossa automaticamente.")
+    matches = [n for n in data.get("nats", []) if n.get("Name") == name]
+    if len(matches) > 1:
+        raise ValueError("Nome NAT duplicato nell'inventario: " + name)
+    if matches:
+        existing = matches[0]
+        if (existing.get("InternalIPInterfaceAddressPrefix") == prefix
+                and not existing.get("ExternalIPInterfaceAddressPrefix")):
+            return "already-present"
+        raise ValueError("Il NAT '" + name + "' esiste già con un prefisso differente: "
+                         + str(existing.get("InternalIPInterfaceAddressPrefix")))
     return "create"
+
 
 
 def create_nat(name, prefix):
@@ -231,9 +216,11 @@ if($existing.Count -eq 0) { New-NetIPAddress -InterfaceAlias $alias -IPAddress $
 Set-NetIPInterface -InterfaceAlias $alias -AddressFamily IPv4 -Forwarding Enabled -ErrorAction Stop
 $routes = @(Get-NetRoute -DestinationPrefix '0.0.0.0/0' -AddressFamily IPv4 -ErrorAction SilentlyContinue)
 if($routes.Count -eq 0) { throw 'Nessuna route predefinita disponibile: impossibile individuare la WAN.' }
-New-NetNat -Name 'WinNAT-UI' -InternalIPInterfaceAddressPrefix '%s' -ErrorAction Stop | Out-Null
+$existingNat = @(Get-NetNat -Name 'WinNAT-UI' -ErrorAction SilentlyContinue)
+if($existingNat.Count -gt 0 -and $existingNat[0].InternalIPInterfaceAddressPrefix -ne '%s') { throw 'WinNAT-UI esistente con prefisso differente' }
+if($existingNat.Count -eq 0) { New-NetNat -Name 'WinNAT-UI' -InternalIPInterfaceAddressPrefix '%s' -ErrorAction Stop | Out-Null }
 'Configuration complete'
-""" % (alias, gateway, subnet.prefixlen, prefix)
+""" % (alias, gateway, subnet.prefixlen, prefix, prefix)
     result = ps(script)
     # Registra solo ciò che il wizard ha predisposto. Il teardown è conservativo.
     state = {

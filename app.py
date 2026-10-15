@@ -1632,9 +1632,6 @@ class App(tk.Tk):
             return self.toast.show("Attendi il caricamento della configurazione.", "warning")
         dlg = Dialog(self, "Aggiungi regola NAT", "Aggiungi alle modifiche")
         name, prefix = tk.StringVar(value="WinNAT-UI"), tk.StringVar(value="192.168.1.0/24")
-        if self.data.get("nats"):
-            ui.Callout(dlg.body, kind="warning", wraplength=380,
-                       text="Esiste già una regola WinNAT: il Commit sarà un no-op se coincide esattamente con il candidato; altrimenti mostrerà il conflitto senza modificare Windows.").pack(fill="x", pady=(0, S3))
         entries = {}
         for key, label, var in (("name", "Nome della regola", name), ("prefix", "Rete interna (CIDR)", prefix)):
             ttk.Label(dlg.body, text=label, style="Card.TLabel").pack(anchor="w")
@@ -1813,12 +1810,16 @@ class App(tk.Tk):
                         disposition = network.nat_add_preflight(args[0], args[1], current)
                         if disposition == "create":
                             network.create_nat(*args)
+                            verified = network.collect()
+                            if not any(n.get("Name") == args[0] and
+                                       n.get("InternalIPInterfaceAddressPrefix") == args[1]
+                                       for n in verified.get("nats", [])):
+                                raise RuntimeError("Verifica post-creazione NAT fallita: la regola non compare nell'inventario.")
+                            post_inventory = verified
                     elif kind == "remove":
                         if any(n.get("Name") == args[0] for n in nats):
                             network.remove_nat(*args)
                     elif kind == "setup":
-                        if nats or any(c.get("SharingEnabled") for c in current.get("icsConnections", [])):
-                            raise ValueError("Setup bloccato da WinNAT/ICS esistente.")
                         network.setup(*args, current)
                     elif kind == "guide":
                         result = network_guide.execute(args[0], args[1], current, args[2], verify=True)
