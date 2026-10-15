@@ -39,14 +39,20 @@ def scope_for(kind, args, before):
             scope["metrics"].update(wans)
     elif kind in ("add", "remove"):
         scope["nats"].add(args[0])
+        if kind == "add":
+            # The Add action can expand the single physical WinNAT instead of
+            # creating the requested logical name: include that object in scope.
+            scope["nats"].update(n["Name"] for n in before.get("nats", []))
     elif kind == "setup":
         scope["ips"].add(args[0])
         scope["forwarding"].add(args[0])
         scope["nats"].add("WinNAT-UI")
+        scope["nats"].update(n["Name"] for n in before.get("nats", []))
     elif kind == "profile":
         scope["ips"].add(args[0]["lan"])
         scope["forwarding"].add(args[0]["lan"])
         scope["nats"].add("WinNAT-UI")
+        scope["nats"].update(n["Name"] for n in before.get("nats", []))
     elif kind == "reset":
         selected = args[0]
         scope["nats"].update(selected.get("nat_names", []))
