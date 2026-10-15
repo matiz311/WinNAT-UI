@@ -173,6 +173,39 @@ def validate_gateway(address, network):
         raise ValueError("L'IP LAN deve essere un host utilizzabile nel prefisso.")
     return str(ip)
 
+def nat_add_preflight(name, prefix, data):
+    """Classify a requested WinNAT without mutating the host.
+
+    Returns 'already-present' or 'create'.  Fail closed for NAT conflicts
+    and unverified/active ICS, with actionable inventory details.
+    """
+    name = validate_name(name)
+    prefix = validate_prefix(prefix)
+    nats = data.get("nats", [])
+    ics = data.get("icsConnections", [])
+    if any(c.get("Error") for c in ics):
+        raise ValueError("Stato ICS non verificabile: interrompo la creazione NAT.")
+    enabled_ics = [c.get("Name", "(senza nome)") for c in ics if c.get("SharingEnabled")]
+    if enabled_ics:
+        raise ValueError("ICS attivo sulle interfacce: " + ", ".join(map(str, enabled_ics)))
+    exact = [n for n in nats if n.get("Name") == name
+             and n.get("InternalIPInterfaceAddressPrefix") == prefix
+             and not n.get("ExternalIPInterfaceAddressPrefix")]
+    if len(exact) == 1 and len(nats) == 1:
+        return "already-present"
+    if nats:
+        description = "; ".join(
+            str(n.get("Name", "(senza nome)")) + " [" +
+            str(n.get("InternalIPInterfaceAddressPrefix", "senza prefisso")) + "]"
+            for n in nats)
+        raise ValueError(
+            "Impossibile creare il NAT '" + name + "' [" + prefix +
+            "]: WinNAT esistente non coincidente o concorrente: " +
+            description + ". Nessuna configurazione modificata. "
+            "Verifica la regola in Regole NAT; non viene rimossa automaticamente.")
+    return "create"
+
+
 def create_nat(name, prefix):
     validate_name(name)
     validate_prefix(prefix)

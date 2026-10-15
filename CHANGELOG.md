@@ -10,6 +10,13 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
 
 
+## [1.9.10] - 2026-10-15
+### Corretto
+- «Aggiungi NAT» distingue configurazione assente, già identica (nessuna operazione necessaria) e NAT incompatibile o concorrente.
+- In presenza di un NAT incompatibile il messaggio indica nome e prefisso effettivo e interrompe il Commit senza modificare o eliminare la configurazione esistente.
+- Lo stato ICS non verificabile blocca il preflight; un errore di preflight non avvia un rollback inutile.
+- Test automatici dei casi di no-op, conflitto NAT e verifica ICS.
+
 ## [1.9.9] - 2026-10-15
 ### Corretto
 - **Commit idempotente a differenze:** «Configura gateway» tratta il candidato come stato desiderato, rilegge Windows al momento del Commit e applica soltanto IP/DHCP, route LAN, `IPEnableRouter`, forwarding, metriche WAN e WinNAT che non coincidono già con il target.
