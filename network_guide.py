@@ -409,7 +409,7 @@ def apply_diff(profile, data):
             steps.append({
                 "key": "metric:" + w["alias"],
                 "label": ("WAN primaria " if i == 1 else "WAN " + str(i) + " ")
-                         + w["alias"] + ": imposta metrica " + str(w["metric"]),
+                         + w["alias"] + ": metrica " + str(w["metric"]),
                 "script": [
                     "Set-NetIPInterface -InterfaceAlias $wan%d -AddressFamily IPv4 "
                     "-InterfaceMetric %d -AutomaticMetric Disabled -ErrorAction Stop"
