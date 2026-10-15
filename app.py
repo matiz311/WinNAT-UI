@@ -1820,8 +1820,6 @@ class App(tk.Tk):
                         if any(n.get("Name") == args[0] for n in nats):
                             network.remove_nat(*args)
                     elif kind == "setup":
-                        if nats or any(c.get("SharingEnabled") for c in current.get("icsConnections", [])):
-                            raise ValueError("Setup bloccato da WinNAT/ICS esistente.")
                         network.setup(*args, current)
                     elif kind == "guide":
                         result = network_guide.execute(args[0], args[1], current, args[2], verify=True)
