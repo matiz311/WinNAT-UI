@@ -1826,7 +1826,7 @@ class App(tk.Tk):
                             raise ValueError("Setup bloccato da WinNAT/ICS esistente.")
                         network.setup(*args, current)
                     elif kind == "guide":
-                        result = network_guide.execute(args[0], args[1], current, args[2])
+                        result = network_guide.execute(args[0], args[1], current, args[2], verify=True)
                         post_inventory = result.get("post_inventory")
                     elif kind == "profile":
                         network_plan.apply_profile(args[0], current)
