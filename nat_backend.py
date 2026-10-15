@@ -81,7 +81,7 @@ def ensure_nat_mapping(nat_name, protocol, external_port, internal_address, inte
     if mappings is None:
         raise ValueError("Inventario mapping NAT non disponibile: aggiorna lo snapshot.")
     matching = [m for m in mappings if str(m.get("NatName")) == nat_name
-                and str(m.get("Protocol", "")).upper() == protocol
+                and str(m.get("Protocol", "")).upper() in (protocol, "6" if protocol == "TCP" else "17")
                 and int(m.get("ExternalPort", -1)) == external_port
                 and str(m.get("ExternalIPAddress")) == external_address]
     if matching:
@@ -101,7 +101,7 @@ def ensure_nat_mapping(nat_name, protocol, external_port, internal_address, inte
         "$nat=Get-NetNat -Name $name -ErrorAction Stop\n"
         "if($nat.InternalIPInterfaceAddressPrefix -ne " + _quote(str(subnet)) + "){ throw 'Prefisso WinNAT modificato' }\n"
         "$existing=@(Get-NetNatStaticMapping -NatName $name -ErrorAction Stop | Where-Object { "
-        "$_.Protocol -eq $protocol -and $_.ExternalIPAddress -eq $external -and $_.ExternalPort -eq $port })\n"
+        "($_.Protocol.ToString() -eq $protocol -or $_.Protocol.ToString() -eq $(if($protocol -eq 'TCP'){'6'}else{'17'})) -and $_.ExternalIPAddress -eq $external -and $_.ExternalPort -eq $port })\n"
         "if($existing.Count -gt 0){\n"
         "  if(@($existing | Where-Object { $_.InternalIPAddress -ne $internal -or "
         "$_.InternalPort -ne $internalPort }).Count -gt 0){ throw 'Mapping WinNAT in conflitto' }\n"
