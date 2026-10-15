@@ -25,7 +25,7 @@ def preflight(plan, inventory):
 
 def apply_profile(plan, inventory):
     lan,wan,prefix,gateway=preflight(plan,inventory)
-    if network.nat_add_preflight("WinNAT-UI", str(prefix), inventory) == "expand":
+    if network.nat_network_preflight("WinNAT-UI", str(prefix), inventory) == "expand":
         inventory = network.expand_nat(str(prefix), inventory)
     existing_ip=any(i.get("InterfaceAlias")==lan and i.get("IPAddress")==gateway and int(i.get("PrefixLength") or 0)==prefix.prefixlen for i in inventory.get("ips",[]))
     # Keep WAN's IP and default route intact. Use the target interface names to avoid
