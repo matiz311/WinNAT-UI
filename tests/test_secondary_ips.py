@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import patch
 
-from winnat_ui import network_rollback, secondary_ips
+from winnat_ui import network_guide, network_rollback, secondary_ips
 
 
 def inventory():
@@ -33,6 +33,13 @@ class SecondaryIpTests(unittest.TestCase):
         rows = secondary_ips.lan_rows(self.data, "LAN")
         self.assertEqual(len(rows), 2)
         self.assertEqual(sum(secondary_ips.skip_as_source(r["SkipAsSource"]) for r in rows), 1)
+
+    def test_detect_gateway_prefers_primary_over_lower_secondary(self):
+        self.data["ips"][0]["IPAddress"] = "10.0.0.100"
+        self.data["ips"][1]["IPAddress"] = "10.0.0.2"
+        detected = network_guide.detect_lan_subnet(self.data, "LAN")
+        self.assertEqual(detected["gateway"], "10.0.0.100")
+        self.assertEqual(detected["prefix"], "10.0.0.0/24")
 
     def test_add_only_sets_secondary_and_never_changes_primary_or_nat(self):
         plan = secondary_ips.plan("add", "LAN", "10.0.2.1", 24, self.data)
