@@ -1,0 +1,81 @@
+name: Verify anonymous issue gateway
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-bug-gateway.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Submit synthetic report, verify deduplication, close test Issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+          const {submit_url} = JSON.parse(readFileSync('bug-service.json','utf8'));
+          const endpoint = new URL(submit_url);
+          if (endpoint.protocol !== 'https:' ||
+              !endpoint.hostname.endsWith('.workers.dev') ||
+              endpoint.pathname !== '/report') throw Error('Unsafe endpoint');
+          const payload = {
+            operation:'Altra operazione',
+            category:'Errore operativo non classificato',
+            exception:'Non determinato',
+            modules:[], version:'0.0.0', exit_code:null
+          };
+          const issueBase = 'https://github.com/'+process.env.GH_REPO+'/issues/';
+          let createdIssue = null;
+          const report = async () => {
+            const response = await fetch(endpoint, {
+              method:'POST',
+              headers:{'content-type':'application/json'},
+              body:JSON.stringify(payload),
+              signal:AbortSignal.timeout(20000)
+            });
+            const body = await response.json();
+            console.log('Report HTTP',response.status, 'already_exists',body.already_exists);
+            if (!body.number || body.url !== issueBase+body.number)
+              throw Error('Invalid issue response: '+response.status+' '+JSON.stringify(body));
+            return {status:response.status,body};
+          };
+          try {
+            const first=await report();
+            if(first.status!==201 || first.body.already_exists!==false)
+              throw Error('Synthetic issue was not newly created; refusing to close an existing issue');
+            createdIssue=first.body.number;
+            const second=await report();
+            if(second.status!==200 || second.body.already_exists!==true ||
+               second.body.number!==createdIssue)
+              throw Error('Duplicate detection did not reuse issue');
+            console.log('Anonymous end-to-end reporting and deduplication: OK');
+          } finally {
+            if (createdIssue) {
+              try {
+                execFileSync('gh',[
+                  'api','-X','PATCH',
+                  'repos/'+process.env.GH_REPO+'/issues/'+createdIssue,
+                  '-f','state=closed','-f','state_reason=not_planned'
+                ],{stdio:'pipe'});
+                console.log('Closed synthetic test Issue #'+createdIssue);
+              } catch(error) {
+                console.error('Test issue #'+createdIssue+' could not be closed');
+                process.exitCode=1;
+              }
+            }
+          }
+          NODE
