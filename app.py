@@ -1133,6 +1133,10 @@ class App(tk.Tk):
             return
         def found(info):
             if info.get("error"):
+                if not silent:
+                    messagebox.showwarning(
+                        "Controllo aggiornamenti non disponibile",
+                        info["error"], parent=self)
                 return
             if not info["available"]:
                 if not silent:
@@ -1164,13 +1168,17 @@ class App(tk.Tk):
             self.run_task("Download aggiornamento",
                           lambda: updater.prepare(info), self._install_update)
         def lookup():
-            if silent:
-                try:
-                    return updater.release_info(VERSION)
-                except Exception:
+            try:
+                return updater.release_info(VERSION)
+            except ValueError as error:
+                # Metadata and security validation failures are actionable update
+                # errors, not an unclassified failure of the networking backend.
+                return {"error": "Release GitHub non utilizzabile: " + str(error)}
+            except Exception:
+                if silent:
                     # Offline/blocked access at startup must not interrupt networking work.
                     return {"error": "Controllo automatico non disponibile."}
-            return updater.release_info(VERSION)
+                raise
         self.run_task("Aggiornamenti", lookup, found)
 
     def _install_update(self, staging):
