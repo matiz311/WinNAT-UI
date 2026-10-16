@@ -1,6 +1,6 @@
 # Migrazione storica SemVer (proposta, non ancora applicata)
 
-Obiettivo: sostituire la numerazione storica incoerente con una sequenza **univoca e monotona**. La colonna «nuova» è il numero dell'eseguibile che dovrà essere **ricompilato dal commit originale**. Non è consentito rinominare il tag mantenendo un EXE con versione diversa.
+Obiettivo: sostituire la numerazione storica incoerente con una sequenza **univoca e monotona**. La colonna «nuova» è il numero dell'eseguibile che dovrà essere **ricompilato dal commit originale**. Il catalogo include soltanto le 28 release effettivamente pubblicate, verificate via API GitHub il 16 ottobre 2026; `v1.9.1` non ha più né tag né release. La versione sorgente corrente `1.10.0` è anch'essa priva di tag/release e verrà pubblicata **separatamente** come `v1.14.0` dopo la migrazione storica. Non è consentito rinominare il tag mantenendo un EXE con versione diversa.
 
 | Vecchia | Nuova | Classe |
 |---|---|---|
@@ -17,8 +17,7 @@ Obiettivo: sostituire la numerazione storica incoerente con una sequenza **univo
 | `v1.7.5` | `v1.6.4` | PATCH |
 | `v1.8.0` | `v1.7.0` | MINOR |
 | `v1.9.0` | `v1.8.0` | MINOR |
-| `v1.9.1` | `v1.9.0` | MINOR |
-| `v1.9.2` | `v1.9.1` | PATCH |
+| `v1.9.2` | `v1.9.0` | MINOR |
 | `v1.9.3` | `v1.10.0` | MINOR |
 | `v1.9.4` | `v1.10.1` | PATCH |
 | `v1.9.5` | `v1.10.2` | PATCH |
@@ -33,7 +32,7 @@ Obiettivo: sostituire la numerazione storica incoerente con una sequenza **univo
 | `v1.9.14` | `v1.12.5` | PATCH |
 | `v1.9.15` | `v1.13.0` | MINOR |
 | `v1.9.15.1` | `v1.13.0.1` | HOTFIX |
-| `v1.10.0` | `v1.14.0` | MINOR |
+
 
 ## Controlli di preflight obbligatori
 
