@@ -179,8 +179,6 @@ def synchronize(installed=VERSION, remote=None, latest_version=None):
                    if x["number"] == record["number"]]
         if matches:
             issue = matches[0]
-            record["state"] = issue["state"]
-            record["fixed_in"] = issue["fixed_in"]
             from datetime import datetime, timezone
             tracked_fields = ("title", "triage", "priority", "state", "fixed_in")
             changes = {field: {"from": record.get(field), "to": issue.get(field)}
@@ -194,7 +192,7 @@ def synchronize(installed=VERSION, remote=None, latest_version=None):
                 timeline.append({"observed_at": datetime.now(timezone.utc).isoformat(),
                                  "changes": changes})
                 record["timeline"] = timeline[-50:]
-            for field in ("title", "triage", "priority", "updated_at"):
+            for field in ("title", "triage", "priority", "updated_at", "state", "fixed_in"):
                 record[field] = issue.get(field)
             record["fix_available"] = (bool(issue["fixed_in"]) and latest_version is not None
                                        and comparable_release(latest_version, issue["fixed_in"])
