@@ -32,6 +32,9 @@ jobs:
           if (endpoint.protocol !== 'https:' ||
               !endpoint.hostname.endsWith('.workers.dev') ||
               endpoint.pathname !== '/report') throw Error('Unsafe endpoint');
+          const health = await fetch(new URL('/health',endpoint), {signal:AbortSignal.timeout(15000)});
+          if (!health.ok || (await health.json()).status !== 'ready')
+            throw Error('Public Worker is not ready');
           const payload = {
             operation:'Altra operazione',
             category:'Errore operativo non classificato',
