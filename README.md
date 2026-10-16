@@ -25,8 +25,8 @@ Applicazione desktop per Windows 10/11 dedicata alla diagnostica e gestione di *
 - Rilevamento di schede di rete, indirizzi IPv4, gateway, IP forwarding e default route.
 - Riepilogo delle regole WinNAT, sessioni NAT e stato del servizio SharedAccess.
 - Identificazione *indicativa* della WAN tramite la default route e della LAN tramite la selezione manuale.
-- Creazione e rimozione di NAT con avvisi sui conflitti; un solo prefisso interno WinNAT è supportato ufficialmente.
-- Setup guidato LAN Ethernet -> Internet (IP LAN, prefisso, forwarding, WinNAT) con rete predefinita `10.10.10.0/24` e IP PC `10.10.10.1`.
+- Creazione e rimozione di NAT con avvisi sui conflitti; la UI consente più oggetti WinNAT indipendenti anche se Microsoft non supporta ufficialmente più reti NAT contemporanee.
+- Setup guidato LAN Ethernet -> Internet con uno o più IPv4 sulla stessa interfaccia LAN; ogni subnet può avere il proprio WinNAT (`NAT-Firewall`, `NAT-Firewall-2`, ...).
 - Rimozione guidata del setup creato dall'app, mantenendo gli IP preesistenti.
 - Esportazione diagnostica JSON e backup di configurazione prima dei cambiamenti.
 - Conferme esplicite per ogni intervento potenzialmente distruttivo.
@@ -47,7 +47,7 @@ Workflow GitHub Actions: `.github/workflows/build.yml` produce un file EXE con P
 ## Attenzione
 **Non** è un router hardware, non fornisce DHCP/DNS ai client e non verifica automaticamente la raggiungibilità dei dispositivi esterni. Configura staticamente sul client un IP della subnet LAN, gateway pari all'IP LAN del PC e DNS raggiungibile. Se ICS gestisce già la LAN, evita di sovrapporlo a WinNAT. Il rilevamento WAN/LAN è euristico e richiede conferma.
 
-WinNAT Microsoft è progettato per un singolo prefisso interno: più istanze configurate contemporaneamente non sono una soluzione multipla supportata. Per reti multiple considera routing verso un unico prefisso NAT aggregato oppure una soluzione routing/NAT dedicata. Il programma non elimina automaticamente NAT di Hyper-V, VPN o altre applicazioni.
+Microsoft documenta più reti WinNAT contemporanee come configurazione non supportata. WinNAT UI non forza però l'aggregazione dei prefissi: può creare oggetti NAT distinti per subnet differenti e lascia a Windows l'esito operativo del comando. Gli oggetti NAT estranei non vengono rimossi o modificati automaticamente.
 
 ### Riferimenti
 - [Microsoft: Set up a NAT network](https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/setup-nat-network)
