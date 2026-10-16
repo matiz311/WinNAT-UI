@@ -1,5 +1,7 @@
 """Privacy, deduplication, offline behavior and resolved-release tracking tests."""
 import json
+import socket
+import urllib.error
 import tempfile
 from pathlib import Path
 from unittest import TestCase
@@ -63,6 +65,33 @@ class IssueTrackerTests(TestCase):
                 entries, _ = it.synchronize(installed="1.9.8", remote=found, latest_version="1.9.8")
                 self.assertFalse(entries[0]["fix_available"])
                 self.assertEqual(entries[0]["number"], 42)
+
+    def test_dns_failure_classified_and_does_not_rewrite_local_history(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "reported-issues.json"
+            original = '[{"number":65,"fingerprint":"known","state":"open"}]'
+            path.write_text(original, encoding="utf-8")
+            with patch("winnat_ui.issue_tracker.store_path", return_value=path):
+                with patch("winnat_ui.issue_tracker.urllib.request.urlopen",
+                           side_effect=urllib.error.URLError(socket.gaierror(11001, "getaddrinfo failed"))):
+                    with self.assertRaises(it.RemoteIssueError) as caught:
+                        it.synchronize()
+                self.assertEqual(caught.exception.category, "dns_failure")
+                self.assertEqual(path.read_text(encoding="utf-8"), original)
+
+    def test_remote_failure_categories(self):
+        examples = [
+            (urllib.error.HTTPError("https://api.github.com", 403, "Forbidden", {}, None), "http_failure"),
+            (urllib.error.URLError(TimeoutError("timed out")), "offline_or_unreachable"),
+            (urllib.error.URLError(OSError("network unreachable")), "offline_or_unreachable"),
+            (json.JSONDecodeError("Invalid", "{", 0), "invalid_response"),
+        ]
+        for error, category in examples:
+            with self.subTest(category=category):
+                with patch("winnat_ui.issue_tracker.urllib.request.urlopen", side_effect=error):
+                    with self.assertRaises(it.RemoteIssueError) as caught:
+                        it.public_issues()
+                self.assertEqual(caught.exception.category, category)
 
     def test_similar_issue_by_signature(self):
         p = it.safe_payload("Commit", "Access denied", "", "1.9.5")
