@@ -23,6 +23,8 @@ from version import VERSION
 from winnat_ui.ui_theme import C, F, S1, S2, S3, S4, S5
 
 REPO_URL = "https://github.com/matiz311/WinNAT-UI"
+# Max wait for the update window before closing anyway (PowerShell + WinForms startup).
+UPDATE_WINDOW_WAIT_MS = 15000
 
 PAGES = [  # key, label, icon, subtitle
     ("dashboard", "Panoramica", "dashboard", "Stato reale della rete Windows, in sola lettura."),
@@ -1454,13 +1456,31 @@ class App(tk.Tk):
             messagebox.showwarning("Aggiornamento rinviato",
                                    "Completa le modifiche prima di riavviare.", parent=self)
             return
+        if getattr(self, "_update_launching", False):
+            return
         try:
-            updater.launch(staging, from_version=VERSION, to_version=version)
+            helper = updater.launch(staging, from_version=VERSION, to_version=version)
         except Exception as error:
             self.show_error_dialog("Aggiornamento non avviato", "Update", str(error),
                                    traceback.format_exc())
             return
-        self.destroy()
+        # Close only once the update window is on screen, so there is no gap
+        # without any window; the deadline keeps the old behavior as a fallback.
+        self._update_launching = True
+        self.toast.show("Apertura della finestra di aggiornamento\u2026", "info", ms=UPDATE_WINDOW_WAIT_MS)
+        try:
+            self.configure(cursor="watch")
+        except tk.TclError:
+            pass
+        self._close_when_update_window_ready(helper, staging,
+                                             time.monotonic() + UPDATE_WINDOW_WAIT_MS / 1000)
+
+    def _close_when_update_window_ready(self, helper, staging, deadline):
+        exited = helper is not None and helper.poll() is not None
+        if updater.helper_ready(staging) or exited or time.monotonic() >= deadline:
+            self.destroy()
+            return
+        self.after(100, lambda: self._close_when_update_window_ready(helper, staging, deadline))
 
     # ------------------------------------------------------- navigation ---
     def show_page(self, key):
