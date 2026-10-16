@@ -220,13 +220,19 @@ class GuideTests(unittest.TestCase):
         self.assertNotIn("New-NetNat -Name", script)
         self.assertNotIn("netsh.exe interface ipv4 set address", script)
 
-    def test_matching_single_nat_with_covered_logical_subnets(self):
+    def test_larger_existing_nat_does_not_replace_per_subnet_nat(self):
         current = copy.deepcopy(self.data)
         current["nats"] = [{"Name": "NAT-Ethernet",
                             "InternalIPInterfaceAddressPrefix": "10.0.0.0/8"}]
         guide.validate(self.profile, current, "apply")
         _profile, steps = guide.apply_diff(self.profile, current)
-        self.assertFalse(any(step["key"] == "nat" for step in steps))
+        nat_steps = [step for step in steps if step["key"].startswith("nat:")]
+        self.assertEqual(len(nat_steps), 1)
+        self.assertIn("NAT-Firewall", nat_steps[0]["label"])
+        self.assertIn("10.10.10.0/24", nat_steps[0]["label"])
+        self.assertNotIn("Remove-NetNat", "\n".join(
+            line for step in nat_steps for line in step["script"]))
+
 
     def test_verified_apply_fails_if_target_did_not_converge(self):
         fp = guide.fingerprint(self.profile, self.data)
@@ -236,15 +242,60 @@ class GuideTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "stato candidato non raggiunto"):
                 guide.execute("apply", self.profile, self.data, fp, verify=True)
 
-    def test_uncovered_prefix_generates_one_nat_expansion(self):
+    def test_uncovered_prefix_creates_separate_nat_without_expansion(self):
         self.data["nats"]=[{"Name":"NAT-Ethernet","InternalIPInterfaceAddressPrefix":"172.20.0.0/16"}]
         guide.validate(self.profile, self.data, "apply")
         _, steps = guide.apply_diff(self.profile, self.data)
-        self.assertEqual(len([step for step in steps if step["key"] == "nat-expand"]), 1)
-        self.assertEqual(len([step for step in steps if step["key"] == "nat"]), 0)
-        script = next(step["script"][0] for step in steps if step["key"] == "nat-expand")
-        self.assertIn("Restore-Mappings", script)
-        self.assertIn("Remove-NetNat -Name $name", script)
+        nat_steps = [step for step in steps if step["key"].startswith("nat:")]
+        self.assertEqual(len(nat_steps), 1)
+        script = "\n".join(nat_steps[0]["script"])
+        self.assertIn("New-NetNat -Name 'NAT-Firewall'", script)
+        self.assertIn("10.10.10.0/24", script)
+        self.assertNotIn("Remove-NetNat", script)
+        self.assertFalse(any(step["key"] == "nat-expand" for step in steps))
+
+    def test_three_subnets_on_same_lan_get_three_nat_objects(self):
+        self.profile["lan_addresses"] = [
+            {"prefix": "192.168.1.0/24", "gateway": "192.168.1.1", "nat": "NAT-Firewall"},
+            {"prefix": "192.168.192.0/24", "gateway": "192.168.192.1", "nat": "NAT-Firewall-2"},
+            {"prefix": "10.16.0.0/24", "gateway": "10.16.0.1", "nat": "NAT-Firewall-3"},
+        ]
+        self.profile["prefix"] = "192.168.1.0/24"
+        self.profile["gateway"] = "192.168.1.1"
+        self.data["ips"] = [{
+            "InterfaceAlias": "Ethernet", "IPAddress": "192.168.1.1",
+            "InterfaceIndex": 5, "PrefixLength": 24, "AddressState": "Preferred",
+            "PrefixOrigin": "Manual"}]
+        self.data["routes"][0]["DestinationPrefix"] = "192.168.1.0/24"
+        normalized, steps = guide.apply_diff(self.profile, self.data)
+        self.assertEqual([a["prefix"] for a in normalized["lan_addresses"]],
+                         ["192.168.1.0/24", "192.168.192.0/24", "10.16.0.0/24"])
+        ip_steps = [step for step in steps if step["key"].startswith("lan-address:")]
+        self.assertEqual(len(ip_steps), 2)
+        ip_script = "\n".join(line for step in ip_steps for line in step["script"])
+        self.assertIn("192.168.192.1", ip_script)
+        self.assertIn("10.16.0.1", ip_script)
+        nat_steps = [step for step in steps if step["key"].startswith("nat:")]
+        self.assertEqual([step["key"] for step in nat_steps],
+                         ["nat:NAT-Firewall", "nat:NAT-Firewall-2", "nat:NAT-Firewall-3"])
+        nat_script = "\n".join(line for step in nat_steps for line in step["script"])
+        self.assertNotIn("Remove-NetNat", nat_script)
+        self.assertNotIn("192.168.0.0/16", nat_script)
+        self.assertNotIn("0.0.0.0/0", nat_script)
+
+    def test_detects_all_existing_lan_addresses(self):
+        self.data["ips"] = [
+            {"InterfaceAlias":"Ethernet","IPAddress":"192.168.1.1","PrefixLength":24,"PrefixOrigin":"Manual"},
+            {"InterfaceAlias":"Ethernet","IPAddress":"192.168.192.1","PrefixLength":24,"PrefixOrigin":"Manual"},
+            {"InterfaceAlias":"Ethernet","IPAddress":"10.16.0.1","PrefixLength":24,"PrefixOrigin":"Manual"},
+        ]
+        found = guide.detect_lan_addresses(self.data, "Ethernet")
+        self.assertEqual({(x["prefix"], x["gateway"]) for x in found}, {
+            ("192.168.1.0/24", "192.168.1.1"),
+            ("192.168.192.0/24", "192.168.192.1"),
+            ("10.16.0.0/24", "10.16.0.1"),
+        })
+
 
     def test_dynamic_adapter_status_and_apipa_do_not_invalidate_preview(self):
         old = copy.deepcopy(self.data)
