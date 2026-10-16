@@ -11,6 +11,7 @@ import webbrowser
 from tkinter import ttk, messagebox, filedialog
 from winnat_ui import network
 from winnat_ui import nat_backend  # Include headless NAT/IP capabilities in packaged Windows executable.
+from winnat_ui import secondary_ips
 from winnat_ui import network_plan
 from winnat_ui import network_guide
 from winnat_ui import network_rollback
@@ -548,6 +549,37 @@ class App(tk.Tk):
         self.subnet_hint.grid(row=row[0], column=0, columnspan=2, sticky="w", pady=(0, S1))
         row[0] += 1
         field("nat", "Nome regola NAT", self.profile_nat, hint="Lettere, numeri, - e _")
+
+        # This editor manages existing LAN secondary addresses separately from
+        # the gateway wizard. No network write occurs before Commit.
+        ttk.Label(form, text="INDIRIZZI IPv4 SECONDARI DELLA LAN",
+                  style="Card.Overline.TLabel").grid(
+                      row=row[0], column=0, columnspan=2, sticky="w", pady=(S4, S1))
+        row[0] += 1
+        secondary_wrap, self.secondary_table = ui.make_table(
+            form, [("ip", "Indirizzo IPv4", 150), ("prefix", "Prefisso", 70),
+                   ("role", "Ruolo / stato", 210)], height=4)
+        secondary_wrap.grid(row=row[0], column=0, columnspan=2, sticky="ew")
+        self.secondary_table.bind("<<TreeviewSelect>>", self.secondary_selected)
+        row[0] += 1
+        self.secondary_rows = {}
+        secondary_actions = ttk.Frame(form)
+        secondary_actions.grid(row=row[0], column=0, columnspan=2, sticky="w", pady=(S2, S1))
+        ttk.Button(secondary_actions, text="+  Aggiungi Secondary IP",
+                   style="CardGhost.TButton", command=lambda: self.prepare_secondary("add")).pack(side="left")
+        self.secondary_edit_button = ttk.Button(secondary_actions, text="Modifica",
+                   command=lambda: self.prepare_secondary("edit"), state="disabled")
+        self.secondary_edit_button.pack(side="left", padx=S2)
+        self.secondary_remove_button = ttk.Button(secondary_actions, text="Rimuovi",
+                   command=lambda: self.prepare_secondary("remove"), state="disabled")
+        self.secondary_remove_button.pack(side="left")
+        row[0] += 1
+        ttk.Label(form,
+                  text="Solo IPv4 secondari (SkipAsSource): l'IP principale, DHCP, gateway e route "
+                       "non vengono modificati. Per altre subnet verifica la copertura del prefisso WinNAT.",
+                  style="Card.Caption.TLabel", wraplength=430, justify="left").grid(
+                      row=row[0], column=0, columnspan=2, sticky="w", pady=(0, S2))
+        row[0] += 1
         heading("2", "Uscite Internet (WAN)")
         wan_intro = ttk.Label(form, text="In ordine di priorit\u00e0: la prima \u00e8 la primaria, le altre "
                                          "subentrano se cade quella sopra. Metrica pi\u00f9 bassa = preferita.",
@@ -740,6 +772,122 @@ class App(tk.Tk):
             self.subnet_detected_for = lan
             self.apply_detected_subnet()
         self.update_add_wan()
+        self.render_secondary_ips()
+
+    def render_secondary_ips(self):
+        if not hasattr(self, "secondary_table"):
+            return
+        self.secondary_table.delete(*self.secondary_table.get_children())
+        self.secondary_rows = {}
+        lan = self.lan.get()
+        for row in secondary_ips.lan_rows(self.data or {}, lan):
+            secondary = secondary_ips.skip_as_source(row.get("SkipAsSource"))
+            state = "Secondario" if secondary else "Sorgente / protetto"
+            ip, prefix = row["IPAddress"], int(row["PrefixLength"])
+            for pending in self.pending:
+                if pending["kind"] != "lan_ip":
+                    continue
+                action, alias, target, bits, old, old_bits, _index = pending["args"]
+                if alias != lan:
+                    continue
+                if action == "remove" and (ip, prefix) == (target, bits):
+                    state += " · rimozione in attesa"
+                if action == "edit" and (ip, prefix) == (old, old_bits):
+                    state += " · modifica in attesa"
+            item = self.secondary_table.insert("", "end", values=(ip, "/" + str(prefix), state))
+            self.secondary_rows[item] = row
+        for pending in self.pending:
+            if pending["kind"] != "lan_ip":
+                continue
+            action, alias, ip, bits, _old, _old_bits, _index = pending["args"]
+            if alias == lan and action in ("add", "edit"):
+                self.secondary_table.insert("", "end",
+                                            values=(ip, "/" + str(bits), "＋ Da aggiungere · in attesa"))
+        self.secondary_selected()
+
+    def secondary_selected(self, _event=None):
+        selected = self.secondary_table.selection()
+        row = self.secondary_rows.get(selected[0]) if selected else None
+        editable = bool(row and secondary_ips.skip_as_source(row.get("SkipAsSource")))
+        self.secondary_edit_button.configure(state="normal" if editable else "disabled")
+        self.secondary_remove_button.configure(state="normal" if editable else "disabled")
+
+    def prepare_secondary(self, action):
+        if not self.data:
+            return self.toast.show("Aggiorna prima lo stato della rete.", "warning")
+        if self.tasks:
+            return self.toast.show("Attendi il completamento dell'operazione corrente.", "warning")
+        selected = self.secondary_table.selection()
+        old = self.secondary_rows.get(selected[0]) if selected else None
+        if action in ("edit", "remove") and not (
+                old and secondary_ips.skip_as_source(old.get("SkipAsSource"))):
+            return self.toast.show("Seleziona un IPv4 secondario, non l'IP sorgente.", "warning")
+        alias = self.lan.get()
+        old_ip = old["IPAddress"] if action == "edit" else None
+        old_prefix = int(old["PrefixLength"]) if action == "edit" else None
+        if action == "remove":
+            ip, bits = old["IPAddress"], int(old["PrefixLength"])
+            try:
+                plan = secondary_ips.plan(action, alias, ip, bits, self.data)
+            except ValueError as exc:
+                return messagebox.showwarning("IPv4 secondario", str(exc))
+            dlg = Dialog(self, "Rimuovere IPv4 secondario?", "Prepara rimozione", kind="Danger")
+            ttk.Label(dlg.body,
+                      text="LAN: " + alias + "\nIPv4: " + ip + "/" + str(bits)
+                           + "\nL'indirizzo principale rimarrà invariato.",
+                      style="Card.TLabel", justify="left").pack(anchor="w")
+            if not dlg.run():
+                return
+        else:
+            dlg = Dialog(self, ("Aggiungi" if action == "add" else "Modifica") +
+                         " IPv4 secondario", "Prepara modifica")
+            ip_var = tk.StringVar(value=old["IPAddress"] if old else "")
+            prefix_var = tk.StringVar(value=str(old["PrefixLength"]) if old else "24")
+            ttk.Label(dlg.body, text="Interfaccia LAN: " + alias,
+                      style="Card.Strong.TLabel").pack(anchor="w", pady=(0, S3))
+            ttk.Label(dlg.body, text="Indirizzo IPv4", style="Card.TLabel").pack(anchor="w")
+            ip_entry = ttk.Entry(dlg.body, textvariable=ip_var, width=38)
+            ip_entry.pack(fill="x", pady=(S1, S2))
+            ttk.Label(dlg.body, text="Prefisso CIDR (1–32)",
+                      style="Card.TLabel").pack(anchor="w")
+            ttk.Entry(dlg.body, textvariable=prefix_var).pack(fill="x", pady=(S1, S2))
+            ttk.Label(dlg.body, text="SkipAsSource attivo · Nessun gateway aggiuntivo",
+                      style="Card.Caption.TLabel").pack(anchor="w")
+            err_label = ttk.Label(dlg.body, text="", style="Card.Error.TLabel",
+                                  wraplength=420, justify="left")
+            err_label.pack(fill="x", pady=(S2, S1))
+            plan_holder = [None]
+
+            def check(*_):
+                try:
+                    plan_holder[0] = secondary_ips.plan(
+                        action, alias, ip_var.get(), prefix_var.get(), self.data,
+                        old_address=old_ip, old_prefix=old_prefix)
+                    err_label.configure(text="")
+                except ValueError as exc:
+                    plan_holder[0] = None
+                    err_label.configure(text=friendly_ip_error(exc, "10.10.20.1/24"))
+                dlg.ok.configure(state="normal" if plan_holder[0] else "disabled")
+            ip_var.trace_add("write", check)
+            prefix_var.trace_add("write", check)
+            check()
+            if not dlg.run(focus=ip_entry):
+                return
+            plan = plan_holder[0]
+            if plan is None:
+                return
+        args = (action, alias, plan["ip"], plan["prefix"],
+                plan["old_ip"], plan["old_prefix"], plan["index"])
+        labels = {"add": "Aggiungi Secondary IP", "edit": "Modifica Secondary IP",
+                  "remove": "Rimuovi Secondary IP"}
+        description = alias + " · " + plan["ip"] + "/" + str(plan["prefix"])
+        if action == "edit":
+            description = (alias + " · " + str(plan["old_ip"]) + "/" +
+                           str(plan["old_prefix"]) + " → " +
+                           plan["ip"] + "/" + str(plan["prefix"]))
+        description += "\nNessuna modifica a gateway, route o oggetti WinNAT."
+        self.stage("lan_ip", args, labels[action], description)
+        self.show_page("changes")
 
     def follow_prefix(self):
         """Typing a new subnet moves the PC address to its first host if it no longer fits."""
@@ -1573,6 +1721,7 @@ class App(tk.Tk):
             self.nat_empty.place(relx=0.5, rely=0.5, anchor="center")
         self.nat_selected()
 
+        self.render_secondary_ips()
         self.pending_table.delete(*self.pending_table.get_children())
         for p in self.pending:
             self.pending_table.insert("", "end", values=(p["label"], p["details"]))
@@ -1855,6 +2004,15 @@ class App(tk.Tk):
                         post_inventory = result.get("post_inventory")
                     elif kind == "profile":
                         network_plan.apply_profile(args[0], current)
+                    elif kind == "lan_ip":
+                        action, alias, address, prefix, old_ip, old_prefix, index = args
+                        candidate = secondary_ips.plan(
+                            action, alias, address, prefix, current,
+                            old_address=old_ip, old_prefix=old_prefix, expected_index=index)
+                        secondary_ips.apply(candidate)
+                        verified = network.collect()
+                        secondary_ips.verify(candidate, verified)
+                        post_inventory = verified
                     elif kind == "reset":
                         # Recompute the exact resources at commit time; abort if the inventory changed.
                         expected = network_plan.matching_resources(self.data, args[0])
@@ -1871,7 +2029,7 @@ class App(tk.Tk):
                 except Exception as original:
                     # A failed read-only preflight cannot have modified Windows.
                     # Avoid a pointless rollback and preserve the actionable error.
-                    if kind == "add" and isinstance(original, ValueError):
+                    if kind in ("add", "lan_ip") and isinstance(original, ValueError):
                         raise RuntimeError("COMMIT BLOCCATO PRIMA DELLE MODIFICHE: "
                                            + str(original)
                                            + "\nStato pre-commit: " + str(pre_state_path)) from original
