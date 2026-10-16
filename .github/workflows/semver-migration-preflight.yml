@@ -7,6 +7,9 @@ on:
     paths:
       - SEMVER_MIGRATION_PLAN.md
       - tools/migrate_release_history.py
+      - tools/execute_semver_migration.py
+      - tools/restore_semver_history.py
+      - test_execute_semver_migration.py
       - test_migrate_release_history.py
       - .github/workflows/semver-migration-preflight.yml
   workflow_dispatch:
@@ -24,8 +27,8 @@ jobs:
           python-version: '3.12'
       - name: Validate migration plan and tests
         run: |
-          python -m compileall -q tools/migrate_release_history.py test_migrate_release_history.py
-          python -m unittest -v test_migrate_release_history
+          python -m compileall -q tools/migrate_release_history.py tools/execute_semver_migration.py tools/restore_semver_history.py test_migrate_release_history.py test_execute_semver_migration.py
+          python -m unittest -v test_migrate_release_history test_execute_semver_migration
       - name: Inventory published Releases and tags (read only)
         env:
           GH_TOKEN: ${{ github.token }}
