@@ -37,10 +37,16 @@ def suggest_metric(wans):
 def detect_lan_subnet(data, alias):
     """Subnet currently on the LAN adapter, kept as the static LAN network.
 
-    Returns {"prefix", "gateway", "source", "origin"}: source is "rilevata" when
-    a usable IPv4 exists on the interface (manual addresses preferred over DHCP),
-    otherwise "predefinita" with 10.10.10.0/24 and 10.10.10.1.
+    Returns {"prefix", "gateway", "source", "origin"}: an IPv4 on an already
+    static LAN is reused; a DHCP-enabled LAN uses 10.10.10.0/24 and
+    10.10.10.1 instead of importing its dynamic lease.
     """
+    # A DHCP lease is not a user-defined LAN profile: use the application's
+    # normal static defaults, while keeping both form fields editable.
+    for interface in data.get("interfaces", []):
+        if interface.get("InterfaceAlias") == alias and _enabled(interface.get("Dhcp")):
+            return {"prefix": DEFAULT_PREFIX, "gateway": DEFAULT_GATEWAY,
+                    "source": "predefinita", "origin": "Dhcp"}
     candidates = []
     for ip in data.get("ips", []):
         if ip.get("InterfaceAlias") != alias:
@@ -55,9 +61,11 @@ def detect_lan_subnet(data, alias):
         if iface.ip in (net.network_address, net.broadcast_address):
             continue
         origin = str(ip.get("PrefixOrigin") or "")
-        candidates.append((0 if origin == "Manual" else 1, str(net), str(iface.ip), origin))
+        secondary = str(ip.get("SkipAsSource", False)).lower() in ("true", "1")
+        candidates.append((1 if secondary else 0, 0 if origin == "Manual" else 1,
+                           str(net), str(iface.ip), origin))
     if candidates:
-        _rank, prefix, gateway, origin = sorted(candidates)[0]
+        _secondary, _origin_rank, prefix, gateway, origin = sorted(candidates)[0]
         return {"prefix": prefix, "gateway": gateway, "source": "rilevata", "origin": origin}
     return {"prefix": DEFAULT_PREFIX, "gateway": DEFAULT_GATEWAY, "source": "predefinita", "origin": ""}
 
@@ -300,19 +308,46 @@ def apply_diff(profile, data):
     lan_iface = _iface(data, p["lan"])
     lan_ips = _relevant_lan_ips(data, p["lan"])
     prefixlen = ipaddress.IPv4Network(p["prefix"]).prefixlen
+    # DHCP-origin IPv4s cannot be considered a converged static LAN address.
+    # The network inventory includes PrefixOrigin for reliable lease detection.
     lan_matches = [
         row for row in lan_ips
         if row.get("IPAddress") == p["gateway"]
         and _safe_int(row.get("PrefixLength"), -1) == prefixlen
+        and str(row.get("PrefixOrigin") or "").lower() != "dhcp"
     ]
-    lan_converged = len(lan_matches) == 1
+    dhcp_enabled = _enabled(lan_iface.get("Dhcp"))
+    dhcp_leases = [
+        row for row in lan_ips
+        if str(row.get("PrefixOrigin") or "").lower() == "dhcp"
+    ]
+    if dhcp_enabled or dhcp_leases:
+        steps.append({
+            "key": "lan-dhcp",
+            "label": "LAN " + p["lan"] + ": disabilita DHCP IPv4 e rimuovi solo gli IP assegnati via DHCP",
+            "script": [
+                "$lanDhcp = (Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop).Dhcp",
+                "if ($lanDhcp -eq 'Enabled') {",
+                "  Set-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -Dhcp Disabled -ErrorAction Stop",
+                "}",
+                "if ((Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop).Dhcp -ne 'Disabled') { throw 'LAN: DHCP IPv4 non disabilitato' }",
+                "$dhcpIPs = @(Get-NetIPAddress -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.PrefixOrigin -eq 'Dhcp' })",
+                "foreach ($dhcpIP in $dhcpIPs) { $dhcpIP | Remove-NetIPAddress -Confirm:$false -ErrorAction Stop }",
+            ],
+        })
 
-    if not lan_converged:
-        if _enabled(lan_iface.get("Dhcp")):
-            raise ValueError("LAN con DHCP attivo: nessuna sostituzione automatica della configurazione IPv4.")
+    if len(lan_matches) != 1:
+        # Add a primary address to an unconfigured/DHCP LAN. When static
+        # addresses already exist, add a secondary without changing the
+        # host's existing preferred source address.
+        has_static_lan = any(
+            str(row.get("PrefixOrigin") or "").lower() != "dhcp"
+            for row in lan_ips
+        )
+        skip_source = "$true" if has_static_lan else "$false"
         steps.append({
             "key": "lan-address",
-            "label": "LAN " + p["lan"] + ": aggiungi IP " + p["gateway"] + "/" + str(prefixlen),
+            "label": "LAN " + p["lan"] + ": aggiungi IP statico " + p["gateway"] + "/" + str(prefixlen),
             "script": [
                 "$lanIP = " + psquote(p["gateway"]),
                 "$lanPrefix = " + str(prefixlen),
@@ -320,12 +355,12 @@ def apply_diff(profile, data):
                 "Where-Object { $_.InterfaceIndex -ne $lanIndex -or $_.PrefixLength -ne $lanPrefix })",
                 "if ($duplicate.Count -gt 0) { throw ('IP LAN in conflitto: ' + $lanIP) }",
                 "$already = @(Get-NetIPAddress -InterfaceAlias $lan -AddressFamily IPv4 -IPAddress $lanIP "
-                "-ErrorAction SilentlyContinue | Where-Object { $_.PrefixLength -eq $lanPrefix })",
+                "-ErrorAction SilentlyContinue | Where-Object { $_.PrefixLength -eq $lanPrefix -and $_.PrefixOrigin -ne 'Dhcp' })",
                 "if ($already.Count -eq 0) {",
                 "  $iface = Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop",
-                "  if ($iface.Dhcp -ne 'Disabled') { throw 'DHCP LAN attivo: configurazione mantenuta' }",
+                "  if ($iface.Dhcp -ne 'Disabled') { throw 'LAN: impossibile impostare IPv4 statico con DHCP ancora attivo' }",
                 "  New-NetIPAddress -InterfaceAlias $lan -IPAddress $lanIP -PrefixLength $lanPrefix "
-                "-SkipAsSource $true -ErrorAction Stop | Out-Null",
+                "-SkipAsSource " + skip_source + " -ErrorAction Stop | Out-Null",
                 "}",
             ],
         })

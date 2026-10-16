@@ -11,6 +11,7 @@ import webbrowser
 from tkinter import ttk, messagebox, filedialog
 from winnat_ui import network
 from winnat_ui import nat_backend  # Include headless NAT/IP capabilities in packaged Windows executable.
+from winnat_ui import secondary_ips
 from winnat_ui import network_plan
 from winnat_ui import network_guide
 from winnat_ui import network_rollback
@@ -110,6 +111,100 @@ class Dialog(tk.Toplevel):
         (focus or self.cancel_btn).focus_set()
         self.wait_window()
         return self.result
+
+
+class ProgressDialog(tk.Toplevel):
+    """Modal "sending" window for a background task.
+
+    Shows an indeterminate bar while the work runs, then the outcome in the
+    same window: success closes itself after ``auto_close_ms`` (and runs
+    ``on_success_close``), failure stays open with Riprova / Chiudi so the
+    person decides. It cannot be dismissed while the request is in flight.
+    """
+    AUTO_CLOSE_MS = 2500
+
+    def __init__(self, parent, title, message):
+        super().__init__(parent)
+        self.parent = parent
+        self.busy = True
+        self.title(title)
+        self.configure(bg=C["surface"])
+        self.transient(parent)
+        self.resizable(False, False)
+        self.protocol("WM_DELETE_WINDOW", self.close)
+        self.bind("<Escape>", lambda e: self.close())
+        body = tk.Frame(self, bg=C["surface"])
+        body.pack(fill="both", expand=True, padx=S5, pady=(S5, S4))
+        self.heading = ttk.Label(body, text=title, style="Card.Title.TLabel")
+        self.heading.pack(anchor="w", pady=(0, S3))
+        self.message = tk.Label(body, text=message, font=F["body"], bg=C["surface"], fg=C["text"],
+                                wraplength=420, justify="left", anchor="w")
+        self.message.pack(fill="x", anchor="w")
+        self.bar = ttk.Progressbar(body, mode="indeterminate", length=420)
+        self.bar.pack(fill="x", pady=(S3, 0))
+        self.link = tk.Label(body, font=F["body"], bg=C["surface"], fg=C["accent"], cursor="hand2",
+                             anchor="w")
+        self.footer = tk.Frame(self, bg=C["surface_alt"], highlightthickness=0)
+        tk.Frame(self.footer, bg=C["border"], height=1).pack(fill="x", side="top")
+        self.primary = ttk.Button(self.footer, text="Chiudi", style="Accent.TButton", command=self.close)
+        self.primary.pack(side="right", padx=(S2, S5), pady=S3)
+        self.secondary = ttk.Button(self.footer, text="Riprova")
+        self.on_close = None
+        self.bar.start(11)
+        self.update_idletasks()
+        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_reqwidth()) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_reqheight()) // 3
+        self.geometry("+%d+%d" % (max(x, 0), max(y, 0)))
+        self.grab_set()
+        self.focus_set()
+
+    def _finish(self, heading, text, color):
+        self.busy = False
+        self.bar.stop()
+        self.bar.pack_forget()
+        self.heading.configure(text=heading)
+        self.message.configure(text=text, fg=color)
+        self.footer.pack(fill="x", side="bottom")
+
+    def succeed(self, heading, text, url=None, on_close=None, auto_close_ms=AUTO_CLOSE_MS):
+        self._finish(heading, text, C["success"])
+        if url:
+            self.link.configure(text=url)
+            self.link.bind("<Button-1>", lambda e: webbrowser.open(url))
+            self.link.pack(fill="x", anchor="w", pady=(S2, 0))
+        self.on_close = on_close
+        self.primary.focus_set()
+        self.after(auto_close_ms, self.close)
+
+    def fail(self, heading, text, retry=None):
+        self._finish(heading, text, C["danger"])
+        if retry is not None:
+            self.secondary.configure(command=lambda: (self._close_window(), retry()))
+            self.secondary.pack(side="right", pady=S3)
+        self.primary.focus_set()
+
+    def _close_window(self):
+        if not self.winfo_exists():
+            return
+        try:
+            self.grab_release()
+        except tk.TclError:
+            pass
+        self.destroy()
+        try:
+            if self.parent.winfo_exists():
+                self.parent.grab_set()
+                self.parent.focus_set()
+        except tk.TclError:
+            pass
+
+    def close(self):
+        if self.busy or not self.winfo_exists():
+            return
+        self._close_window()
+        callback, self.on_close = self.on_close, None
+        if callback:
+            callback()
 
 
 class Topology(tk.Canvas):
@@ -548,6 +643,37 @@ class App(tk.Tk):
         self.subnet_hint.grid(row=row[0], column=0, columnspan=2, sticky="w", pady=(0, S1))
         row[0] += 1
         field("nat", "Nome regola NAT", self.profile_nat, hint="Lettere, numeri, - e _")
+
+        # This editor manages existing LAN secondary addresses separately from
+        # the gateway wizard. No network write occurs before Commit.
+        ttk.Label(form, text="INDIRIZZI IPv4 SECONDARI DELLA LAN",
+                  style="Card.Overline.TLabel").grid(
+                      row=row[0], column=0, columnspan=2, sticky="w", pady=(S4, S1))
+        row[0] += 1
+        secondary_wrap, self.secondary_table = ui.make_table(
+            form, [("ip", "Indirizzo IPv4", 150), ("prefix", "Prefisso", 70),
+                   ("role", "Ruolo / stato", 210)], height=4)
+        secondary_wrap.grid(row=row[0], column=0, columnspan=2, sticky="ew")
+        self.secondary_table.bind("<<TreeviewSelect>>", self.secondary_selected)
+        row[0] += 1
+        self.secondary_rows = {}
+        secondary_actions = ttk.Frame(form)
+        secondary_actions.grid(row=row[0], column=0, columnspan=2, sticky="w", pady=(S2, S1))
+        ttk.Button(secondary_actions, text="+  Aggiungi Secondary IP",
+                   style="CardGhost.TButton", command=lambda: self.prepare_secondary("add")).pack(side="left")
+        self.secondary_edit_button = ttk.Button(secondary_actions, text="Modifica",
+                   command=lambda: self.prepare_secondary("edit"), state="disabled")
+        self.secondary_edit_button.pack(side="left", padx=S2)
+        self.secondary_remove_button = ttk.Button(secondary_actions, text="Rimuovi",
+                   command=lambda: self.prepare_secondary("remove"), state="disabled")
+        self.secondary_remove_button.pack(side="left")
+        row[0] += 1
+        ttk.Label(form,
+                  text="Solo IPv4 secondari (SkipAsSource): l'IP principale, DHCP, gateway e route "
+                       "non vengono modificati. Per altre subnet verifica la copertura del prefisso WinNAT.",
+                  style="Card.Caption.TLabel", wraplength=430, justify="left").grid(
+                      row=row[0], column=0, columnspan=2, sticky="w", pady=(0, S2))
+        row[0] += 1
         heading("2", "Uscite Internet (WAN)")
         wan_intro = ttk.Label(form, text="In ordine di priorit\u00e0: la prima \u00e8 la primaria, le altre "
                                          "subentrano se cade quella sopra. Metrica pi\u00f9 bassa = preferita.",
@@ -740,6 +866,123 @@ class App(tk.Tk):
             self.subnet_detected_for = lan
             self.apply_detected_subnet()
         self.update_add_wan()
+        self.render_secondary_ips()
+
+    def render_secondary_ips(self):
+        if not hasattr(self, "secondary_table"):
+            return
+        self.secondary_table.delete(*self.secondary_table.get_children())
+        self.secondary_rows = {}
+        lan = self.lan.get()
+        for row in secondary_ips.lan_rows(self.data or {}, lan):
+            secondary = secondary_ips.skip_as_source(row.get("SkipAsSource"))
+            state = "Secondario" if secondary else "Sorgente / protetto"
+            ip, prefix = row["IPAddress"], int(row["PrefixLength"])
+            for pending in self.pending:
+                if pending["kind"] != "lan_ip":
+                    continue
+                action, alias, target, bits, old, old_bits, _index = pending["args"]
+                if alias != lan:
+                    continue
+                if action == "remove" and (ip, prefix) == (target, bits):
+                    state += " · rimozione in attesa"
+                if action == "edit" and (ip, prefix) == (old, old_bits):
+                    state += " · modifica in attesa"
+            item = self.secondary_table.insert("", "end", values=(ip, "/" + str(prefix), state))
+            self.secondary_rows[item] = row
+        for pending in self.pending:
+            if pending["kind"] != "lan_ip":
+                continue
+            action, alias, ip, bits, _old, _old_bits, _index = pending["args"]
+            if alias == lan and action in ("add", "edit"):
+                self.secondary_table.insert("", "end",
+                                            values=(ip, "/" + str(bits), "＋ Da aggiungere · in attesa"))
+        self.secondary_selected()
+
+    def secondary_selected(self, _event=None):
+        selected = self.secondary_table.selection()
+        row = self.secondary_rows.get(selected[0]) if selected else None
+        editable = bool(row and secondary_ips.skip_as_source(row.get("SkipAsSource")))
+        self.secondary_edit_button.configure(state="normal" if editable else "disabled")
+        self.secondary_remove_button.configure(state="normal" if editable else "disabled")
+
+    def prepare_secondary(self, action):
+        if not self.data:
+            return self.toast.show("Aggiorna prima lo stato della rete.", "warning")
+        if self.tasks:
+            return self.toast.show("Attendi il completamento dell'operazione corrente.", "warning")
+        selected = self.secondary_table.selection()
+        old = self.secondary_rows.get(selected[0]) if selected else None
+        if action in ("edit", "remove") and not (
+                old and secondary_ips.skip_as_source(old.get("SkipAsSource"))):
+            return self.toast.show("Seleziona un IPv4 secondario, non l'IP sorgente.", "warning")
+        alias = self.lan.get()
+        old_ip = old["IPAddress"] if action == "edit" else None
+        old_prefix = int(old["PrefixLength"]) if action == "edit" else None
+        if action == "remove":
+            ip, bits = old["IPAddress"], int(old["PrefixLength"])
+            try:
+                plan = secondary_ips.plan(action, alias, ip, bits, self.data)
+            except ValueError as exc:
+                return messagebox.showwarning("IPv4 secondario", str(exc))
+            dlg = Dialog(self, "Rimuovere IPv4 secondario?", "Prepara rimozione", kind="Danger")
+            ttk.Label(dlg.body,
+                      text="LAN: " + alias + "\nIPv4: " + ip + "/" + str(bits)
+                           + "\nL'indirizzo principale rimarrà invariato.",
+                      style="Card.TLabel", justify="left").pack(anchor="w")
+            if not dlg.run():
+                return
+        else:
+            dlg = Dialog(self, ("Aggiungi" if action == "add" else "Modifica") +
+                         " IPv4 secondario", "Prepara modifica")
+            ip_var = tk.StringVar(value=old["IPAddress"] if old else "")
+            prefix_var = tk.StringVar(value=str(old["PrefixLength"]) if old else "24")
+            ttk.Label(dlg.body, text="Interfaccia LAN: " + alias,
+                      style="Card.Strong.TLabel").pack(anchor="w", pady=(0, S3))
+            ttk.Label(dlg.body, text="Indirizzo IPv4", style="Card.TLabel").pack(anchor="w")
+            ip_entry = ttk.Entry(dlg.body, textvariable=ip_var, width=38)
+            ip_entry.pack(fill="x", pady=(S1, S2))
+            ttk.Label(dlg.body, text="Prefisso CIDR (1–32)",
+                      style="Card.TLabel").pack(anchor="w")
+            ttk.Entry(dlg.body, textvariable=prefix_var).pack(fill="x", pady=(S1, S2))
+            ttk.Label(dlg.body, text="SkipAsSource attivo · Nessun gateway aggiuntivo",
+                      style="Card.Caption.TLabel").pack(anchor="w")
+            err_label = ttk.Label(dlg.body, text="", style="Card.Error.TLabel",
+                                  wraplength=420, justify="left")
+            err_label.pack(fill="x", pady=(S2, S1))
+            plan_holder = [None]
+
+            def check(*_):
+                try:
+                    plan_holder[0] = secondary_ips.plan(
+                        action, alias, ip_var.get(), prefix_var.get(), self.data,
+                        old_address=old_ip, old_prefix=old_prefix)
+                    err_label.configure(text="")
+                except ValueError as exc:
+                    plan_holder[0] = None
+                    err_label.configure(text=friendly_ip_error(exc, "10.10.20.1/24"))
+                dlg.ok.configure(state="normal" if plan_holder[0] else "disabled")
+            ip_var.trace_add("write", check)
+            prefix_var.trace_add("write", check)
+            check()
+            if not dlg.run(focus=ip_entry):
+                return
+            plan = plan_holder[0]
+            if plan is None:
+                return
+        args = (action, alias, plan["ip"], plan["prefix"],
+                plan["old_ip"], plan["old_prefix"], plan["index"])
+        labels = {"add": "Aggiungi Secondary IP", "edit": "Modifica Secondary IP",
+                  "remove": "Rimuovi Secondary IP"}
+        description = alias + " · " + plan["ip"] + "/" + str(plan["prefix"])
+        if action == "edit":
+            description = (alias + " · " + str(plan["old_ip"]) + "/" +
+                           str(plan["old_prefix"]) + " → " +
+                           plan["ip"] + "/" + str(plan["prefix"]))
+        description += ("\nNessuna modifica manuale a gateway, route statiche o WinNAT. "
+                        "Le route connesse possono cambiare automaticamente.")
+        self.stage("lan_ip", args, labels[action], description)
+        self.show_page("changes")
 
     def follow_prefix(self):
         """Typing a new subnet moves the PC address to its first host if it no longer fits."""
@@ -769,19 +1012,23 @@ class App(tk.Tk):
             return
         self.subnet_badge.grid()
         lan = self.lan.get()
-        if found["prefix"] != self.prefix.get().strip() or found["gateway"] != self.gateway.get().strip():
+        modified = (found["prefix"] != self.prefix.get().strip()
+                    or found["gateway"] != self.gateway.get().strip())
+        if found.get("origin") == "Dhcp":
+            self.subnet_badge.set("IP STATICO PERSONALIZZATO" if modified else "DHCP → STATICO", "accent")
+            text = (lan + " usa DHCP: al Commit verrà disabilitato e verrà configurato "
+                    + self.gateway.get().strip() + " su " + self.prefix.get().strip()
+                    + ". L'IP ricevuto via DHCP non viene importato; puoi modificare i valori.")
+        elif modified:
             self.subnet_badge.set("MODIFICATA A MANO", "accent")
             text = ("Valori personalizzati. Rilevati su " + lan + ": " + found["gateway"] + " in " + found["prefix"]
                     if found["source"] == "rilevata" else "Valori personalizzati al posto di quelli predefiniti.")
         elif found["source"] == "rilevata":
             self.subnet_badge.set("RILEVATA SU " + lan.upper(), "success")
-            text = ("L'indirizzo attuale di " + lan + " diventa statico e senza gateway; il NAT usa questa subnet.")
-            if found.get("origin") == "Dhcp":
-                text += (" Era assegnato via DHCP: se sulla LAN c'\u00e8 ancora un server DHCP, "
-                         "valuta una subnet diversa per evitare conflitti.")
+            text = "Indirizzamento LAN statico esistente conservato; il NAT usa la subnet selezionata."
         else:
             self.subnet_badge.set("PREDEFINITA", "neutral")
-            text = lan + " non ha un IPv4 utilizzabile: verr\u00e0 configurata la subnet predefinita."
+            text = lan + " non ha un IPv4 utilizzabile: verrà configurata la subnet predefinita."
         self.subnet_hint.configure(text=text)
 
     def reset_form(self):
@@ -1165,8 +1412,8 @@ class App(tk.Tk):
             if self.pending or self.tasks:
                 self.toast.show("Operazioni in corso: termina il lavoro prima di aggiornare.", "warning")
                 return
-            self.run_task("Download aggiornamento",
-                          lambda: updater.prepare(info), self._install_update)
+            self.run_task("Download aggiornamento", lambda: updater.prepare(info),
+                          lambda staging: self._install_update(staging, info["version"]))
         def lookup():
             try:
                 return updater.release_info(VERSION)
@@ -1181,13 +1428,13 @@ class App(tk.Tk):
                 raise
         self.run_task("Aggiornamenti", lookup, found)
 
-    def _install_update(self, staging):
+    def _install_update(self, staging, version=""):
         if self.pending or self.tasks:
             messagebox.showwarning("Aggiornamento rinviato",
                                    "Completa le modifiche prima di riavviare.", parent=self)
             return
         try:
-            updater.launch(staging)
+            updater.launch(staging, from_version=VERSION, to_version=version)
         except Exception as error:
             self.show_error_dialog("Aggiornamento non avviato", "Update", str(error),
                                    traceback.format_exc())
@@ -1250,6 +1497,8 @@ class App(tk.Tk):
                     "Controlla e copia il report dai dettagli tecnici prima di procedere.\n\n"
                     "Confermi la pubblicazione?", parent=dlg):
                 return
+            progress = ProgressDialog(dlg, "Invio segnalazione",
+                                      "Invio della diagnostica dettagliata a GitHub…")
             def send():
                 # Remote availability check runs on a worker, not the Tk thread.
                 endpoint = issue_tracker.service_endpoint()
@@ -1261,14 +1510,26 @@ class App(tk.Tk):
                 result = issue_tracker.submit(payload, endpoint=endpoint)
                 issue_tracker.save_entry(payload, result)
                 return result
+            def close_error_dialog():
+                if dlg.winfo_exists():
+                    dlg.destroy()
             def sent(result):
-                dlg.destroy()
-                text = ("Diagnostica aggiunta a Issue esistente" if result["already_exists"] else "Bug segnalato")
-                messagebox.showinfo(text, "Issue #" + str(result["number"]) + "\n"
-                                    + result["url"] + "\n\nTracciamento locale attivato.",
-                                    parent=self)
                 self.render_issue_tracker()
-            self.run_task("Segnala bug", send, sent)
+                number = "Issue #" + str(result["number"])
+                if result["already_exists"]:
+                    heading, description = "Diagnostica aggiunta a Issue esistente", number + " aggiornata."
+                else:
+                    heading, description = "Bug segnalato", number + " aperta correttamente."
+                self.notice.set(heading + ": " + number)
+                progress.succeed(heading, description + " Tracciamento locale attivato.",
+                                 url=result["url"], on_close=close_error_dialog)
+            def failed(error_message):
+                # Reporting failures must not become new reportable errors.
+                progress.fail("Segnalazione non inviata",
+                              "Non è stato possibile creare la Issue su GitHub.\n" + error_message
+                              + "\n\nIl report diagnostico originale rimane disponibile. Puoi riprovare.",
+                              retry=report_bug)
+            self.run_task("Segnala bug", send, sent, on_error=failed)
         dlg.cancel_btn.configure(command=copy_report)
         dlg.cancel_btn.configure(text="Copia report")
         report_actions = tk.Frame(dlg.body, bg=C["surface"])
@@ -1312,7 +1573,8 @@ class App(tk.Tk):
         dlg.resizable(True, True)
         dlg.run(focus=dlg.ok)
 
-    def run_task(self, key, fn, on_success):
+    def run_task(self, key, fn, on_success, on_error=None):
+        """Run ``fn`` on a worker; ``on_success(result)`` / ``on_error(message)`` run on the Tk thread."""
         if key in self.tasks:
             return
         self.tasks.add(key)
@@ -1321,19 +1583,25 @@ class App(tk.Tk):
 
         def runner():
             try:
-                self.work.put((key, True, fn(), on_success))
+                self.work.put((key, True, fn(), (on_success, on_error)))
             except Exception as error:
-                self.work.put((key, False, (str(error), traceback.format_exc()), on_success))
+                self.work.put((key, False, (str(error), traceback.format_exc()), (on_success, on_error)))
         threading.Thread(target=runner, daemon=True).start()
         self.render_changebar()
 
     def drain(self):
+        # Re-arm first. A callback may open a modal dialog (wait_window runs a
+        # nested event loop); if the next poll were scheduled only at the end,
+        # results of tasks started from that dialog (e.g. "Segnala bug" from
+        # the error dialog) would stay queued until the dialog was closed.
+        self.after(100, self.drain)
         try:
             while True:
-                key, ok, value, callback = self.work.get_nowait()
+                key, ok, value, callbacks = self.work.get_nowait()
                 if key == "__commit_log__":
                     self.append_commit_log(value[0], value[1])
                     continue
+                callback, on_error = callbacks if isinstance(callbacks, tuple) else (callbacks, None)
                 self.tasks.discard(key)
                 if not self.tasks:
                     self.progress.stop()
@@ -1343,7 +1611,9 @@ class App(tk.Tk):
                 else:
                     error_message, error_traceback = value
                     self.notice.set("Errore: " + error_summary(error_message)[:80])
-                    if key == "Commit":
+                    if on_error is not None:
+                        on_error(error_message)
+                    elif key == "Commit":
                         # Keep the desired-state candidate. The refresh below reads
                         # Windows again; the next Apply recomputes a minimal diff and
                         # only retries what is still missing.
@@ -1366,7 +1636,6 @@ class App(tk.Tk):
                 self.render_changebar()
         except queue.Empty:
             pass
-        self.after(100, self.drain)
 
     def refresh(self):
         self.run_task("Lettura configurazione", network.collect, self.render)
@@ -1394,6 +1663,10 @@ class App(tk.Tk):
             first.set(choice[0] if choice else "")
         self.layout_wan_rows()
         self.on_lan_changed()
+        # Refresh the detected DHCP/static state without overwriting the
+        # user's candidate address or prefix after a successful commit.
+        self.subnet_source = network_guide.detect_lan_subnet(self.data, self.lan.get())
+        self.show_subnet_source()
 
         lines = ["WAN prevista: " + (routes[0].get("InterfaceAlias", "?") if routes else "nessuna default route"), "",
                  "Interfacce e indirizzi IPv4:"]
@@ -1573,6 +1846,7 @@ class App(tk.Tk):
             self.nat_empty.place(relx=0.5, rely=0.5, anchor="center")
         self.nat_selected()
 
+        self.render_secondary_ips()
         self.pending_table.delete(*self.pending_table.get_children())
         for p in self.pending:
             self.pending_table.insert("", "end", values=(p["label"], p["details"]))
@@ -1855,6 +2129,15 @@ class App(tk.Tk):
                         post_inventory = result.get("post_inventory")
                     elif kind == "profile":
                         network_plan.apply_profile(args[0], current)
+                    elif kind == "lan_ip":
+                        action, alias, address, prefix, old_ip, old_prefix, index = args
+                        candidate = secondary_ips.plan(
+                            action, alias, address, prefix, current,
+                            old_address=old_ip, old_prefix=old_prefix, expected_index=index)
+                        secondary_ips.apply(candidate)
+                        verified = network.collect()
+                        secondary_ips.verify(candidate, verified)
+                        post_inventory = verified
                     elif kind == "reset":
                         # Recompute the exact resources at commit time; abort if the inventory changed.
                         expected = network_plan.matching_resources(self.data, args[0])
@@ -1871,7 +2154,7 @@ class App(tk.Tk):
                 except Exception as original:
                     # A failed read-only preflight cannot have modified Windows.
                     # Avoid a pointless rollback and preserve the actionable error.
-                    if kind == "add" and isinstance(original, ValueError):
+                    if kind in ("add", "lan_ip") and isinstance(original, ValueError):
                         raise RuntimeError("COMMIT BLOCCATO PRIMA DELLE MODIFICHE: "
                                            + str(original)
                                            + "\nStato pre-commit: " + str(pre_state_path)) from original

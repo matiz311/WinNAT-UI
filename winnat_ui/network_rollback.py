@@ -42,6 +42,12 @@ def scope_for(kind, args, before):
         # Add NAT creates a resource under the requested name only. A failed
         # commit must never roll back or rebuild unrelated existing NATs.
         scope["nats"].add(args[0])
+    elif kind == "lan_ip":
+        # Scope the compensation to the address(es) selected by the user,
+        # never to unrelated primary/secondary IPv4s on the same interface.
+        action, alias, ip, prefix, old_ip, old_prefix, index = args
+        scope["ips"].add(alias)
+        scope["ip_filter"] = {alias: {ip} | ({old_ip} if old_ip else set())}
     elif kind == "setup":
         scope["nat_rebuild"] = True
         scope["ips"].add(args[0])
@@ -80,7 +86,7 @@ def scope_for(kind, args, before):
     return scope
 
 
-def address_rows(data, alias):
+def address_rows(data, alias, selected=None):
     # APIPA is automatically assigned by Windows; it cannot reliably be
     # recreated as a static IP. Leave it for Windows to reallocate.
     result = set()
@@ -88,6 +94,8 @@ def address_rows(data, alias):
         if row.get("InterfaceAlias") != alias:
             continue
         ip = row.get("IPAddress")
+        if selected is not None and ip not in selected:
+            continue
         if not ip or ipaddress.ip_address(ip).is_link_local:
             continue
         result.add((ip, int(row["PrefixLength"])))
@@ -120,7 +128,14 @@ def signature(data, scope):
     value["nat"] = {k: (v.get("InternalIPInterfaceAddressPrefix"), v.get("ExternalIPInterfaceAddressPrefix"))
                     for k, v in nat_rows(data, scope["nats"]).items()}
     for alias in scope["ips"]:
-        value["ip"][alias] = sorted(address_rows(data, alias))
+        selected = scope.get("ip_filter", {}).get(alias)
+        value["ip"][alias] = sorted(address_rows(data, alias, selected))
+        if selected is not None:
+            value.setdefault("ip_skip", {})[alias] = sorted(
+                (row["IPAddress"], int(row["PrefixLength"]),
+                 str(row.get("SkipAsSource", "")).lower() in ("true", "1"))
+                for row in data.get("ips", []) if row.get("InterfaceAlias") == alias
+                and row.get("IPAddress") in selected)
     for alias in scope["dhcp"]:
         item = iface(data, alias)
         value["dhcp"][alias] = enabled(item["Dhcp"]) if item else None
@@ -211,8 +226,9 @@ def rollback(before, scope, backup_path):
                 + quote("name=" + alias) + " source=dhcp store=persistent; "
                 + "if ($LASTEXITCODE -ne 0) { throw 'netsh DHCP failed' }")
             continue
-        original_ip = address_rows(before, alias) if alias in scope["ips"] else set()
-        current_ip = address_rows(after, alias) if alias in scope["ips"] else set()
+        selected = scope.get("ip_filter", {}).get(alias)
+        original_ip = address_rows(before, alias, selected) if alias in scope["ips"] else set()
+        current_ip = address_rows(after, alias, selected) if alias in scope["ips"] else set()
         if alias in scope["dhcp"] and not original_dhcp and current_dhcp:
             run(alias + ": disabilita DHCP", "Set-NetIPInterface -InterfaceAlias "
                 + quote(alias) + " -AddressFamily IPv4 -Dhcp Disabled -ErrorAction Stop")
@@ -221,9 +237,16 @@ def rollback(before, scope, backup_path):
                 "Remove-NetIPAddress -InterfaceAlias " + quote(alias) + " -IPAddress "
                 + quote(ip) + " -AddressFamily IPv4 -Confirm:$false -ErrorAction Stop")
         for ip, prefix in sorted(original_ip - current_ip):
+            original_row = next((row for row in before.get("ips", []) if
+                                 row.get("InterfaceAlias") == alias and
+                                 row.get("IPAddress") == ip and
+                                 int(row.get("PrefixLength", -1)) == prefix), {})
+            skip = str(original_row.get("SkipAsSource", "False")).lower() in ("true", "1")
             run(alias + ": ripristina IPv4 " + ip,
                 "New-NetIPAddress -InterfaceAlias " + quote(alias) + " -IPAddress "
-                + quote(ip) + " -PrefixLength " + str(prefix) + " -ErrorAction Stop | Out-Null")
+                + quote(ip) + " -PrefixLength " + str(prefix)
+                + " -SkipAsSource $" + ("true" if skip else "false")
+                + " -ErrorAction Stop | Out-Null")
 
     # Only restore explicitly selected non-connected routes.
     for alias in sorted(scope["routes"]):

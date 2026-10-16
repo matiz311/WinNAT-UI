@@ -57,9 +57,32 @@ class HelperTests(unittest.TestCase):
         start = source.index("        def report_bug():")
         end = source.index("        dlg.cancel_btn.configure(command=copy_report)", start)
         body = source[start:end]
-        self.assertIn('self.run_task("Segnala bug", send, sent)', body)
-        self.assertIn('            def sent(result):\n                dlg.destroy()', body)
+        self.assertIn('self.run_task("Segnala bug", send, sent, on_error=failed)', body)
+        failed = body[body.index("            def failed(error_message):"):]
+        self.assertNotIn("dlg.destroy()", failed)
         self.assertNotIn('            dlg.destroy()\n            self.run_task(', body)
+
+    def test_bug_submission_shows_progress_and_preserves_public_consent(self):
+        from pathlib import Path
+        source = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")
+        start = source.index("        def report_bug():")
+        end = source.index("        dlg.cancel_btn.configure(command=copy_report)", start)
+        body = source[start:end]
+        self.assertIn("messagebox.askyesno(", body)
+        self.assertIn("progress = ProgressDialog(dlg,", body)
+        self.assertIn("progress.succeed(", body)
+        self.assertIn("on_close=close_error_dialog", body)
+        self.assertIn("progress.fail(", body)
+        self.assertNotIn("messagebox.showinfo(", body)
+
+    def test_drain_rearms_before_running_callbacks(self):
+        from pathlib import Path
+        source = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")
+        start = source.index("    def drain(self):")
+        end = source.index("    def refresh(self):", start)
+        segment = source[start:end]
+        self.assertLess(segment.index("self.after(100, self.drain)"), segment.index("get_nowait()"))
+        self.assertEqual(segment.count("self.after(100, self.drain)"), 1)
 
     def test_bug_submission_does_not_depend_on_public_issue_lookup(self):
         from pathlib import Path
@@ -74,7 +97,7 @@ class HelperTests(unittest.TestCase):
         from pathlib import Path
         source = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")
         start = source.index("    def check_updates(self, silent=False):")
-        end = source.index("    def _install_update(self, staging):", start)
+        end = source.index("    def _install_update(self, staging", start)
         segment = source[start:end]
         self.assertIn('except ValueError as error:', segment)
         self.assertIn('"Release GitHub non utilizzabile: " + str(error)', segment)
@@ -85,7 +108,7 @@ class HelperTests(unittest.TestCase):
     def test_commit_failure_keeps_candidate_for_diff_retry(self):
         from pathlib import Path
         source = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")
-        start = source.index('                    if key == "Commit":')
+        start = source.index('                    elif key == "Commit":')
         end = source.index('                    elif key == "Segnala bug":', start)
         segment = source[start:end]
         self.assertNotIn("self.pending.clear()", segment)

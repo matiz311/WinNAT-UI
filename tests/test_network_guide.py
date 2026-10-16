@@ -128,6 +128,77 @@ class GuideTests(unittest.TestCase):
         self.assertNotIn("netsh.exe interface ipv4 set address", script)
         self.assertNotIn("Remove-NetIPAddress", script)
 
+    def test_dhcp_lan_uses_static_defaults_instead_of_the_lease(self):
+        self.data["interfaces"][0]["Dhcp"] = "Enabled"
+        self.data["ips"][0]["PrefixOrigin"] = "Dhcp"
+        detected = guide.detect_lan_subnet(self.data, "Ethernet")
+        self.assertEqual(detected["prefix"], "10.10.10.0/24")
+        self.assertEqual(detected["gateway"], "10.10.10.1")
+        self.assertEqual(detected["origin"], "Dhcp")
+        self.assertEqual(detected["source"], "predefinita")
+
+    def test_dhcp_lan_commit_first_disables_dhcp_then_adds_primary_static_ip(self):
+        self.data["interfaces"][0]["Dhcp"] = "Enabled"
+        self.data["ips"][0]["PrefixOrigin"] = "Dhcp"
+        lines = guide.preview("apply", self.profile, self.data)
+        self.assertTrue(any("disabilita DHCP IPv4" in line for line in lines))
+        self.assertTrue(any("10.10.10.1/24" in line for line in lines))
+        fp = guide.fingerprint(self.profile, self.data)
+        with patch("winnat_ui.network_guide.network.snapshot", return_value="x"), patch(
+                "winnat_ui.network_guide.network.ps", return_value="OK") as ps:
+            guide.execute("apply", self.profile, self.data, fp)
+        script = ps.call_args.args[0]
+        self.assertLess(script.index("-Dhcp Disabled"), script.index("New-NetIPAddress"))
+        self.assertIn("Where-Object { $_.PrefixOrigin -eq 'Dhcp' }", script)
+        self.assertIn("Remove-NetIPAddress -Confirm:$false", script)
+        self.assertIn("-SkipAsSource $false", script)
+        self.assertIn("$lanIP = '10.10.10.1'", script)
+        self.assertNotIn("netsh.exe interface ipv4 set address", script)
+
+    def test_dhcp_lan_user_selected_static_address_is_respected(self):
+        self.data["interfaces"][0]["Dhcp"] = "Enabled"
+        self.data["ips"][0]["PrefixOrigin"] = "Dhcp"
+        self.profile["prefix"] = "192.168.192.0/25"
+        self.profile["gateway"] = "192.168.192.126"
+        detected = guide.detect_lan_subnet(self.data, "Ethernet")
+        self.assertEqual(detected["gateway"], guide.DEFAULT_GATEWAY)
+        fp = guide.fingerprint(self.profile, self.data)
+        with patch("winnat_ui.network_guide.network.snapshot", return_value="x"), patch(
+                "winnat_ui.network_guide.network.ps", return_value="OK") as ps:
+            guide.execute("apply", self.profile, self.data, fp)
+        script = ps.call_args.args[0]
+        self.assertIn("$lanIP = '192.168.192.126'", script)
+        self.assertIn("$lanPrefix = 25", script)
+        self.assertIn("-Dhcp Disabled", script)
+
+    def test_matching_dhcp_lease_is_not_treated_as_static_address(self):
+        self.data["interfaces"][0]["Dhcp"] = "Enabled"
+        self.data["ips"][0].update({
+            "IPAddress": "10.10.10.1", "PrefixOrigin": "Dhcp"})
+        _profile, steps = guide.apply_diff(self.profile, self.data)
+        self.assertIn("lan-dhcp", [step["key"] for step in steps])
+        self.assertIn("lan-address", [step["key"] for step in steps])
+        script = "\n".join(s for step in steps for s in step["script"])
+        self.assertIn("$_.PrefixOrigin -ne 'Dhcp'", script)
+
+    def test_dhcp_lan_preserves_independent_manual_secondary_addresses(self):
+        self.data["interfaces"][0]["Dhcp"] = "Enabled"
+        self.data["ips"][0]["PrefixOrigin"] = "Dhcp"
+        self.data["ips"].append({
+            "InterfaceAlias": "Ethernet", "InterfaceIndex": 5,
+            "IPAddress": "192.168.100.10", "PrefixLength": 24,
+            "AddressState": "Preferred", "PrefixOrigin": "Manual"})
+        _profile, steps = guide.apply_diff(self.profile, self.data)
+        script = "\n".join(s for step in steps for s in step["script"])
+        self.assertIn("Where-Object { $_.PrefixOrigin -eq 'Dhcp' }", script)
+        self.assertIn("-SkipAsSource $true", script)
+        self.assertNotIn("Remove-NetRoute", script)
+
+    def test_existing_static_lan_does_not_get_dhcp_conversion_step(self):
+        self.data["ips"][0]["PrefixOrigin"] = "Manual"
+        _profile, steps = guide.apply_diff(self.profile, self.data)
+        self.assertNotIn("lan-dhcp", [step["key"] for step in steps])
+
     def test_disable_preserves_ip_addresses(self):
         self.data["nats"]=[{"Name":"FromAnotherApp","InternalIPInterfaceAddressPrefix":"10.10.10.0/24"}]
         fp=guide.fingerprint(self.profile,self.data)
@@ -182,7 +253,7 @@ class GuideTests(unittest.TestCase):
             guide.execute("apply", self.profile, self.data, fp)
         text = call.call_args.args[0]
         self.assertIn("New-NetIPAddress", text)
-        self.assertIn("-SkipAsSource $true", text)
+        self.assertIn("-SkipAsSource $false", text)
         self.assertNotIn("netsh.exe interface ipv4 set address", text)
 
     def test_static_setup_with_non_default_subnet(self):

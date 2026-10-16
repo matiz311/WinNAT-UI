@@ -74,6 +74,36 @@ WinNAT Microsoft è progettato per un singolo prefisso interno: più istanze con
 ## Identità e attendibilità dell'eseguibile
 Windows mostra ProductName **WinNAT UI**, CompanyName **Matteo Cannizzo**, FileDescription e FileVersion (uguale alla versione in `version.py`) nelle proprietà dell'eseguibile. Questi campi sono dichiarazioni testuali del progetto, **non** attestano l'identità dell'editore. Un programma compilato da GitHub Actions senza certificato resta **non firmato** e Windows SmartScreen potrebbe avvisare l'utente. Per apparire come editore verificato serve un certificato di firma codice appropriato, mantenuto nei secret della CI o tramite servizio di signing, e una firma Authenticode verificabile con `Get-AuthenticodeSignature`. Nessun certificato o approvazione Microsoft è implicito.
 
+## Gestione IPv4 secondari sulla LAN
+
+Nella scheda **Gateway**, sotto l'indirizzo principale della LAN, è disponibile la tabella
+**Indirizzi IPv4 secondari della LAN**. Dopo aver selezionato la scheda LAN puoi:
+- aggiungere un indirizzo IPv4 con relativo prefisso CIDR (anche appartenente a un'altra subnet);
+- modificare indirizzo e/o prefisso di un IPv4 secondario già presente;
+- rimuovere un IPv4 secondario selezionato.
+
+Ogni operazione viene **preparata** nella scheda **Modifiche**: Windows viene modificato
+soltanto dopo la conferma **Applica (Commit)**. Il software rilegge la configurazione
+subito prima del Commit, ricontrolla scheda, indice, DHCP, duplicati e indirizzi già
+presenti, applica solo l'operazione scelta e verifica l'esito. In caso di errore
+tenta un rollback limitato agli indirizzi selezionati; non è una transazione atomica.
+
+Gli indirizzi aggiunti sono statici e impostati con `SkipAsSource=True`, per non
+essere preferiti da Windows come IP sorgente dei normali collegamenti in uscita.
+Sono modificabili e rimovibili dalla tabella solo gli indirizzi che Windows
+identifica come secondari con `SkipAsSource=True`. Gli altri IPv4 sono visualizzati,
+ma protetti. Il software **non** aggiunge gateway predefiniti, non disabilita DHCP
+automaticamente e non elimina l'IP principale. Prima di aggiungere indirizzi
+secondari serve un indirizzo LAN principale già configurato staticamente.
+
+**NAT e subnet multiple:** aggiungere un IP secondario non espande automaticamente
+il prefisso del WinNAT. Se il nuovo IP appartiene a una subnet differente, il
+routing/NAT di quella subnet deve essere valutato separatamente: questa funzione
+non modifica, ricrea o moltiplica le regole WinNAT. L'aggiunta o la rimozione
+di indirizzi può invece aggiornare automaticamente le route direttamente connesse.
+Collaudare il traffico reale
+su un host Windows e verificare eventuali conflitti con altre interfacce.
+
 ## Rimozione setup
 La funzione **Rimuovi setup gestito** è disponibile solo se il wizard ha registrato il proprio stato. Rimuove la regola `WinNAT-UI` dopo aver verificato nome e prefisso, e rimuove l'IP LAN soltanto se il wizard lo aveva aggiunto. Non disabilita genericamente l'IP forwarding, né rimuove NAT/ICS altrui. Il backup JSON è diagnostico, non un rollback automatico.
 
