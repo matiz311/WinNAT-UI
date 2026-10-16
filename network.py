@@ -379,35 +379,39 @@ def setup(lan, prefix, gateway, data):
     subnet = ipaddress.IPv4Network(validate_prefix(prefix))
     validate_gateway(gateway, subnet)
     alias = validate_alias(lan, data)
-    if nat_network_preflight("WinNAT-UI", prefix, data) == "expand":
-        data = expand_nat(prefix, data)
-    # Existing primary/secondary addresses, gateways and routes remain untouched.
+    nat_action = nat_add_preflight("WinNAT-UI", prefix, data)
+    # Existing primary/secondary addresses, gateways, routes and unrelated NATs remain untouched.
     script = """
 $ErrorActionPreference='Stop'
 $alias='%s'
 $ip='%s'
 $prefix=%d
+$natPrefix='%s'
 $existing = @(Get-NetIPAddress -InterfaceAlias $alias -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object {$_.IPAddress -eq $ip -and $_.PrefixLength -eq $prefix})
 if($existing.Count -eq 0) { New-NetIPAddress -InterfaceAlias $alias -IPAddress $ip -PrefixLength $prefix -ErrorAction Stop | Out-Null }
 Set-NetIPInterface -InterfaceAlias $alias -AddressFamily IPv4 -Forwarding Enabled -ErrorAction Stop
 $routes = @(Get-NetRoute -DestinationPrefix '0.0.0.0/0' -AddressFamily IPv4 -ErrorAction SilentlyContinue)
 if($routes.Count -eq 0) { throw 'Nessuna route predefinita disponibile: impossibile individuare la WAN.' }
-$existingNat = @(Get-NetNat -ErrorAction Stop)
-if($existingNat.Count -gt 1) { throw 'Istanze WinNAT multiple rilevate' }
-if($existingNat.Count -eq 0) { New-NetNat -Name 'WinNAT-UI' -InternalIPInterfaceAddressPrefix '%s' -ErrorAction Stop | Out-Null }
+$targetNat = @(Get-NetNat -Name 'WinNAT-UI' -ErrorAction SilentlyContinue)
+if($targetNat.Count -eq 0) {
+    New-NetNat -Name 'WinNAT-UI' -InternalIPInterfaceAddressPrefix $natPrefix -ErrorAction Stop | Out-Null
+} elseif($targetNat.Count -ne 1 -or $targetNat[0].InternalIPInterfaceAddressPrefix -ne $natPrefix) {
+    throw 'NAT WinNAT-UI esistente con prefisso differente'
+}
 'Configuration complete'
 """ % (alias, gateway, subnet.prefixlen, prefix)
     result = ps(script)
-    # Registra solo ciò che il wizard ha predisposto. Il teardown è conservativo.
     state = {
         "lan": lan, "prefix": prefix, "gateway": gateway,
         "nat": "WinNAT-UI",
         "added_ip": not any(ip.get("InterfaceAlias") == lan and ip.get("IPAddress") == gateway and ip.get("PrefixLength") == subnet.prefixlen for ip in data.get("ips", [])),
+        "created_nat": nat_action == "create",
         "created": datetime.now().isoformat()
     }
     state_path().parent.mkdir(parents=True, exist_ok=True)
     state_path().write_text(json.dumps(state, indent=2), encoding="utf-8")
     return result
+
 
 def state_path():
     return Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "WinNAT-UI" / "managed-setup.json"
