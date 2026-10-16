@@ -14,7 +14,7 @@ const EXCEPTIONS = new Set(["RuntimeError","ValueError","TypeError","KeyError","
 "HTTPError","URLError","Exception","AttributeError","IndexError","NotImplementedError",
 "JSONDecodeError","Non determinato"]);
 const MODULES = new Set(["app.py","network.py","network_guide.py","network_rollback.py",
-"network_plan.py","updater.py","ui_theme.py","bug_report.py"]);
+"network_plan.py","updater.py","ui_theme.py","bug_report.py","issue_tracker.py","nat_backend.py","version.py"]);
 const HEADERS = {"content-type":"application/json; charset=utf-8","cache-control":"no-store"};
 const json = (object, status=200) => new Response(JSON.stringify(object), {status,headers:HEADERS});
 async function boundedText(request, limit=65536) {
@@ -58,7 +58,8 @@ function normalize(raw) {
   const allowed = new Set(["operation","category","exception","modules","version","exit_code",
     "signature","summary","message","traceback","environment","inventory"]);
   if (Object.keys(raw).some(k => !allowed.has(k))) throw Error("unexpected fields");
-  if (!OPS.has(raw.operation) || !CATS.has(raw.category) || !EXCEPTIONS.has(raw.exception)) throw Error("invalid enums");
+  if (typeof raw.operation!=="string" || !/^[\p{L}\p{N} _./:+()\-]{1,80}$/u.test(raw.operation) ||
+      !CATS.has(raw.category) || !EXCEPTIONS.has(raw.exception)) throw Error("invalid enums");
   if (!Array.isArray(raw.modules) || raw.modules.length > 8 || raw.modules.some(m=>!MODULES.has(m))) throw Error("invalid modules");
   if (typeof raw.version !== "string" || !/^\d{1,3}\.\d{1,3}\.\d{1,3}(?:\.\d{1,3})?$/.test(raw.version)) throw Error("invalid version");
   if (raw.exit_code !== null && (!Number.isInteger(raw.exit_code) || raw.exit_code < 0 || raw.exit_code > 9999)) throw Error("invalid code");
