@@ -1224,10 +1224,14 @@ class App(tk.Tk):
         dlg = Dialog(self, title, "Chiudi", cancel="Copia errore")
         dlg.ok.configure(command=dlg.destroy)
         details = format_error_debug(operation, message, traceback_text)
-        report_title, report_body = bug_report.make_report(operation, message, traceback_text, VERSION)
+        # Build once: the same report shown here is sent to the gateway.
+        payload = issue_tracker.safe_payload(
+            operation, message, traceback_text, VERSION,
+            inventory=self.data, is_admin=self.is_admin)
+        report_title, report_body = bug_report.format_report(payload)
         report_text = report_title + "\n\n" + report_body
 
-        def copy_anonymized():
+        def copy_report():
             dlg.clipboard_clear()
             dlg.clipboard_append(report_text)
             dlg.update()
@@ -1236,7 +1240,16 @@ class App(tk.Tk):
         def report_bug():
             if "Segnala bug" in self.tasks:
                 return
-            payload = issue_tracker.safe_payload(operation, message, traceback_text, VERSION)
+            if not messagebox.askyesno(
+                    "Pubblica diagnostica dettagliata",
+                    "Questa segnalazione creerà o aggiornerà una Issue GitHub PUBBLICA.\n\n"
+                    "Include messaggio di errore, traceback, comandi e output PowerShell, "
+                    "dati di rete disponibili (IP, subnet e nomi interfacce) e ambiente.\n\n"
+                    "Password e token riconoscibili vengono oscurati, ma il filtraggio "
+                    "non garantisce di eliminare ogni informazione riservata.\n\n"
+                    "Controlla e copia il report dai dettagli tecnici prima di procedere.\n\n"
+                    "Confermi la pubblicazione?", parent=dlg):
+                return
             def send():
                 # Remote availability check runs on a worker, not the Tk thread.
                 endpoint = issue_tracker.service_endpoint()
@@ -1250,18 +1263,19 @@ class App(tk.Tk):
                 return result
             def sent(result):
                 dlg.destroy()
-                text = ("Bug già segnalato" if result["already_exists"] else "Bug segnalato")
+                text = ("Diagnostica aggiunta a Issue esistente" if result["already_exists"] else "Bug segnalato")
                 messagebox.showinfo(text, "Issue #" + str(result["number"]) + "\n"
                                     + result["url"] + "\n\nTracciamento locale attivato.",
                                     parent=self)
                 self.render_issue_tracker()
             self.run_task("Segnala bug", send, sent)
-        dlg.cancel_btn.configure(command=copy_anonymized)
+        dlg.cancel_btn.configure(command=copy_report)
+        dlg.cancel_btn.configure(text="Copia report")
         report_actions = tk.Frame(dlg.body, bg=C["surface"])
         report_actions.pack(fill="x", pady=(0, S2))
         ttk.Button(report_actions, text="Segnala bug su GitHub",
                    command=report_bug).pack(side="left")
-        tk.Label(report_actions, text="Bozza anonimizzata: puoi rivederla prima di pubblicare.",
+        tk.Label(report_actions, text="Report completo: IP e topologia inclusi. Verifica prima di pubblicare.",
                  font=F["caption"], bg=C["surface"], fg=C["text_muted"]).pack(
                      side="left", padx=S2)
         tk.Label(dlg.body, text=error_summary(message), font=F["body"], bg=C["surface"], fg=C["text"],
@@ -1280,18 +1294,18 @@ class App(tk.Tk):
         sy.pack(side="right", fill="y")
         sx.pack(side="bottom", fill="x")
         viewer.pack(side="left", fill="both", expand=True)
-        viewer.insert("1.0", details)
+        viewer.insert("1.0", report_text)
         viewer.configure(state="disabled")
         viewer.bind("<Control-a>", lambda e: (viewer.tag_add("sel", "1.0", "end-1c"), "break")[1])
-        toggle = ttk.Button(dlg.body, text="Mostra dettagli tecnici", style="CardGhost.TButton")
+        toggle = ttk.Button(dlg.body, text="Mostra report da inviare", style="CardGhost.TButton")
 
         def toggle_debug():
             if panel.winfo_ismapped():
                 panel.pack_forget()
-                toggle.configure(text="Mostra dettagli tecnici")
+                toggle.configure(text="Mostra report da inviare")
             else:
                 panel.pack(fill="both", expand=True, pady=(S2, 0))
-                toggle.configure(text="Nascondi dettagli tecnici")
+                toggle.configure(text="Nascondi report da inviare")
             dlg.recenter()
         toggle.configure(command=toggle_debug)
         toggle.pack(anchor="w", pady=(S3, 0))
@@ -1345,7 +1359,7 @@ class App(tk.Tk):
                             "Non è stato possibile creare la Issue su GitHub.\n"
                             + error_message
                             + "\n\nL'errore originale resta consultabile: puoi copiarne "
-                              "il report anonimizzato e riprovare più tardi.",
+                              "il report diagnostico e riprovare più tardi.",
                             parent=self)
                     else:
                         self.show_error_dialog("Operazione non riuscita", key, error_message, error_traceback)
