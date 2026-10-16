@@ -218,7 +218,8 @@ class Topology(tk.Canvas):
     def __init__(self, parent, app):
         super().__init__(parent, bg=C["surface"], highlightthickness=0, height=self.H)
         self.app = app
-        self.bind("<Configure>", lambda e: self.draw())
+        # Redraw on width changes only, coalesced while the window is dragged.
+        ui.on_width_change(self, lambda w: self.draw())
 
     def node(self, x, y, w, h, title, sub, color, dashed=False, fill=None):
         self.create_rectangle(x - w / 2, y - h / 2, x + w / 2, y + h / 2, outline=color, width=2,
@@ -243,7 +244,8 @@ class Topology(tk.Canvas):
         n = len(wans)
         gap = 52
         height = max(self.H, 92 + n * gap)
-        self.configure(height=height)
+        if int(self.cget("height")) != height:   # avoid a relayout when unchanged
+            self.configure(height=height)
         col = [w * 0.11, w * 0.40, w * 0.69, w * 0.90]
         nw = min(170, w * 0.17)
         top = 18
@@ -438,8 +440,8 @@ class App(tk.Tk):
         texts = tk.Frame(inner, bg=C["surface"])
         texts.pack(side="left", fill="x", expand=True)
         self.cb_texts = texts
-        texts.bind("<Configure>", lambda e: (self.cb_title.configure(wraplength=max(200, e.width)),
-                                             self.cb_hint.configure(wraplength=max(200, e.width))))
+        ui.on_width_change(texts, lambda w: (ui.set_wrap(self.cb_title, max(200, w)),
+                                             ui.set_wrap(self.cb_hint, max(200, w))))
         self.cb_title = tk.Label(texts, font=F["body_b"], bg=C["surface"], fg=C["text"], anchor="w")
         self.cb_title.pack(anchor="w")
         self.cb_hint = tk.Label(texts, font=F["caption"], bg=C["surface"], fg=C["text_muted"], anchor="w")
@@ -599,6 +601,9 @@ class App(tk.Tk):
         self.field_errors = {}
         self.field_widgets = {}
         row = [0]
+        # (label, divisor, margin, minimum): rewrapped together by one throttled
+        # handler instead of one <Configure> binding per label.
+        form_wraps = []
 
         def heading(n, text):
             top = S5 if row[0] else 0
@@ -620,8 +625,7 @@ class App(tk.Tk):
             msg = ttk.Label(form, text=hint, style="Card.Caption.TLabel", justify="left",
                             wraplength=200 if span == 1 else 420)
             msg.grid(row=r + 2, column=col, columnspan=span, sticky="w", pady=(2, 0), padx=pad)
-            form.bind("<Configure>", lambda e, m=msg, s=span: m.configure(
-                wraplength=max(120, (e.width - 16) // (2 if s == 1 else 1))), add="+")
+            form_wraps.append((msg, 2 if span == 1 else 1, 16, 120))
             if newrow:
                 row[0] += 3
             self.field_errors[key] = (msg, hint)
@@ -679,8 +683,9 @@ class App(tk.Tk):
                                          "subentrano se cade quella sopra. Metrica pi\u00f9 bassa = preferita.",
                               style="Card.Caption.TLabel", wraplength=420, justify="left")
         wan_intro.grid(row=row[0], column=0, columnspan=2, sticky="w")
-        form.bind("<Configure>", lambda e: [lbl.configure(wraplength=max(200, e.width - 8))
-                                            for lbl in (wan_intro, self.subnet_hint)], add="+")
+        form_wraps += [(wan_intro, 1, 8, 200), (self.subnet_hint, 1, 8, 200)]
+        ui.on_width_change(form, lambda w: [ui.set_wrap(lbl, max(low, (w - margin) // div))
+                                            for lbl, div, margin, low in form_wraps])
         row[0] += 1
         self.wan_frame = tk.Frame(form, bg=C["surface"])
         self.wan_frame.grid(row=row[0], column=0, columnspan=2, sticky="ew", pady=(S2, 0))
@@ -703,6 +708,9 @@ class App(tk.Tk):
         ttk.Label(plan_card.body, text="COSA SUCCEDER\u00c0 AL COMMIT", style="Card.Overline.TLabel").pack(anchor="w")
         self.plan_list = tk.Frame(plan_card.body, bg=C["surface"])
         self.plan_list.pack(fill="x", pady=(S2, S3))
+        self.plan_labels = []
+        ui.on_width_change(self.plan_list, lambda w: [ui.set_wrap(t, self.plan_wrap_width(w))
+                                                      for t in self.plan_labels if t.winfo_exists()])
         self.setup_issue = ui.Callout(plan_card.body, kind="danger", wraplength=440)
         actions = tk.Frame(plan_card.body, bg=C["surface"])
         actions.pack(fill="x", side="bottom")
@@ -1098,6 +1106,11 @@ class App(tk.Tk):
             errors["nat"] = str(exc)
         return errors
 
+    def plan_wrap_width(self, width=None):
+        """Text width for a plan step: list width minus the step number and padding."""
+        width = width or self.plan_list.winfo_width()
+        return max(160, width - 56) if width > 1 else 380
+
     def validate_form(self):
         if not hasattr(self, "plan_list"):
             return
@@ -1118,6 +1131,7 @@ class App(tk.Tk):
         if hasattr(self, "subnet_badge"):
             self.show_subnet_source()
             self.update_add_wan()
+        self.plan_labels = []
         for child in self.plan_list.winfo_children():
             child.destroy()
         issue = None
@@ -1135,10 +1149,12 @@ class App(tk.Tk):
             r = tk.Frame(self.plan_list, bg=C["surface"])
             r.pack(fill="x", pady=1)
             tk.Label(r, text=str(i + 1), font=F["overline"], width=3, bg=C["surface_alt"], fg=C["text_muted"]).pack(side="left", anchor="n", pady=2)
+            # Wrap from the list width (known up front) rather than from each
+            # label's own size: no wrap -> resize -> rewrap feedback loop.
             t = tk.Label(r, text=line, font=F["body"], bg=C["surface"], fg=C["text"], anchor="w", justify="left",
-                         wraplength=380)
+                         wraplength=self.plan_wrap_width())
             t.pack(side="left", fill="x", expand=True, padx=S2)
-            t.bind("<Configure>", lambda e, t=t: t.configure(wraplength=max(160, e.width - 4)))
+            self.plan_labels.append(t)
         if issue:
             self.setup_issue.set(issue, "info" if self.data is None or errors else "danger")
             self.setup_issue.pack(fill="x", pady=(S2, S3), before=self.plan_list)
