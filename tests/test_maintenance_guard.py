@@ -66,8 +66,8 @@ class MaintenanceRegistryTests(unittest.TestCase):
             if args[0] == "rev-parse":
                 return "previous"
             raise AssertionError(args)
-        with patch.object(guard, "git", side_effect=fake_git), \\
-                patch.object(guard, "at_commit", return_value={"events": []}):
+        with (patch.object(guard, "git", side_effect=fake_git),
+              patch.object(guard, "at_commit", return_value={"events": []})):
             with self.assertRaisesRegex(ValueError, "PREVIOUS-COMMIT"):
                 guard.check_pr("base", 68)
 
@@ -87,8 +87,8 @@ class MaintenanceRegistryTests(unittest.TestCase):
 
         def fake_registry(commit, path):
             return {"events": [] if commit == "base" else [event]}
-        with patch.object(guard, "git", side_effect=fake_git), \\
-                patch.object(guard, "at_commit", side_effect=fake_registry):
+        with (patch.object(guard, "git", side_effect=fake_git),
+              patch.object(guard, "at_commit", side_effect=fake_registry)):
             guard.check_pr("base", 68)
 
 
