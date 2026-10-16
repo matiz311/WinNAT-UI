@@ -1403,8 +1403,8 @@ class App(tk.Tk):
                 return
             if not messagebox.askyesno(
                     "Aggiornamento disponibile",
-                    "Versione installata: " + VERSION + "\\n"
-                    "Versione disponibile: " + info["version"] + "\\n\\n"
+                    "Versione installata: " + VERSION + "\n"
+                    "Versione disponibile: " + info["version"] + "\n\n"
                     "Scaricare da GitHub e verificare l'integrità SHA256? "
                     "L'applicazione si chiuderà per completare l'aggiornamento.",
                     parent=self):
