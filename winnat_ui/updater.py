@@ -193,8 +193,12 @@ function New-UpdateWindow {
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
     try {
-        Add-Type -Namespace WinNatUi -Name Dpi -MemberDefinition '[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();'
-        [WinNatUi.Dpi]::SetProcessDPIAware() | Out-Null
+        Add-Type -Namespace WinNatUi -Name Native -MemberDefinition @'
+[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+[DllImport("user32.dll")] public static extern bool ShowWindow(System.IntPtr hWnd, int nCmdShow);
+[DllImport("user32.dll")] public static extern bool SetForegroundWindow(System.IntPtr hWnd);
+'@
+        [WinNatUi.Native]::SetProcessDPIAware() | Out-Null
     } catch { }
     [System.Windows.Forms.Application]::EnableVisualStyles()
 
@@ -306,6 +310,12 @@ function New-UpdateWindow {
 
     $form.ResumeLayout($true)
     $form.Show()
+    # A hidden launch (SW_HIDE in STARTUPINFO) applies to the first window the
+    # process shows: show it again explicitly so the progress is always visible.
+    try {
+        [WinNatUi.Native]::ShowWindow($form.Handle, 1) | Out-Null
+        [WinNatUi.Native]::SetForegroundWindow($form.Handle) | Out-Null
+    } catch { $form.Hide(); $form.Show() }
     $form.Activate()
     [System.Windows.Forms.Application]::DoEvents()
     return @{ form = $form; c = $c; steps = $steps; track = $track; fill = $fill; detail = $detail;
@@ -484,7 +494,7 @@ CREATE_NO_WINDOW = 0x08000000
 
 def helper_command(script, install_dir, staging, parent_pid, from_version="", to_version=""):
     command = ["powershell.exe", "-NoProfile", "-NonInteractive", "-Sta",
-               "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", str(script),
+               "-ExecutionPolicy", "Bypass", "-File", str(script),
                "-ParentPid", str(parent_pid),
                "-InstallDir", str(install_dir),
                "-StageRoot", str(staging)]
