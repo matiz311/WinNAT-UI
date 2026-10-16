@@ -80,6 +80,17 @@ class IssueTrackerTests(TestCase):
         self.assertEqual(issues[signature][0]["priority"], "high")
         self.assertEqual(issues[signature][0]["fixed_in"], "1.16.0")
 
+    def test_fixed_in_hotfix_label_is_recognized(self):
+        signature = "b" * 24
+        item = {"number": 44, "html_url": "https://github.com/matiz311/WinNAT-UI/issues/44",
+                "state": "closed", "title": "Updater - release assente",
+                "body": "<!-- winnat-fingerprint:" + signature + " -->",
+                "labels": [{"name": "bug-report"},
+                           {"name": "fixed-in/v1.15.0.1"}]}
+        with patch("winnat_ui.issue_tracker._read_json", return_value=[item]):
+            issue = it.public_issues()[signature][0]
+        self.assertEqual(issue["fixed_in"], "1.15.0.1")
+
     def test_sync_updates_title_but_preserves_original_issue_number(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "issues.json"
