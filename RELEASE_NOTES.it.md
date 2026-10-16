@@ -4,6 +4,10 @@ Le note di questa pagina sono destinate agli utilizzatori dell'applicazione. Per
 
 > **Importante:** WinNAT-UI modifica routing, indirizzi IPv4 e Windows NAT. Prima di applicare configurazioni su computer utilizzati per l'accesso remoto, verificare di disporre di un accesso locale e di una procedura di ripristino. Le operazioni che ricreano WinNAT possono interrompere sessioni NAT attive.
 
+## 1.15.1 — 16 ottobre 2026
+
+**Patch del logo Windows.** In caso di errore nel caricamento dell'icona ICO, WinNAT-UI tenta comunque di applicare l'icona PNG derivata dallo stesso logo vettoriale alle finestre Tk. Nessuna variazione delle funzioni NAT o della configurazione della rete.
+
 ## 1.15.0 — 16 ottobre 2026
 
 **Tema: configurazione LAN più flessibile, diagnostica completa e nuova identità visiva.**
