@@ -123,8 +123,10 @@ def _probe_publishing_permissions(source_sha):
     release_created = False
     try:
         print("Preflight: testing Git tag and Release write permissions", flush=True)
-        call("gh", "api", "-X", "POST", f"repos/{REPO}/git/refs",
-             "-f", "ref=refs/tags/" + probe, "-f", "sha=" + source_sha)
+        # Check the same authenticated transport used by the migration,
+        # rather than only testing permission to write a REST API ref.
+        call("git", "tag", probe, source_sha)
+        call("git", "push", "origin", "refs/tags/" + probe)
         tag_created = True
         call("gh", "release", "create", probe, "--repo", REPO,
              "--draft", "--verify-tag", "--title", "Migration capability probe",
