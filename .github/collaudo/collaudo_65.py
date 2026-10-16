@@ -140,7 +140,7 @@ def tk_children(hwnd):
     return out
 
 
-def scenario(name, env_extra=None, firewall=False, wait_manual=45):
+def scenario(name, env_extra=None, firewall=False, wait_manual=45, pre_wait=32):
     print("=== " + name, flush=True)
     rec = {"scenario": name}
     before_store = store_bytes()
@@ -163,7 +163,7 @@ def scenario(name, env_extra=None, firewall=False, wait_manual=45):
         send_keys("^6")
         # Sync silenziosa all'avvio a 7 s, timeout richiesta 10 s (+ release_info).
         samples = []
-        for _ in range(16):
+        for _ in range(pre_wait // 2):
             time.sleep(2)
             samples.append(responsive(hwnd))
         rec["silent_responsive_samples"] = samples
@@ -245,9 +245,13 @@ def main():
         ("05-firewall-uscita-bloccata", None, True),
         ("06-ripristino-online", None, False),
     ]
-    for name, env_extra, firewall in plan:
+    if os.environ.get("TIMEOUT_FOCUS"):
+        bh = {"HTTPS_PROXY": "http://10.255.255.1:3128", "HTTP_PROXY": "http://10.255.255.1:3128"}
+        plan = [("07-timeout-clic-dopo-auto", bh, False, 75, 60),
+                ("08-timeout-clic-durante-auto", bh, False, 75, 12)]
+    for name, env_extra, firewall, *timing in plan:
         seed()
-        report["scenarios"].append(scenario(name, env_extra, firewall))
+        report["scenarios"].append(scenario(name, env_extra, firewall, *timing))
         (OUT / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     report["bug_reports_after"] = bug_report_count()
     (OUT / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
