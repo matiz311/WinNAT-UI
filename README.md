@@ -138,14 +138,14 @@ Per prudenza il commit applica **una modifica alla volta**, anche se è possibil
 
 I test automatici di pianificazione sono in `test_network_guide.py`.
 
-## Correzione v1.7.0 — DHCP PersistentStore e IP statico
+## Correzione v1.5.2 — DHCP PersistentStore e IP statico
 In alcune configurazioni Windows 11, `New-NetIPAddress` fallisce con `Inconsistent parameters PolicyStore PersistentStore and Dhcp Enabled`, anche dopo la disabilitazione DHCP con `Set-NetIPInterface`. Il passaggio LAN a IPv4 statico utilizza ora `netsh interface ipv4 set address source=static ... gateway=none store=persistent`, con verifica dell'IP e dello stato DHCP dopo l'operazione. Il ripristino a DHCP utilizza analogamente `source=dhcp`.
 
-Dalla v1.9.9, se un Commit di Configura fallisce la GUI mantiene il candidato e aggiorna lo stato reale di Windows. Il tentativo successivo ricalcola il diff e applica soltanto le parti ancora mancanti; l'anteprima mostra il delta residuo.
+Dalla v1.12.0, se un Commit di Configura fallisce la GUI mantiene il candidato e aggiorna lo stato reale di Windows. Il tentativo successivo ricalcola il diff e applica soltanto le parti ancora mancanti; l'anteprima mostra il delta residuo.
 
 Il comando `netsh` è documentato da Microsoft: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/netsh-interface.
 
-## Interfaccia v1.7.1 — redesign UX
+## Interfaccia v1.6.0 — redesign UX
 - **Navigazione laterale** con sezioni Panoramica, Regole NAT, Gateway, Modifiche, Sessioni (Ctrl+1…6) e indicatore permanente *Amministratore / Sola lettura*.
 - **Panoramica** con verdetto unico sullo stato del gateway, riquadri WAN/WinNAT/Routing/ICS con badge testuali (mai solo colore), tabelle interfacce e default route; il testo diagnostico grezzo resta in *Dettagli tecnici*.
 - **Gateway**: schema topologico LAN → PC → WAN → Internet aggiornato in tempo reale, campi raggruppati in 3 passi con validazione inline e anteprima numerata di cosa farà il Commit; il pulsante si abilita solo con dati validi.
