@@ -10,6 +10,11 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag già pubblicati nella numerazione corrente non vengono modificati; la normalizzazione dello storico è stata conclusa il 16 ottobre 2026.
 
 
+## [1.15.1] - 2026-10-16
+### Correzioni
+- Il caricamento dell'icona PNG derivata dal logo vettoriale resta indipendente dall'icona Windows ICO: se l'API ICO non è disponibile o restituisce un errore, la barra del titolo e i dialoghi Tk possono ancora usare il logo PNG.
+- Nessuna modifica alla logica WinNAT, alle impostazioni di rete o al formato dei dati.
+
 ## [1.15.0] - 2026-10-16
 ### Sintesi
 Release funzionale retrocompatibile della serie 1.x: migliora la configurazione LAN, estende la gestione degli indirizzi IPv4, rende le segnalazioni dei problemi più diagnostiche e perfeziona l'esperienza di aggiornamento. Include una nuova icona vettoriale. Rimane invariato il vincolo architetturale di un'unica istanza fisica WinNAT.
