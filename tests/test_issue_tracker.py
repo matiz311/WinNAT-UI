@@ -109,6 +109,26 @@ class IssueTrackerTests(TestCase):
                 self.assertEqual(entries[0]["priority"], "high")
                 self.assertEqual(entries[0]["updated_at"], matched["updated_at"])
 
+    def test_sync_records_transitions_once_and_limits_history(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "issues.json"
+            payload = it.safe_payload("Commit", "Access denied", "", "1.9.5")
+            issue = {"number": 42, "url": "https://github.com/matiz311/WinNAT-UI/issues/42"}
+            with patch("winnat_ui.issue_tracker.store_path", return_value=path):
+                original = it.save_entry(payload, issue)
+                remote = {original["fingerprint"]: [{
+                    "number": 42, "state": "closed", "fixed_in": "1.9.8",
+                    "title": "LAN - configurazione", "triage": "risolto",
+                    "priority": "high", "updated_at": "2026-10-17T00:00:00Z"}]}
+                entries, _ = it.synchronize(remote=remote)
+                self.assertEqual(len(entries[0]["timeline"]), 1)
+                changes = entries[0]["timeline"][0]["changes"]
+                self.assertEqual(changes["state"], {"from": "open", "to": "closed"})
+                self.assertEqual(changes["fixed_in"]["to"], "1.9.8")
+                entries, _ = it.synchronize(remote=remote)
+                self.assertEqual(len(entries[0]["timeline"]), 1)
+                self.assertIn("observed_at", entries[0]["timeline"][0])
+
     def test_hotfix_release_comparison(self):
         self.assertTrue(it.comparable_release("1.15.0.1", "1.15.0"))
         self.assertTrue(it.comparable_release("1.15.1", "1.15.0.9"))
