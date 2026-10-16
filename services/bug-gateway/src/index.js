@@ -48,7 +48,7 @@ function redact(text) {
     .replace(/("[^"\r\n]*(?:password|passwd|token|secret|api[_-]?key)[^"\r\n]*"\s*:\s*)(?:"[^"\r\n]*"|[^\s,}]+)/gi,'$1"[OSCURATO]"')
     .replace(/\b(bearer|basic)\s+[a-z0-9._~+/\-=]{8,}/gi,"[TOKEN DI AUTORIZZAZIONE OSCURATO]")
     .replace(/([a-z][a-z0-9+.-]*:\/\/)[^/@\s:]+:[^/@\s]+@/gi,"$1[credenziali oscurate]@")
-    .replace(/\b(password|passwd|pwd|api[_-]?key|access[_-]?token|refresh[_-]?token|secret|authorization|client[_-]?secret|cookie|set-cookie)\b(\s*[:=]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;]+)/gi,"$1$2[OSCURATO]")
+    .replace(/\b(password|passwd|pwd|token|api[_-]?key|access[_-]?token|refresh[_-]?token|secret|authorization|client[_-]?secret|cookie|set-cookie)\b(\s*[:=]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;]+)/gi,"$1$2[OSCURATO]")
     .replace(/(-{1,2}(?:password|token|api-key|secret)\s+)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s;]+)/gi,"$1[OSCURATO]")
     .replace(/(convertto-securestring\s+)(?:"[^"\r\n]*"|'[^'\r\n]*')/gi,"$1[OSCURATO]")
     .replace(/([A-Z]:\\Users\\)[^\\\r\n]+/gi,"$1[utente]")
