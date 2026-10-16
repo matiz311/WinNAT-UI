@@ -26,7 +26,8 @@ class LaunchTests(unittest.TestCase):
             args, kwargs = popen.call_args
             command = args[0]
             self.assertTrue(kwargs["creationflags"] & updater.CREATE_NO_WINDOW)
-            self.assertIn("Hidden", command)
+            # No -WindowStyle Hidden: it could hide the progress window itself.
+            self.assertNotIn("Hidden", command)
             self.assertEqual(command[command.index("-ToVersion") + 1], "1.15.0")
             self.assertEqual(command[command.index("-FromVersion") + 1], "1.14.0")
             self.assertNotIn("-NoUi", command)
