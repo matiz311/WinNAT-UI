@@ -114,7 +114,7 @@ def save_entry(payload, issue):
               "reported_at": datetime.now(timezone.utc).isoformat(),
               "state": "open", "fixed_in": None,
               "title": None, "triage": "ricevuto", "priority": None,
-              "updated_at": None}
+              "updated_at": None, "timeline": []}
     entries = [e for e in history() if not (
         e.get("fingerprint") == record["fingerprint"] and e.get("number") == record["number"])]
     entries.insert(0, record)
@@ -181,6 +181,19 @@ def synchronize(installed=VERSION, remote=None, latest_version=None):
             issue = matches[0]
             record["state"] = issue["state"]
             record["fixed_in"] = issue["fixed_in"]
+            from datetime import datetime, timezone
+            tracked_fields = ("title", "triage", "priority", "state", "fixed_in")
+            changes = {field: {"from": record.get(field), "to": issue.get(field)}
+                       for field in tracked_fields if record.get(field) != issue.get(field)}
+            # The timestamp is the time this client observed the change,
+            # not an invented GitHub transition timestamp.
+            if changes:
+                timeline = record.get("timeline")
+                if not isinstance(timeline, list):
+                    timeline = []
+                timeline.append({"observed_at": datetime.now(timezone.utc).isoformat(),
+                                 "changes": changes})
+                record["timeline"] = timeline[-50:]
             for field in ("title", "triage", "priority", "updated_at"):
                 record[field] = issue.get(field)
             record["fix_available"] = (bool(issue["fixed_in"]) and latest_version is not None
