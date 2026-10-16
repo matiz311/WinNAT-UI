@@ -77,6 +77,11 @@ def redact(text):
     value = str(text or "")
     value = re.sub(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----",
                    "[CHIAVE PRIVATA OSCURATA]", value, flags=re.I | re.S)
+    value = re.sub(r"\b(?:github_pat_|ghp_|gho_|ghu_|ghs_|ghr_)[A-Za-z0-9_]{16,}\b",
+                   "[TOKEN GITHUB OSCURATO]", value)
+    value = re.sub(r'(?i)("[^"\r\n]*(?:password|passwd|token|secret|api[_-]?key)[^"\r\n]*"\s*:\s*)'
+                   r'(?:"[^"\r\n]*"|[^\s,}]+)',
+                   r'\1"[OSCURATO]"', value)
     value = re.sub(r"(?i)\b(?:bearer|basic)\s+[A-Za-z0-9._~+/\-=]{8,}",
                    "[TOKEN DI AUTORIZZAZIONE OSCURATO]", value)
     value = re.sub(r"(?i)([a-z][a-z0-9+.-]*://)[^/@\s:]+:[^/@\s]+@",
