@@ -22,10 +22,10 @@ MAX_HISTORY = 150
 SAFE_CATEGORIES = {label for _pattern, label in bug_report.KNOWN_ERRORS} | {"Errore operativo non classificato"}
 
 
-def safe_payload(operation, error, stack, version=VERSION, inventory=None, is_admin=None):
+def safe_payload(operation, error, stack, version=VERSION, inventory=None, is_admin=None, pending=None):
     """Preserve actionable diagnostics; mask recognizable secrets before upload."""
     return bug_report.build_payload(operation, error, stack, version,
-                                    inventory=inventory, is_admin=is_admin)
+                                    inventory=inventory, is_admin=is_admin, pending=pending)
 
 
 def fingerprint(payload):
