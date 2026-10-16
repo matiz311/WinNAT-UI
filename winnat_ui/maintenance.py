@@ -1,5 +1,6 @@
 """Read-only advisory maintenance status: failure never blocks the updater."""
 import json
+import re
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 import urllib.request
@@ -41,7 +42,10 @@ def parse_status(document, *, now=None):
         if status not in VALID_STATES:
             continue
         if event_id is not None and (not isinstance(event_id, str)
-                                     or len(event_id) > 80):
+                                     or not re.fullmatch(r"MAINT-[0-9]{8}-[0-9]{3}", event_id)):
+            continue
+        # Mirror registry guard in PR #68: a live maintenance claim is traceable.
+        if status == "maintenance" and event_id is None:
             continue
         parsed[name] = {"status": status, "event_id": event_id}
     return parsed
@@ -53,7 +57,9 @@ def current_services(*, timeout=3):
         request = urllib.request.Request(STATUS_URL, headers={
             "User-Agent": "WinNAT-UI-Maintenance", "Accept": "application/json"})
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            if urlsplit(response.geturl()).hostname != "raw.githubusercontent.com":
+            final_url = urlsplit(response.geturl())
+            if (final_url.scheme != "https"
+                    or final_url.hostname != "raw.githubusercontent.com"):
                 return {}
             data = response.read(MAX_BYTES + 1)
         if len(data) > MAX_BYTES:
