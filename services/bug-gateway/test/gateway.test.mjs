@@ -71,7 +71,7 @@ test("reuses a matching open issue", async()=>{
   const sig=await fingerprint(normalize(sample));
   globalThis.fetch=async (_url,init)=>{
     assert.notEqual(init.method,"POST");
-    return Response.json([{number:22,html_url:"https://github.com/matiz311/WinNAT-UI/issues/22",body:"<!-- winnat-fingerprint:"+sig+" -->"}]);
+    return Response.json([{number:22,state:"open",html_url:"https://github.com/matiz311/WinNAT-UI/issues/22",body:"<!-- winnat-fingerprint:"+sig+" -->"}]);
   };
   try {
     const response=await worker.fetch(post(),env());
