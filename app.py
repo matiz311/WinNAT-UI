@@ -39,7 +39,7 @@ def field_title(key):
     if ":" in key:
         kind, index = key.split(":")
         labels = {"wan": "WAN ", "metric": "Metrica WAN ",
-                  "prefix": "Subnet LAN ", "gateway": "IP LAN "}
+                  "prefix": "Subnet LAN ", "gateway": "IP LAN ", "natrow": "NAT LAN "}
         return labels.get(kind, kind + " ") + str(int(index) + 1)
     return FIELD_TITLES.get(key, key)
 ADAPTER_STATUS = {"Up": "Connessa", "Disconnected": "Disconnessa", "Disabled": "Disabilitata",
@@ -890,8 +890,21 @@ class App(tk.Tk):
     def apply_detected_subnet(self):
         found = network_guide.detect_lan_addresses(self.data or {}, self.lan.get())
         self.lan_rows.clear()
-        for item in found:
-            self.add_lan_row(item["prefix"], item["gateway"], validate=False)
+        used_nat_names = set()
+        for index, item in enumerate(found):
+            exact = [n for n in (self.data or {}).get("nats", [])
+                     if n.get("InternalIPInterfaceAddressPrefix") == item["prefix"]
+                     and not n.get("ExternalIPInterfaceAddressPrefix")
+                     and n.get("Name") not in used_nat_names]
+            if len(exact) == 1:
+                nat_name = str(exact[0].get("Name") or "")
+            else:
+                base = self.profile_nat.get().strip() or "NAT-Firewall"
+                nat_name = base if index == 0 else base + "-" + str(index + 1)
+                while nat_name in used_nat_names:
+                    nat_name += "-2"
+            used_nat_names.add(nat_name)
+            self.add_lan_row(item["prefix"], item["gateway"], nat_name, validate=False)
         self.subnet_source = found
         self.layout_lan_rows()
         self.show_subnet_source()
@@ -945,10 +958,10 @@ class App(tk.Tk):
 
     def form_profile(self):
         addresses = []
-        for i, row in enumerate(self.lan_rows):
+        for row in self.lan_rows:
             addresses.append({"prefix": row["prefix"].get().strip(),
                               "gateway": row["gateway"].get().strip(),
-                              "nat": self.nat_name_for_lan_row(i)})
+                              "nat": row["nat"].get().strip()})
         first = addresses[0] if addresses else {
             "prefix": "", "gateway": "", "nat": self.profile_nat.get().strip()}
         return {"lan": self.lan.get(),
@@ -1008,12 +1021,15 @@ class App(tk.Tk):
                     if net.overlaps(subnet):
                         errors["prefix:%d" % i] = (
                             "Si sovrappone alla rete di " + alias + " (" + str(net) + ").")
-        try:
-            base = network.validate_name(p["nat"])
-            for i in range(1, len(p["lan_addresses"])):
-                network.validate_name(base + "-" + str(i + 1))
-        except ValueError as exc:
-            errors["nat"] = str(exc)
+        seen_nats = set()
+        for i, address in enumerate(p["lan_addresses"]):
+            try:
+                nat_name = network.validate_name(address["nat"])
+                if nat_name in seen_nats:
+                    errors["natrow:%d" % i] = "Nome NAT già usato da un'altra subnet."
+                seen_nats.add(nat_name)
+            except ValueError as exc:
+                errors["natrow:%d" % i] = str(exc)
         return errors
 
 
@@ -1027,9 +1043,11 @@ class App(tk.Tk):
             if key.startswith("wan:") or key.startswith("metric:"):
                 index = key.split(":")[1]
                 err = errors.get("wan:" + index) or errors.get("metric:" + index)
-            elif key.startswith("prefix:") or key.startswith("gateway:"):
+            elif (key.startswith("prefix:") or key.startswith("gateway:")
+                  or key.startswith("natrow:")):
                 index = key.split(":")[1]
-                err = errors.get("prefix:" + index) or errors.get("gateway:" + index)
+                err = (errors.get("prefix:" + index) or errors.get("gateway:" + index)
+                       or errors.get("natrow:" + index))
             if id(label) not in shown or err:
                 label.configure(text="⚠  " + err if err else hint,
                                 style="Card.Error.TLabel" if err else "Card.Caption.TLabel")
