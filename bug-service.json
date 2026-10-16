@@ -1,4 +1,3 @@
 {
-  "submit_url": null,
-  "description": "L'endpoint anonimo deve essere pubblicato dal maintainer dopo il deploy sicuro del Worker."
+  "submit_url": "https://winnat-bug-gateway.cannizzogpt.workers.dev/report"
 }
