@@ -70,7 +70,7 @@ class GuideTests(unittest.TestCase):
         self.assertIn("CONFIGURAZIONE RILEVATA PRIMA", message)
         self.assertIn("CONFIGURAZIONE RILEVATA DOPO", message)
         self.assertIn('"globalRouter": 1', message)
-        self.assertIn("IPv4 atteso: 10.10.10.1/24", message)
+        self.assertIn("IPv4 attesi: 10.10.10.1/24", message)
 
     def test_inventory_failure_preserves_original_error(self):
         fp = guide.fingerprint(self.profile, self.data)
@@ -182,7 +182,7 @@ class GuideTests(unittest.TestCase):
             guide.execute("apply", self.profile, self.data, fp)
         text = call.call_args.args[0]
         self.assertIn("New-NetIPAddress", text)
-        self.assertIn("-SkipAsSource $true", text)
+        self.assertIn("-SkipAsSource $false", text)
         self.assertNotIn("netsh.exe interface ipv4 set address", text)
 
     def test_static_setup_with_non_default_subnet(self):
