@@ -11,6 +11,7 @@
 **[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)** — scarica lo ZIP della release pubblica, estrai completamente la cartella e avvia `WinNAT-UI.exe`. La release corrente è **v1.14.0**, **non firmata**; la firma tramite SignPath Foundation non è ancora approvata.
 
 - [Release e changelog](https://github.com/matiz311/WinNAT-UI/releases)
+- [Note di rilascio per versione (consultabili nel README)](#note-di-rilascio-per-versione)
 - [Informativa privacy](PRIVACY.it.md) ([English](PRIVACY.md))
 - [Politica di firma](CODE_SIGNING_POLICY.it.md) ([English](CODE_SIGNING_POLICY.md))
 - [Changelog](CHANGELOG.md)
@@ -118,17 +119,178 @@ Consulta la [politica di firma](CODE_SIGNING_POLICY.it.md) ([English](CODE_SIGNI
 
 Per disinstallare il programma portatile, chiudilo e rimuovi la cartella estratta. Prima di farlo, se hai configurato la rete con il wizard, utilizza **Rimuovi setup gestito**.
 
-## Evoluzione delle funzionalità — release pubblicate
+## Note di rilascio per versione
 
-Le funzioni presenti nella **v1.14.0** derivano dai rilasci elencati sotto. Il 16 ottobre 2026 le 28 release precedenti sono state ripubblicate con numerazione coerente, eseguibili ricompilati e tag verificati. I numeri riportati qui sono **quelli effettivamente disponibili** nella [pagina Releases](https://github.com/matiz311/WinNAT-UI/releases); per il dettaglio di ogni versione consulta il [Changelog](CHANGELOG.md) e le [Note di rilascio](RELEASE_NOTES.it.md).
+Le note di rilascio sono consultabili direttamente qui, senza lasciare la pagina principale. Seleziona una versione per espandere le novità, le correzioni e le limitazioni. Per lo storico tecnico completo consulta il [Changelog](CHANGELOG.md); il documento di riferimento è [RELEASE_NOTES.it.md](RELEASE_NOTES.it.md).
 
-- **v1.2.0–v1.4.0:** distribuzione iniziale, inventario di rete, dashboard, modifiche candidate, Commit e rimozione guidata di configurazioni NAT.
-- **v1.5.0–v1.5.2:** configurazione completa del gateway Windows, più correzioni per DHCP, PersistentStore e IPv4 LAN statico.
-- **v1.6.0–v1.6.4:** nuova interfaccia laterale, tema chiaro/scuro e diagnostica PowerShell più completa.
-- **v1.7.0–v1.9.0:** diagnostica di compatibilità, rollback compensativo, supporto alle WAN dinamiche e rilevamento della subnet LAN.
-- **v1.10.0–v1.11.2:** updater con verifica SHA-256, segnalazione di bug e relativo gateway, diagnostica e tracciamento delle Issue.
-- **v1.12.0–v1.12.5:** Commit idempotente con checkpoint, evoluzione del backend NAT e gestione più prudente di indirizzi e subnet LAN.
-- **v1.13.0 e v1.13.0.1:** aggregazione delle subnet per i percorsi avanzati del gateway e HOTFIX che mantiene separata l'azione semplice «Aggiungi NAT».
-- **v1.14.0:** distribuzione e verifica del gateway anonimo per le segnalazioni e miglioramento della diagnostica dell'updater.
+<details>
+<summary><strong>1.14.0 — 16 ottobre 2026</strong></summary>
 
-**Nota operativa:** le operazioni di modifica della rete non sono transazioni atomiche Windows. Verifica sempre anteprima, backup e accesso locale; l'updater automatico deve ancora essere validato su una macchina Windows reale.
+**Tema del rilascio: segnalazione anonima dei problemi e diagnostica degli aggiornamenti.**
+
+### Novità
+- Attivato il gateway Cloudflare per inviare segnalazioni di bug senza richiedere un account GitHub all'utente. L'endpoint viene distribuito e verificato tramite GitHub Actions.
+- Introdotti controlli di salute del servizio, limitazione della frequenza di invio e convalida dei soli metadati previsti. Il gateway conserva le credenziali GitHub sul server anziché nel client.
+- Aggiunto un test end-to-end del servizio che invia una segnalazione sintetica, verifica il rilevamento dei duplicati e chiude la Issue di prova.
+
+### Correzioni e affidabilità
+- Gestiti i ritardi di indicizzazione delle Issue GitHub per ridurre la creazione di segnalazioni duplicate.
+- Accettate versioni sia a tre componenti (es. `1.14.0`) sia HOTFIX a quattro componenti (es. `1.13.0.1`).
+- Il controllo manuale degli aggiornamenti restituisce messaggi più specifici quando i metadati della release non sono validi; il controllo automatico all'avvio resta non bloccante in caso di indisponibilità del servizio.
+
+### Compatibilità e limiti
+- Nessuna modifica intenzionale alla logica di NAT e routing rispetto alla `1.13.0.1`.
+- Le segnalazioni automatiche inviano soltanto metadati anonimizzati predefiniti: non vengono inoltrati automaticamente configurazioni, comandi, credenziali o output PowerShell grezzi.
+- I test CI e del gateway non sostituiscono il collaudo su una macchina Windows reale, in particolare per l'aggiornamento dell'app e la riconfigurazione di rete.
+
+</details>
+
+<details>
+<summary><strong>1.13.0.1 — 15 ottobre 2026 — HOTFIX</strong></summary>
+
+**Correzione mirata di “Aggiungi NAT”.** Il comando crea la regola richiesta tramite `New-NetNat` senza ricostruire altri oggetti NAT, espandere prefissi o intervenire sugli indirizzi LAN/WAN. Se nome e prefisso coincidono con una regola esistente, l'operazione non ripete modifiche; se il nome collide con una configurazione diversa, viene segnalato il conflitto. Il rollback resta limitato all'oggetto richiesto. Aggiunto il supporto infrastrutturale al numero di versione HOTFIX a quattro componenti.
+
+</details>
+
+<details>
+<summary><strong>1.13.0 — 15 ottobre 2026</strong></summary>
+
+**Aggregazione di subnet LAN in una sola istanza WinNAT.** I percorsi di configurazione gateway possono espandere il prefisso dell'istanza WinNAT per comprendere più subnet, cercando di preservare nome, mapping statici e parametri supportati. Il Commit espone l'impatto della ricreazione dell'istanza e il rollback tenta di ripristinare il prefisso precedente. **Attenzione:** la successiva `1.13.0.1` ha deliberatamente separato il comportamento dell'azione semplice “Aggiungi NAT”, che non effettua più questa espansione.
+
+</details>
+
+<details>
+<summary><strong>1.12.5 — 15 ottobre 2026</strong></summary>
+
+**Migliorata la coesistenza di più subnet.** Riutilizzo di un'istanza WinNAT quando il suo prefisso include la LAN richiesta; aggiunta di IPv4 LAN senza sostituire indirizzi preesistenti e conservazione delle route non interessate dall'operazione. Se il prefisso NAT non è sufficiente, il Commit non procede a un reset implicito.
+
+</details>
+
+<details>
+<summary><strong>1.12.4 — 15 ottobre 2026</strong></summary>
+
+**Semplificata la creazione NAT.** Rimossi alcuni blocchi preventivi globali sul numero di istanze; rimangono i controlli sui nomi duplicati e la verifica dell'esito PowerShell. Questa versione è storica: consultare la `1.13.0.1` per il comportamento corretto di “Aggiungi NAT”.
+
+</details>
+
+<details>
+<summary><strong>1.12.3 — 15 ottobre 2026</strong></summary>
+
+**Correzione packaging Windows.** Incluso esplicitamente il modulo backend NAT/IP nell'eseguibile PyInstaller.
+
+</details>
+
+<details>
+<summary><strong>1.12.2 — 15 ottobre 2026</strong></summary>
+
+**Preparazione backend per mapping e IP secondari.** Introdotti inventario e funzioni per gestire mapping statici TCP/UDP, insieme all'aggiunta non distruttiva di indirizzi IPv4 secondari. Non sono stati aggiunti nuovi controlli nella UI.
+
+</details>
+
+<details>
+<summary><strong>1.12.1 — 15 ottobre 2026</strong></summary>
+
+**Preflight più prudente per il NAT.** Distinzione fra NAT assente, già corretto e in conflitto; blocco del Commit in presenza di configurazioni incompatibili o di stato ICS non verificabile.
+
+</details>
+
+<details>
+<summary><strong>1.12.0 — 15 ottobre 2026</strong></summary>
+
+**Commit differenziale e idempotente.** “Configura gateway” confronta la configurazione candidata con lo stato effettivo di Windows e applica soltanto le differenze residue. Un Commit parzialmente riuscito conserva il candidato per un nuovo tentativo; vengono verificate la convergenza finale e le transizioni di stato locali in `%LOCALAPPDATA%\WinNAT-UI\commit-states`.
+
+</details>
+
+<details>
+<summary><strong>1.11.2 — 15 ottobre 2026</strong></summary>
+
+**Segnalazione bug meno dipendente da GitHub pubblico.** La segnalazione viene inoltrata al gateway anche se la lettura pubblica delle Issue non è disponibile; il servizio gateway doveva ancora essere configurato dal manutentore.
+
+</details>
+
+<details>
+<summary><strong>1.11.1 — 15 ottobre 2026</strong></summary>
+
+**Messaggi di errore del reporting più chiari.** Eliminata una seconda finestra di errore ricorsiva; in caso di gateway assente o non disponibile il report anonimizzato rimane copiabile.
+
+</details>
+
+<details>
+<summary><strong>1.11.0 — 15 ottobre 2026</strong></summary>
+
+**Sistema di tracciamento dei bug.** Aggiunti archivio locale, firma anonima per riconoscere problemi simili, monitoraggio dello stato delle Issue e notifiche sulla disponibilità di versioni correttive. La creazione anonima dipendeva dall'attivazione del backend, completata nella `1.14.0`.
+
+</details>
+
+<details>
+<summary><strong>1.10.2 — 15 ottobre 2026</strong></summary>
+
+**Segnalazione guidata degli errori.** Nuove azioni per copiare l'errore oppure aprire una bozza di Issue GitHub contenente solo metadati predefiniti e anonimizzati. Nessuna pubblicazione automatica della bozza.
+
+</details>
+
+<details>
+<summary><strong>1.10.1 — 15 ottobre 2026</strong></summary>
+
+**Console PowerShell nel Commit.** Mostra script eseguiti, STDOUT, STDERR e codici di uscita; le informazioni restano consultabili anche durante gli errori e il rollback.
+
+</details>
+
+<details>
+<summary><strong>1.10.0 — 15 ottobre 2026</strong></summary>
+
+**Updater integrato e identità grafica.** Controllo delle release stabili GitHub, download dello ZIP ufficiale con consenso esplicito, verifica SHA-256, backup preventivo e tentativo di ripristino. Introdotta inoltre l'icona dell'applicazione nell'eseguibile e nella UI. **Limite storico:** l'updater non risultava collaudato su un computer Windows reale.
+
+</details>
+
+<details>
+<summary><strong>1.9.0 — 14 ottobre 2026</strong></summary>
+
+**Supporto WAN dinamiche e LAN automatica.** Include le funzionalità della versione sorgente intermedia non pubblicata, più le correzioni di stabilità.
+
+**Anteprima gateway più stabile.** Ignorate alcune variazioni temporanee delle WAN dinamiche durante la verifica tra anteprima e Commit, mantenendo i controlli sulla configurazione realmente rilevante.
+
+</details>
+
+<details>
+<summary><strong>1.8.0 — 14 ottobre 2026</strong></summary>
+
+**Rollback compensativo delle modifiche di rete.** In caso di Commit fallito, l'app tenta il ripristino delle risorse coinvolte tramite snapshot e verifica l'esito. **Limite:** non equivale a una transazione atomica di Windows e non garantisce il ripristino delle sessioni NAT o di tutte le modifiche esterne.
+
+</details>
+
+<details>
+<summary><strong>1.7.0 — 14 ottobre 2026</strong></summary>
+
+**Diagnostica di compatibilità in sola lettura.** Introdotto `tools/WinNAT-Diagnostica.ps1`, con inventario del sistema, schede, IPv4, route, WinNAT, ICS e Hyper-V e report TXT/JSON.
+
+</details>
+
+<details>
+<summary><strong>Serie 1.6.x e correzione 1.5.2 — 14 ottobre 2026</strong></summary>
+
+- **1.6.4:** errori PowerShell più leggibili, correzione dei caratteri accentati, allineamento delle note di rilascio e centralizzazione del numero di versione.
+- **1.6.3:** diagnostica PowerShell completa con script numerati, stdout, stderr e timeout.
+- **1.6.2:** corretta la gestione di falsi errori quando si applica l'IPv4 statico LAN.
+- **1.6.1:** introdotta una finestra per copiare i dettagli di debug.
+- **1.6.0:** nuova interfaccia laterale, dashboard con topologia, tema chiaro/scuro e barra delle modifiche; risolto un caso di ripristino DHCP. Pubblicata come MINOR nella nuova sequenza.
+- **1.5.2:** corretti casi di conflitto fra DHCP, PersistentStore e IP statico LAN; questa versione conservava ancora la vecchia interfaccia.
+
+</details>
+
+<details>
+<summary><strong>Versioni 1.5.0–1.5.1 — 14 ottobre 2026</strong></summary>
+
+- **1.5.1:** primo intervento sul conflitto PersistentStore/DHCP e test regressione.
+- **1.5.0:** configurazione completa di un gateway Windows da computer non configurato, con LAN, WAN, metriche, routing IPv4, forwarding e NAT; disponibili Disabilita e Ripristina.
+
+</details>
+
+<details>
+<summary><strong>Serie iniziale</strong></summary>
+
+- **1.4.0 — 14 ottobre 2026:** gestione della rimozione di NAT creati esternamente all'app e inventario concorrente.
+- **1.3.0 — 14 ottobre 2026:** dashboard, modifiche candidate, Commit, sessioni NAT e avanzamento operazioni.
+- **1.2.0 — 14 ottobre 2026:** prima distribuzione binaria pubblica con modifiche pendenti e Commit; il titolo della finestra conteneva un errore di numerazione.
+
+</details>
