@@ -14,7 +14,7 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 ### Aggiunto
 - Configurazione di più IPv4/subnet sulla stessa interfaccia LAN direttamente dalla schermata Gateway.
 - Rilevamento e visualizzazione degli IPv4 secondari già presenti sulla LAN.
-- Un oggetto WinNAT distinto per ogni subnet configurata, con nomi derivati dal nome base (`NAT-Firewall`, `NAT-Firewall-2`, ...).
+- Un oggetto WinNAT distinto per ogni subnet configurata; il nome NAT è visibile e modificabile per riga, con suggerimenti automatici (`NAT-Firewall`, `NAT-Firewall-2`, ...).
 
 ### Modificato
 - Rimossa l'espansione automatica dei prefissi NAT dai percorsi di configurazione ordinari: nessuna aggregazione CIDR, ricostruzione o rimozione implicita dei NAT esistenti.
