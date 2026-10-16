@@ -55,9 +55,11 @@ def detect_lan_subnet(data, alias):
         if iface.ip in (net.network_address, net.broadcast_address):
             continue
         origin = str(ip.get("PrefixOrigin") or "")
-        candidates.append((0 if origin == "Manual" else 1, str(net), str(iface.ip), origin))
+        secondary = str(ip.get("SkipAsSource", False)).lower() in ("true", "1")
+        candidates.append((1 if secondary else 0, 0 if origin == "Manual" else 1,
+                           str(net), str(iface.ip), origin))
     if candidates:
-        _rank, prefix, gateway, origin = sorted(candidates)[0]
+        _secondary, _origin_rank, prefix, gateway, origin = sorted(candidates)[0]
         return {"prefix": prefix, "gateway": gateway, "source": "rilevata", "origin": origin}
     return {"prefix": DEFAULT_PREFIX, "gateway": DEFAULT_GATEWAY, "source": "predefinita", "origin": ""}
 
