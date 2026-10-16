@@ -786,7 +786,8 @@ class App(tk.Tk):
     def layout_wan_rows(self):
         for child in self.wan_frame.winfo_children():
             child.destroy()
-        for key in [k for k in self.field_errors if ":" in k]:
+        for key in [k for k in self.field_errors
+                    if k.startswith("wan:") or k.startswith("metric:")]:
             del self.field_errors[key]
             del self.field_widgets[key]
         single = len(self.wan_rows) == 1
@@ -835,12 +836,12 @@ class App(tk.Tk):
             else "")
 
     def on_lan_changed(self):
-        """Selecting a LAN adopts the subnet already on that adapter, else 10.10.10.0/24."""
+        """Selecting a LAN adopts every usable IPv4 already present on that adapter."""
         if self.data is None or not hasattr(self, "subnet_badge"):
             return
         lan = self.lan.get()
         clash = [r for r in self.wan_rows if r["alias"].get() == lan]
-        for row in clash:   # an adapter cannot be LAN and WAN: the LAN choice wins
+        for row in clash:
             if len(self.wan_rows) > 1:
                 self.wan_rows.remove(row)
             else:
@@ -848,31 +849,24 @@ class App(tk.Tk):
                 row["alias"].set(free[0] if free else "")
         if clash:
             self.layout_wan_rows()
-            self.toast.show(lan + " ora \u00e8 la LAN: rimossa dalle WAN.", "info")
+            self.toast.show(lan + " ora è la LAN: rimossa dalle WAN.", "info")
         if lan != self.subnet_detected_for:
             self.subnet_detected_for = lan
             self.apply_detected_subnet()
         self.update_add_wan()
 
     def follow_prefix(self):
-        """Typing a new subnet moves the PC address to its first host if it no longer fits."""
-        try:
-            subnet = ipaddress.IPv4Network(network.validate_prefix(self.prefix.get().strip()))
-            ip = ipaddress.IPv4Address(self.gateway.get().strip())
-            if ip in subnet and ip not in (subnet.network_address, subnet.broadcast_address):
-                return
-        except ValueError:
-            try:
-                subnet = ipaddress.IPv4Network(network.validate_prefix(self.prefix.get().strip()))
-            except ValueError:
-                return
-        self.gateway.set(str(next(subnet.hosts())))
+        """Backward-compatible helper for the primary LAN row."""
+        if self.lan_rows:
+            self.follow_lan_prefix(self.lan_rows[0])
 
     def apply_detected_subnet(self):
-        found = network_guide.detect_lan_subnet(self.data or {}, self.lan.get())
-        self.prefix.set(found["prefix"])
-        self.gateway.set(found["gateway"])
+        found = network_guide.detect_lan_addresses(self.data or {}, self.lan.get())
+        self.lan_rows.clear()
+        for item in found:
+            self.add_lan_row(item["prefix"], item["gateway"], validate=False)
         self.subnet_source = found
+        self.layout_lan_rows()
         self.show_subnet_source()
 
     def show_subnet_source(self):
@@ -882,20 +876,24 @@ class App(tk.Tk):
             return
         self.subnet_badge.grid()
         lan = self.lan.get()
-        if found["prefix"] != self.prefix.get().strip() or found["gateway"] != self.gateway.get().strip():
+        current = [(r["prefix"].get().strip(), r["gateway"].get().strip()) for r in self.lan_rows]
+        detected = [(r["prefix"], r["gateway"]) for r in found]
+        if current != detected:
             self.subnet_badge.set("MODIFICATA A MANO", "accent")
-            text = ("Valori personalizzati. Rilevati su " + lan + ": " + found["gateway"] + " in " + found["prefix"]
-                    if found["source"] == "rilevata" else "Valori personalizzati al posto di quelli predefiniti.")
-        elif found["source"] == "rilevata":
-            self.subnet_badge.set("RILEVATA SU " + lan.upper(), "success")
-            text = ("L'indirizzo attuale di " + lan + " diventa statico e senza gateway; il NAT usa questa subnet.")
-            if found.get("origin") == "Dhcp":
-                text += (" Era assegnato via DHCP: se sulla LAN c'\u00e8 ancora un server DHCP, "
-                         "valuta una subnet diversa per evitare conflitti.")
+            text = ("Configurazione LAN personalizzata: " + str(len(self.lan_rows))
+                    + " subnet/IP. Ogni subnet usa un oggetto WinNAT distinto.")
+        elif found[0]["source"] == "rilevata":
+            count = len(found)
+            self.subnet_badge.set("RILEVATI " + str(count) + " IP SU " + lan.upper(), "success")
+            text = ("Gli indirizzi IPv4 già presenti vengono conservati. "
+                    "Ogni subnet configurata usa un oggetto WinNAT distinto.")
+            if any(item.get("origin") == "Dhcp" for item in found):
+                text += " Almeno un indirizzo è DHCP: verifica che la LAN resti coerente prima del commit."
         else:
             self.subnet_badge.set("PREDEFINITA", "neutral")
-            text = lan + " non ha un IPv4 utilizzabile: verr\u00e0 configurata la subnet predefinita."
+            text = lan + " non ha un IPv4 utilizzabile: verrà proposta la subnet predefinita."
         self.subnet_hint.configure(text=text)
+
 
     def reset_form(self):
         d = network_guide.DEFAULTS
@@ -911,30 +909,42 @@ class App(tk.Tk):
         if self.data is not None:
             self.on_lan_changed()
         else:
-            self.prefix.set(d["prefix"])
-            self.gateway.set(d["gateway"])
+            self.lan_rows.clear()
+            self.add_lan_row(d["prefix"], d["gateway"], validate=False)
+            self.subnet_source = [{"prefix": d["prefix"], "gateway": d["gateway"],
+                                   "source": "predefinita", "origin": ""}]
+            self.layout_lan_rows()
         self.validate_form()
 
     def form_profile(self):
+        addresses = []
+        for i, row in enumerate(self.lan_rows):
+            addresses.append({"prefix": row["prefix"].get().strip(),
+                              "gateway": row["gateway"].get().strip(),
+                              "nat": self.nat_name_for_lan_row(i)})
+        first = addresses[0] if addresses else {
+            "prefix": "", "gateway": "", "nat": self.profile_nat.get().strip()}
         return {"lan": self.lan.get(),
-                "wans": [{"alias": r["alias"].get(), "metric": r["metric"].get().strip()} for r in self.wan_rows],
-                "prefix": self.prefix.get().strip(), "gateway": self.gateway.get().strip(),
-                "nat": self.profile_nat.get().strip()}
+                "wans": [{"alias": r["alias"].get(), "metric": r["metric"].get().strip()}
+                         for r in self.wan_rows],
+                "prefix": first["prefix"], "gateway": first["gateway"],
+                "lan_addresses": addresses, "nat": self.profile_nat.get().strip()}
 
     def field_problems(self):
         """Inline, per-field validation (error prevention before any PowerShell call)."""
         p, errors = self.form_profile(), {}
         if not p["lan"]:
             errors["lan"] = "Seleziona la scheda LAN."
-        seen = {p["lan"]}
+
+        seen_aliases = {p["lan"]}
         previous = 0
         for i, w in enumerate(p["wans"]):
             if not w["alias"]:
                 errors["wan:%d" % i] = "Seleziona un'interfaccia."
-            elif w["alias"] in seen:
+            elif w["alias"] in seen_aliases:
                 errors["wan:%d" % i] = ("Deve essere diversa dalla LAN." if w["alias"] == p["lan"]
-                                        else "Interfaccia gi\u00e0 usata da un'altra WAN.")
-            seen.add(w["alias"])
+                                        else "Interfaccia già usata da un'altra WAN.")
+            seen_aliases.add(w["alias"])
             try:
                 metric = int(w["metric"])
                 if not 1 <= metric <= 9999:
@@ -945,24 +955,40 @@ class App(tk.Tk):
             if metric <= previous:
                 errors["metric:%d" % i] = "Metrica: deve essere maggiore di " + str(previous) + " (WAN sopra)."
             previous = metric
-        subnet = None
-        try:
-            subnet = ipaddress.IPv4Network(network.validate_prefix(p["prefix"]))
-        except ValueError as exc:
-            errors["prefix"] = friendly_ip_error(exc, "10.10.10.0/24")
-        if subnet is not None:
+
+        seen_prefixes, seen_gateways = set(), set()
+        wan_nets = network_guide.wan_networks(
+            self.data or {}, [w["alias"] for w in p["wans"]])
+        for i, address in enumerate(p["lan_addresses"]):
+            subnet = None
             try:
-                network.validate_gateway(p["gateway"], subnet)
+                subnet = ipaddress.IPv4Network(network.validate_prefix(address["prefix"]))
             except ValueError as exc:
-                errors["gateway"] = friendly_ip_error(exc, str(next(subnet.hosts(), "10.10.10.1")))
-            for alias, net in network_guide.wan_networks(self.data or {}, [w["alias"] for w in p["wans"]]):
-                if net.overlaps(subnet):
-                    errors["prefix"] = "Si sovrappone alla rete di " + alias + " (" + str(net) + ")."
+                errors["prefix:%d" % i] = friendly_ip_error(exc, "10.10.10.0/24")
+            if subnet is not None:
+                if str(subnet) in seen_prefixes:
+                    errors["prefix:%d" % i] = "Subnet già configurata su questa LAN."
+                seen_prefixes.add(str(subnet))
+                try:
+                    gateway = network.validate_gateway(address["gateway"], subnet)
+                    if gateway in seen_gateways:
+                        errors["gateway:%d" % i] = "IP già configurato su questa LAN."
+                    seen_gateways.add(gateway)
+                except ValueError as exc:
+                    errors["gateway:%d" % i] = friendly_ip_error(
+                        exc, str(next(subnet.hosts(), "10.10.10.1")))
+                for alias, net in wan_nets:
+                    if net.overlaps(subnet):
+                        errors["prefix:%d" % i] = (
+                            "Si sovrappone alla rete di " + alias + " (" + str(net) + ").")
         try:
-            network.validate_name(p["nat"])
+            base = network.validate_name(p["nat"])
+            for i in range(1, len(p["lan_addresses"])):
+                network.validate_name(base + "-" + str(i + 1))
         except ValueError as exc:
             errors["nat"] = str(exc)
         return errors
+
 
     def validate_form(self):
         if not hasattr(self, "plan_list"):
@@ -971,9 +997,12 @@ class App(tk.Tk):
         shown = set()
         for key, (label, hint) in self.field_errors.items():
             err = errors.get(key)
-            if ":" in key:  # WAN rows share one message line for alias + metric
+            if key.startswith("wan:") or key.startswith("metric:"):
                 index = key.split(":")[1]
                 err = errors.get("wan:" + index) or errors.get("metric:" + index)
+            elif key.startswith("prefix:") or key.startswith("gateway:"):
+                index = key.split(":")[1]
+                err = errors.get("prefix:" + index) or errors.get("gateway:" + index)
             if id(label) not in shown or err:
                 label.configure(text="⚠  " + err if err else hint,
                                 style="Card.Error.TLabel" if err else "Card.Caption.TLabel")
