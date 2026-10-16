@@ -1,27 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-  <defs>
-    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#16294A"/>
-      <stop offset="0.55" stop-color="#0F2F45"/>
-      <stop offset="1" stop-color="#0B6B73"/>
-    </linearGradient>
-    <linearGradient id="wire" gradientUnits="userSpaceOnUse" x1="60" y1="0" x2="138" y2="0">
-      <stop offset="0" stop-color="#8FE3E8"/>
-      <stop offset="1" stop-color="#38C6CF"/>
-    </linearGradient>
-    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#38C6CF" stop-opacity="0.45"/>
-      <stop offset="1" stop-color="#38C6CF" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <rect x="12" y="12" width="232" height="232" rx="54" fill="url(#tile)"/>
-  <rect x="13.5" y="13.5" width="229" height="229" rx="52.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="3"/>
-  <circle cx="138" cy="128" r="74" fill="url(#glow)"/>
-  <path d="M66 80 C 100 80, 104 128, 138 128" fill="none" stroke="url(#wire)" stroke-width="10" stroke-linecap="round"/><path d="M66 128 C 100 128, 104 128, 138 128" fill="none" stroke="url(#wire)" stroke-width="10" stroke-linecap="round"/><path d="M66 176 C 100 176, 104 128, 138 128" fill="none" stroke="url(#wire)" stroke-width="10" stroke-linecap="round"/>
-  <circle cx="66" cy="80" r="13" fill="#E6F7F8"/><circle cx="66" cy="128" r="13" fill="#E6F7F8"/><circle cx="66" cy="176" r="13" fill="#E6F7F8"/>
-  <path d="M150 128 L 186 128" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round"/>
-  <path d="M184 106 L 212 128 L 184 150 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="6" stroke-linejoin="round"/>
-  <circle cx="138" cy="128" r="31" fill="#38C6CF"/>
-  <circle cx="138" cy="128" r="31" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="3"/>
-  <circle cx="138" cy="128" r="12" fill="#0F2440"/>
+  <defs><clipPath id="t"><rect x="16" y="16" width="224" height="224" rx="52"/></clipPath></defs>
+  <g clip-path="url(#t)">
+    <rect x="16" y="16" width="224" height="224" fill="#122848"/>
+    <path d="M240 136 L240 240 L136 240 Z" fill="#0F3A55"/>
+  </g>
+  <rect x="17.5" y="17.5" width="221" height="221" rx="50.5" fill="none" stroke="#2E527F" stroke-width="3"/>
+  <!-- crisp offset shadow (no blur) -->
+  <g fill="#0A1A30" transform="translate(0 8)">
+    <circle cx="140" cy="128" r="34"/>
+    <path d="M168 120 H186 V100 L218 128 L186 156 V136 H168 Z"/>
+  </g>
+  <g fill="none" stroke="#5ED6DD" stroke-width="12" stroke-linecap="round">
+    <path d="M64 84 C 96 84, 104 128, 136 128"/>
+    <path d="M64 128 H 136"/>
+    <path d="M64 172 C 96 172, 104 128, 136 128"/>
+  </g>
+  <g fill="#FFFFFF">
+    <circle cx="64" cy="84" r="15"/><circle cx="64" cy="128" r="15"/><circle cx="64" cy="172" r="15"/>
+    <path d="M168 120 H186 V100 L218 128 L186 156 V136 H168 Z" stroke="#FFFFFF" stroke-width="4" stroke-linejoin="round"/>
+  </g>
+  <circle cx="140" cy="128" r="34" fill="#22B5C0"/>
+  <circle cx="140" cy="128" r="34" fill="none" stroke="#FFFFFF" stroke-width="5"/>
+  <circle cx="140" cy="128" r="13" fill="#0E2440"/>
 </svg>
