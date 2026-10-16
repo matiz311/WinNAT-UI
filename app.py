@@ -11,7 +11,7 @@ import network
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("WinNAT UI 1.1.0 | Windows NAT Manager")
+        self.title("WinNAT UI 1.2.0 | Windows NAT Manager")
         self.geometry("1040x740")
         self.minsize(850, 600)
         self.data = None
