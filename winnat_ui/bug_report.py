@@ -16,7 +16,8 @@ ISSUE_URL = "https://github.com/matiz311/WinNAT-UI/issues/new"
 SAFE_OPERATIONS = {"Commit", "Aggiornamenti", "Download aggiornamento", "Update",
                    "Refresh", "Aggiorna", "Sessioni"}
 SAFE_MODULES = {"app.py", "network.py", "network_guide.py", "network_rollback.py",
-                "network_plan.py", "updater.py", "ui_theme.py", "bug_report.py"}
+                "network_plan.py", "updater.py", "ui_theme.py", "bug_report.py",
+                "issue_tracker.py", "nat_backend.py", "version.py"}
 SAFE_EXCEPTION_TYPES = {
     "RuntimeError", "ValueError", "TypeError", "KeyError", "OSError",
     "PermissionError", "FileNotFoundError", "TimeoutError", "CalledProcessError",
@@ -112,9 +113,11 @@ def _summary(message):
     return "Errore non classificato (consultare dettagli e traceback)"
 
 
-def build_payload(operation, message, traceback_text, version, inventory=None, is_admin=None):
+def build_payload(operation, message, traceback_text, version, inventory=None, is_admin=None, pending=None):
     """One source of truth for manually copied and automatically submitted reports."""
-    op = operation if operation in SAFE_OPERATIONS else "Altra operazione"
+    op = redact(str(operation or "")).strip()
+    if not re.fullmatch(r"[w .:()/+-]{1,80}", op):
+        op = "Altra operazione"
     ver = str(version) if re.fullmatch(r"\d{1,3}\.\d{1,3}\.\d{1,3}(?:\.\d{1,3})?", str(version)) else "0.0.0"
     original = str(message or "")
     match = re.search(r"(?:PowerShell (?:exit code|terminato con codice)|Exit code:)\s*(\d{1,4})",
@@ -137,6 +140,8 @@ def build_payload(operation, message, traceback_text, version, inventory=None, i
                 keys = ("adapters", "ips", "routes", "interfaces", "nats", "natMappings",
                         "ics", "icsConnections", "dns", "globalRouter")
                 inventory = {k: inventory[k] for k in keys if k in inventory}
+            if pending:
+                inventory = {"network": inventory, "pending_changes": pending}
             snapshot = json.dumps(inventory, ensure_ascii=False, indent=2, default=str)
         except (TypeError, ValueError):
             snapshot = "(serializzazione inventario non riuscita)"
