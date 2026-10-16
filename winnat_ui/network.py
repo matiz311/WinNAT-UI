@@ -72,7 +72,7 @@ def collect():
     """Collect independent configuration groups concurrently. Sessions are separate."""
     scripts = {
         "adapters": "Get-NetAdapter | Select-Object Name,InterfaceIndex,InterfaceDescription,Status,LinkSpeed",
-        "ips": "Get-NetIPAddress -AddressFamily IPv4 | Select-Object InterfaceAlias,InterfaceIndex,IPAddress,PrefixLength,AddressState,PrefixOrigin,SkipAsSource",
+        "ips": "Get-NetIPAddress -AddressFamily IPv4 | Select-Object InterfaceAlias,InterfaceIndex,IPAddress,PrefixLength,AddressState,@{Name='PrefixOrigin';Expression={$_.PrefixOrigin.ToString()}},SkipAsSource",
         "routes": "Get-NetRoute -AddressFamily IPv4 | Select-Object InterfaceAlias,InterfaceIndex,DestinationPrefix,NextHop,RouteMetric,InterfaceMetric",
         "interfaces": "Get-NetIPInterface -AddressFamily IPv4 | Select-Object InterfaceAlias,InterfaceIndex,Forwarding,Dhcp,AutomaticMetric,ConnectionState,InterfaceMetric",
         "nats": "Get-NetNat | Select-Object Name,InternalIPInterfaceAddressPrefix,ExternalIPInterfaceAddressPrefix,Active",
