@@ -44,6 +44,7 @@ class MaintenanceRegistryTests(unittest.TestCase):
         history, status = self.documents()
         event = history["events"][0]
         event["status"] = "completed"
+        event["evidence"] = []
         event["started_at"] = "2026-10-16T22:30:00Z"
         event["ended_at"] = "2026-10-16T22:40:00Z"
         with self.assertRaisesRegex(ValueError, "verification evidence"):
@@ -73,6 +74,7 @@ class MaintenanceRegistryTests(unittest.TestCase):
 
     def test_prior_registration_allows_workflow_change(self):
         event = copy.deepcopy(self.history["events"][0])
+        event["status"] = "planned"
 
         def fake_git(*args):
             if args[0] == "merge-base":
