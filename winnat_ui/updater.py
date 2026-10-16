@@ -147,52 +147,374 @@ def prepare(info):
 
 
 # This script runs separately while the main EXE exits. Rollback is a directory
-# restoration (no network settings are changed by the updater).
+# restoration (no network settings are changed by the updater). It runs without
+# a console window and draws its own progress window (WinForms) so the user sees
+# each phase and the file being copied. Every UI call is best-effort: a UI
+# failure is logged and the update continues headless, never aborted.
 HELPER_PS = r'''
 param(
     [Parameter(Mandatory=$true)][int]$ParentPid,
     [Parameter(Mandatory=$true)][string]$InstallDir,
-    [Parameter(Mandatory=$true)][string]$StageRoot
+    [Parameter(Mandatory=$true)][string]$StageRoot,
+    [string]$FromVersion = '',
+    [string]$ToVersion = '',
+    [switch]$NoUi,
+    [switch]$NoLaunch,
+    # Tests only: close the error window after N seconds instead of waiting.
+    [int]$AutoCloseSeconds = 0
 )
 $ErrorActionPreference = 'Stop'
 $backup = Join-Path $StageRoot 'previous'
 $source = Join-Path $StageRoot 'new'
 $log = Join-Path $StageRoot 'update-log.txt'
 $installed = Join-Path $InstallDir 'WinNAT-UI.exe'
+$stepNames = @('Chiusura di WinNAT UI', 'Copia di sicurezza della versione installata',
+               'Installazione della nuova versione', 'Verifica dei file installati',
+               'Avvio di WinNAT UI')
+$script:busy = $true
+$script:ui = $null
+$script:current = 0
+
+function Write-Log([string]$text) {
+    try { ((Get-Date -Format o) + '  ' + $text) | Add-Content -LiteralPath $log -Encoding UTF8 } catch { }
+}
+
+function Disable-Ui($errorRecord) {
+    Write-Log ('UI disattivata: ' + $errorRecord.Exception.Message)
+    try { if ($script:ui) { $script:ui.form.Dispose() } } catch { }
+    $script:ui = $null
+}
+
+function Invoke-Pump {
+    if ($script:ui) {
+        try { [System.Windows.Forms.Application]::DoEvents() } catch { Disable-Ui $_ }
+    }
+}
+
+function New-UpdateWindow {
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
+    try {
+        Add-Type -Namespace WinNatUi -Name Native -MemberDefinition @'
+[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+[DllImport("user32.dll")] public static extern bool ShowWindow(System.IntPtr hWnd, int nCmdShow);
+[DllImport("user32.dll")] public static extern bool SetForegroundWindow(System.IntPtr hWnd);
+[DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(System.IntPtr hWnd, int attr, ref int value, int size);
+'@
+        [WinNatUi.Native]::SetProcessDPIAware() | Out-Null
+    } catch { }
+    [System.Windows.Forms.Application]::EnableVisualStyles()
+
+    $dark = $false
+    try {
+        $dark = (Get-ItemPropertyValue -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme') -eq 0
+    } catch { }
+    # Same tokens as winnat_ui/ui_theme.py (LIGHT / DARK).
+    $hex = if ($dark) {
+        @{ surface = '#1A222E'; text = '#E6EBF2'; muted = '#A3AEBE'; faint = '#748094'; border = '#2C3746';
+           accent = '#2BB3BD'; success = '#4CC38A'; danger = '#F2766B' }
+    } else {
+        @{ surface = '#FFFFFF'; text = '#152033'; muted = '#5B6778'; faint = '#8792A2'; border = '#DDE3EC';
+           accent = '#0E7C86'; success = '#1B7F4B'; danger = '#B3261E' }
+    }
+    $c = @{}
+    foreach ($k in $hex.Keys) { $c[$k] = [System.Drawing.ColorTranslator]::FromHtml($hex[$k]) }
+    $fNormal = New-Object System.Drawing.Font('Segoe UI', 9.5)
+    $fStrong = New-Object System.Drawing.Font('Segoe UI Semibold', 9.5)
+    $fTitle = New-Object System.Drawing.Font('Segoe UI Semibold', 13)
+    $fSmall = New-Object System.Drawing.Font('Segoe UI', 8.5)
+    $fGlyph = New-Object System.Drawing.Font('Segoe UI Symbol', 10)
+
+    $form = New-Object System.Windows.Forms.Form
+    $form.SuspendLayout()
+    $form.AutoScaleDimensions = New-Object System.Drawing.SizeF(96, 96)
+    $form.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi
+    $form.Text = 'Aggiornamento WinNAT UI'
+    $form.ClientSize = New-Object System.Drawing.Size(480, 270)
+    $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+    $form.MaximizeBox = $false
+    $form.MinimizeBox = $false
+    $form.ControlBox = $false
+    $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
+    $form.TopMost = $true
+    $form.BackColor = $c.surface
+    $form.ForeColor = $c.text
+    $form.Font = $fNormal
+    try { $form.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon($installed) } catch { }
+    $form.Add_FormClosing({ param($s, $e) if ($script:busy) { $e.Cancel = $true } })
+
+    function Add-Label($text, $x, $y, $w, $h, $font, $color) {
+        $l = New-Object System.Windows.Forms.Label
+        $l.Text = $text
+        $l.Location = New-Object System.Drawing.Point($x, $y)
+        $l.Size = New-Object System.Drawing.Size($w, $h)
+        $l.Font = $font
+        $l.ForeColor = $color
+        $l.BackColor = [System.Drawing.Color]::Transparent
+        $l.AutoEllipsis = $true
+        $l.UseMnemonic = $false
+        $form.Controls.Add($l)
+        return $l
+    }
+
+    if ($form.Icon) {
+        $pic = New-Object System.Windows.Forms.PictureBox
+        $pic.Location = New-Object System.Drawing.Point(24, 22)
+        $pic.Size = New-Object System.Drawing.Size(36, 36)
+        $pic.SizeMode = [System.Windows.Forms.PictureBoxSizeMode]::Zoom
+        $pic.Image = $form.Icon.ToBitmap()
+        $form.Controls.Add($pic)
+    }
+    $title = Add-Label 'Aggiornamento di WinNAT UI' 72 18 384 26 $fTitle $c.text
+    $subText = if ($FromVersion -and $ToVersion) { 'Versione ' + $FromVersion + '  →  ' + $ToVersion }
+               elseif ($ToVersion) { 'Installazione della versione ' + $ToVersion }
+               else { 'Installazione della nuova versione' }
+    $sub = Add-Label $subText 72 44 384 20 $fNormal $c.muted
+
+    $steps = @()
+    for ($i = 0; $i -lt $stepNames.Count; $i++) {
+        $y = 84 + $i * 25
+        $g = Add-Label '○' 24 $y 22 22 $fGlyph $c.faint
+        $g.AutoEllipsis = $false
+        $t = Add-Label $stepNames[$i] 48 ($y + 1) 408 22 $fNormal $c.faint
+        $steps += , @{ glyph = $g; text = $t }
+    }
+
+    $track = New-Object System.Windows.Forms.Panel
+    $track.Location = New-Object System.Drawing.Point(24, 220)
+    $track.Size = New-Object System.Drawing.Size(432, 6)
+    $track.BackColor = $c.border
+    $fill = New-Object System.Windows.Forms.Panel
+    $fill.Dock = [System.Windows.Forms.DockStyle]::Left
+    $fill.Width = 0
+    $fill.BackColor = $c.accent
+    $track.Controls.Add($fill)
+    $form.Controls.Add($track)
+    $detail = Add-Label 'Preparazione…' 24 234 432 22 $fSmall $c.muted
+
+    $buttons = @()
+    foreach ($spec in @(@('Chiudi', 368, 88), @('Apri registro', 252, 108), @('Riapri WinNAT UI', 24, 140))) {
+        $b = New-Object System.Windows.Forms.Button
+        $b.Text = $spec[0]
+        $b.Location = New-Object System.Drawing.Point($spec[1], 300)
+        $b.Size = New-Object System.Drawing.Size($spec[2], 30)
+        $b.Visible = $false
+        $b.UseVisualStyleBackColor = $true
+        $form.Controls.Add($b)
+        $buttons += $b
+    }
+    $buttons[0].Add_Click({ $script:ui.form.Close() })
+    $buttons[1].Add_Click({ try { Start-Process -FilePath 'notepad.exe' -ArgumentList ('"' + $log + '"') } catch { } })
+    $buttons[2].Add_Click({
+        try { Start-Process -FilePath $installed -WorkingDirectory $InstallDir } catch { }
+        $script:ui.form.Close()
+    })
+    $form.AcceptButton = $buttons[0]
+
+    $form.ResumeLayout($true)
+    $form.Show()
+    # A hidden launch (SW_HIDE in STARTUPINFO) applies to the first window the
+    # process shows: show it again explicitly so the progress is always visible.
+    try {
+        [WinNatUi.Native]::ShowWindow($form.Handle, 1) | Out-Null
+        [WinNatUi.Native]::SetForegroundWindow($form.Handle) | Out-Null
+    } catch { $form.Hide(); $form.Show() }
+    if ($dark) {
+        # Dark title bar (Windows 10 20H1+ / 11), matching the dark palette.
+        try { $on = 1; [WinNatUi.Native]::DwmSetWindowAttribute($form.Handle, 20, [ref]$on, 4) | Out-Null } catch { }
+    }
+    $form.Activate()
+    [System.Windows.Forms.Application]::DoEvents()
+    return @{ form = $form; c = $c; steps = $steps; track = $track; fill = $fill; detail = $detail;
+              title = $title; sub = $sub; buttons = $buttons;
+              fNormal = $fNormal; fStrong = $fStrong; fSmall = $fSmall }
+}
+
+function Set-Step([int]$index) {
+    $script:current = $index
+    if ($index -lt $stepNames.Count) { Write-Log ('Fase: ' + $stepNames[$index]) }
+    if (-not $script:ui) { return }
+    try {
+        $u = $script:ui
+        for ($k = 0; $k -lt $u.steps.Count; $k++) {
+            $s = $u.steps[$k]
+            if ($k -lt $index) {
+                $s.glyph.Text = '✓'; $s.glyph.ForeColor = $u.c.success
+                $s.text.Font = $u.fNormal; $s.text.ForeColor = $u.c.muted
+            } elseif ($k -eq $index) {
+                $s.glyph.Text = '●'; $s.glyph.ForeColor = $u.c.accent
+                $s.text.Font = $u.fStrong; $s.text.ForeColor = $u.c.text
+            } else {
+                $s.glyph.Text = '○'; $s.glyph.ForeColor = $u.c.faint
+                $s.text.Font = $u.fNormal; $s.text.ForeColor = $u.c.faint
+            }
+        }
+    } catch { Disable-Ui $_ }
+    Invoke-Pump
+}
+
+function Set-Progress([int]$percent, [string]$text) {
+    if (-not $script:ui) { return }
+    try {
+        $u = $script:ui
+        $p = [Math]::Max(0, [Math]::Min(100, $percent))
+        $u.fill.Width = [int]($u.track.ClientSize.Width * $p / 100)
+        $u.detail.Text = $text
+    } catch { Disable-Ui $_ }
+    Invoke-Pump
+}
+
+function Copy-Tree([string]$from, [string]$to, [int]$pctFrom, [int]$pctTo, [string]$verb) {
+    $root = (Get-Item -LiteralPath $from).FullName.TrimEnd('\', '/')
+    $files = @(Get-ChildItem -LiteralPath $root -Recurse -File -Force)
+    $n = $files.Count
+    $i = 0
+    foreach ($f in $files) {
+        $rel = $f.FullName.Substring($root.Length + 1)
+        $dest = Join-Path $to $rel
+        $dir = Split-Path -Parent $dest
+        if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        Copy-Item -LiteralPath $f.FullName -Destination $dest -Force
+        $i++
+        Set-Progress ($pctFrom + [int](($pctTo - $pctFrom) * $i / [Math]::Max($n, 1))) `
+            ($verb + ' · file ' + $i + ' di ' + $n + ' · ' + $rel)
+    }
+    return $n
+}
+
+function Show-Result([bool]$ok, [string]$message, [bool]$canReopen) {
+    $script:busy = $false
+    if (-not $script:ui) { return }
+    try {
+        $u = $script:ui
+        if ($ok) {
+            Set-Step $stepNames.Count
+            Set-Progress 100 $message
+            $u.title.Text = 'Aggiornamento completato'
+            $u.title.ForeColor = $u.c.success
+            $until = (Get-Date).AddMilliseconds(1800)
+            while ((Get-Date) -lt $until -and $script:ui) { Start-Sleep -Milliseconds 50; Invoke-Pump }
+            if ($script:ui) { $u.form.Close() }
+            return
+        }
+        $s = $u.steps[[Math]::Min($script:current, $u.steps.Count - 1)]
+        $s.glyph.Text = '✕'; $s.glyph.ForeColor = $u.c.danger; $s.text.ForeColor = $u.c.danger
+        $u.title.Text = 'Aggiornamento non riuscito'
+        $u.title.ForeColor = $u.c.danger
+        $u.detail.Font = $u.fNormal
+        $u.detail.ForeColor = $u.c.text
+        $u.detail.AutoEllipsis = $false
+        $u.detail.Size = New-Object System.Drawing.Size($u.track.Width, ($u.buttons[0].Top - $u.detail.Top - 8))
+        $u.detail.Text = $message
+        $u.form.ClientSize = New-Object System.Drawing.Size($u.form.ClientSize.Width, ($u.buttons[0].Bottom + 18))
+        $u.buttons[0].Visible = $true
+        $u.buttons[1].Visible = $true
+        $u.buttons[2].Visible = $canReopen
+        $u.form.ControlBox = $true
+        $u.form.TopMost = $false
+        $u.form.Activate()
+        $limit = if ($AutoCloseSeconds -gt 0) { (Get-Date).AddSeconds($AutoCloseSeconds) } else { [DateTime]::MaxValue }
+        while ($script:ui -and $u.form.Visible -and (Get-Date) -lt $limit) { Start-Sleep -Milliseconds 50; Invoke-Pump }
+        if ($script:ui -and $u.form.Visible) { $u.form.Close() }
+    } catch { Disable-Ui $_ }
+}
+
+if (-not $NoUi) {
+    try { $script:ui = New-UpdateWindow }
+    catch { $script:ui = $null; Write-Log ('Finestra di avanzamento non disponibile: ' + $_.Exception.Message) }
+}
+Write-Log ('Aggiornamento WinNAT UI ' + $FromVersion + ' -> ' + $ToVersion)
+$installStarted = $false
+$installCommitted = $false
 try {
-    try { Wait-Process -Id $ParentPid -Timeout 45 -ErrorAction Stop }
-    catch { if (Get-Process -Id $ParentPid -ErrorAction SilentlyContinue) { throw 'Applicazione ancora aperta.' } }
+    Set-Step 0
+    Set-Progress 2 'In attesa che WinNAT UI termini…'
+    $deadline = (Get-Date).AddSeconds(45)
+    while (Get-Process -Id $ParentPid -ErrorAction SilentlyContinue) {
+        if ((Get-Date) -gt $deadline) { throw 'WinNAT UI è ancora aperta dopo 45 secondi.' }
+        Start-Sleep -Milliseconds 150
+        Invoke-Pump
+    }
     if (-not (Test-Path -LiteralPath (Join-Path $source 'WinNAT-UI.exe'))) {
         throw 'Eseguibile nuovo assente.'
     }
+
+    Set-Step 1
     New-Item -ItemType Directory -Path $backup -Force | Out-Null
     # Copy old application files before modifying any installed file.
-    Copy-Item -Path (Join-Path $InstallDir '*') -Destination $backup -Recurse -Force -ErrorAction Stop
-    $oldCount = @(Get-ChildItem -LiteralPath $backup -Recurse -File).Count
+    $oldCount = Copy-Tree $InstallDir $backup 5 40 'Copia di sicurezza'
     if ($oldCount -lt 1 -or -not (Test-Path -LiteralPath (Join-Path $backup 'WinNAT-UI.exe'))) {
-        throw 'Backup non completo: installazione non avviata.'
+        throw 'Copia di sicurezza non completa: installazione non avviata.'
     }
-    try {
-        Copy-Item -Path (Join-Path $source '*') -Destination $InstallDir -Recurse -Force -ErrorAction Stop
-    } catch {
-        Copy-Item -Path (Join-Path $backup '*') -Destination $InstallDir -Recurse -Force -ErrorAction Stop
-        throw ('Installazione fallita; ripristino tentato: ' + $_.Exception.Message)
-    }
+    Write-Log ('Copia di sicurezza: ' + $oldCount + ' file')
+
+    Set-Step 2
+    $installStarted = $true
+    $newCount = Copy-Tree $source $InstallDir 40 90 'Installazione'
+    Write-Log ('Installati: ' + $newCount + ' file')
+
+    Set-Step 3
+    Set-Progress 92 'Controllo di WinNAT-UI.exe…'
     if (-not (Test-Path -LiteralPath $installed)) { throw 'Installazione priva di EXE.' }
-    Start-Process -FilePath $installed -WorkingDirectory $InstallDir
-    ('Aggiornamento completato: ' + (Get-Date -Format o)) | Out-File $log -Encoding utf8
-} catch {
-    ('Aggiornamento fallito: ' + $_.Exception.ToString()) | Out-File $log -Encoding utf8
-    if (Test-Path -LiteralPath $backup) {
-        try { Copy-Item -Path (Join-Path $backup '*') -Destination $InstallDir -Recurse -Force -ErrorAction Stop }
-        catch { ('Anche il ripristino e fallito: ' + $_.Exception.ToString()) | Add-Content $log }
+    $expected = (Get-FileHash -LiteralPath (Join-Path $source 'WinNAT-UI.exe') -Algorithm SHA256).Hash
+    if ((Get-FileHash -LiteralPath $installed -Algorithm SHA256).Hash -ne $expected) {
+        throw 'WinNAT-UI.exe installato non corrisponde al pacchetto verificato.'
     }
+    $installCommitted = $true
+} catch {
+    $failure = $_.Exception.Message
+    Write-Log ('Aggiornamento fallito: ' + $_.Exception.ToString())
+    $note = 'La versione installata non è stata modificata.'
+    $canReopen = Test-Path -LiteralPath $installed
+    if ($installStarted -and -not $installCommitted) {
+        Set-Progress 0 'Ripristino della versione precedente…'
+        try {
+            Copy-Tree $backup $InstallDir 0 100 'Ripristino' | Out-Null
+            Write-Log 'Versione precedente ripristinata.'
+            $note = 'La versione precedente è stata ripristinata.'
+        } catch {
+            Write-Log ('Anche il ripristino e fallito: ' + $_.Exception.ToString())
+            $note = 'Il ripristino automatico non è riuscito: la copia di sicurezza è in ' + $backup
+            $canReopen = $false
+        }
+    }
+    Show-Result $false ($failure + "`r`n" + $note) $canReopen
     exit 1
+}
+
+try {
+    Set-Step 4
+    Set-Progress 97 'Avvio della nuova versione…'
+    if (-not $NoLaunch) { Start-Process -FilePath $installed -WorkingDirectory $InstallDir }
+    Write-Log 'Aggiornamento completato.'
+    $label = if ($ToVersion) { 'WinNAT UI ' + $ToVersion + ' è installata e si sta avviando.' }
+             else { 'La nuova versione è installata e si sta avviando.' }
+    Show-Result $true $label $false
+} catch {
+    Write-Log ('Aggiornamento installato, avvio fallito: ' + $_.Exception.ToString())
+    Show-Result $false ('Aggiornamento installato, ma WinNAT UI non si è avviata: ' + $_.Exception.Message) $true
+    exit 2
 }
 '''
 
+CREATE_NEW_PROCESS_GROUP = 0x00000200
+CREATE_NO_WINDOW = 0x08000000
 
-def launch(staging, install_dir=None, parent_pid=None):
+
+def helper_command(script, install_dir, staging, parent_pid, from_version="", to_version=""):
+    command = ["powershell.exe", "-NoProfile", "-NonInteractive", "-Sta",
+               "-ExecutionPolicy", "Bypass", "-File", str(script),
+               "-ParentPid", str(parent_pid),
+               "-InstallDir", str(install_dir),
+               "-StageRoot", str(staging)]
+    if from_version:
+        command += ["-FromVersion", str(from_version)]
+    if to_version:
+        command += ["-ToVersion", str(to_version)]
+    return command
+
+
+def launch(staging, install_dir=None, parent_pid=None, from_version="", to_version=""):
     """Schedule update after process exit; only for a packaged Windows EXE."""
     if sys.platform != "win32" or not getattr(sys, "frozen", False):
         raise RuntimeError("Aggiornamento automatico disponibile solo nell'EXE Windows installato.")
@@ -203,10 +525,12 @@ def launch(staging, install_dir=None, parent_pid=None):
     if not (staging / "new" / "WinNAT-UI.exe").is_file():
         raise ValueError("Pacchetto staged non valido.")
     script = staging / "apply-update.ps1"
-    script.write_text(HELPER_PS, encoding="utf-8")
-    subprocess.Popen(["powershell.exe", "-NoProfile", "-NonInteractive",
-                      "-ExecutionPolicy", "Bypass", "-File", str(script),
-                      "-ParentPid", str(parent_pid or os.getpid()),
-                      "-InstallDir", str(install_dir),
-                      "-StageRoot", str(staging)],
-                     creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+    # BOM: Windows PowerShell 5.1 reads BOM-less scripts as ANSI, which would
+    # garble the accented Italian text and symbols shown in the progress window.
+    script.write_text(HELPER_PS, encoding="utf-8-sig")
+    # No console window: the script shows its own progress window instead.
+    subprocess.Popen(helper_command(script, install_dir, staging, parent_pid or os.getpid(),
+                                    from_version, to_version),
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, close_fds=True,
+                     creationflags=CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW)

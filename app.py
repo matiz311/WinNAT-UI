@@ -1165,8 +1165,8 @@ class App(tk.Tk):
             if self.pending or self.tasks:
                 self.toast.show("Operazioni in corso: termina il lavoro prima di aggiornare.", "warning")
                 return
-            self.run_task("Download aggiornamento",
-                          lambda: updater.prepare(info), self._install_update)
+            self.run_task("Download aggiornamento", lambda: updater.prepare(info),
+                          lambda staging: self._install_update(staging, info["version"]))
         def lookup():
             try:
                 return updater.release_info(VERSION)
@@ -1181,13 +1181,13 @@ class App(tk.Tk):
                 raise
         self.run_task("Aggiornamenti", lookup, found)
 
-    def _install_update(self, staging):
+    def _install_update(self, staging, version=""):
         if self.pending or self.tasks:
             messagebox.showwarning("Aggiornamento rinviato",
                                    "Completa le modifiche prima di riavviare.", parent=self)
             return
         try:
-            updater.launch(staging)
+            updater.launch(staging, from_version=VERSION, to_version=version)
         except Exception as error:
             self.show_error_dialog("Aggiornamento non avviato", "Update", str(error),
                                    traceback.format_exc())
