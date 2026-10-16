@@ -1,5 +1,5 @@
 // Cloudflare Worker: anonymous WinNAT-UI bug intake.
-// IMPORTANT: deploy with a server-side GitHub fine-grained token (Issues: write).
+// Use a server-side GitHub fine-grained token (Issues: write).
 // Never publish the token in the desktop client, git repository or browser.
 const REPO = "matiz311/WinNAT-UI";
 const OPS = new Set(["Commit","Aggiornamenti","Download aggiornamento","Update","Refresh","Aggiorna","Sessioni","Altra operazione"]);
@@ -17,6 +17,29 @@ const MODULES = new Set(["app.py","network.py","network_guide.py","network_rollb
 "network_plan.py","updater.py","ui_theme.py","bug_report.py"]);
 const HEADERS = {"content-type":"application/json; charset=utf-8","cache-control":"no-store"};
 const json = (object, status=200) => new Response(JSON.stringify(object), {status,headers:HEADERS});
+async function boundedText(request, limit=4096) {
+  // Never buffer an unbounded request, even when Content-Length is missing.
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > limit) throw Error("payload-too-large");
+      chunks.push(value);
+    }
+  } finally { reader.releaseLock(); }
+  const result = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {result.set(chunk,offset); offset += chunk.byteLength;}
+  return new TextDecoder("utf-8",{fatal:true}).decode(result);
+}
+function configured(env) {
+  return Boolean(env.WINNAT_ISSUE_TOKEN && env.RATE_LIMIT_IP && env.RATE_LIMIT_GLOBAL);
+}
 function normalize(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw Error("bad");
   const allowed = new Set(["operation","category","exception","modules","version","exit_code"]);
@@ -36,7 +59,7 @@ async function github(env, endpoint, init={}) {
   const response = await fetch("https://api.github.com"+endpoint,{
     ...init,headers:{
       "accept":"application/vnd.github+json",
-      "authorization":"Bearer "+env.GITHUB_ISSUE_TOKEN,
+      "authorization":"Bearer "+env.WINNAT_ISSUE_TOKEN,
       "x-github-api-version":"2022-11-28",
       "user-agent":"WinNAT-UI-Bug-Gateway",
       ...(init.headers||{})
@@ -47,30 +70,38 @@ async function github(env, endpoint, init={}) {
 }
 async function lookup(env, sig) {
   // GitHub Issue listing avoids search indexing delay for recently created bugs.
-  const issues = await github(env, "/repos/"+REPO+"/issues?state=all&labels=bug-report&per_page=100");
+  const issues = await github(env, "/repos/"+REPO+"/issues?state=open&labels=bug-report&per_page=100");
   return issues.find(x=>!x.pull_request && x.state==="open" &&
     (x.body||"").includes("<!-- winnat-fingerprint:"+sig+" -->"))||null;
 }
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname==="/health" && request.method==="GET") {
+      return configured(env) ? json({status:"ready"}) : json({status:"not-configured"},503);
+    }
     if (request.method!=="POST"||url.pathname!=="/report") return json({error:"not-found"},404);
-    if (!env.GITHUB_ISSUE_TOKEN || !env.RATE_LIMIT) return json({error:"not-configured"},503);
+    if (!configured(env)) return json({error:"not-configured"},503);
     if (Number(request.headers.get("content-length")||0)>4096) return json({error:"payload-too-large"},413);
+    if (!(request.headers.get("content-type")||"").toLowerCase().startsWith("application/json"))
+      return json({error:"unsupported-media-type"},415);
     const ip = request.headers.get("CF-Connecting-IP");
     if (!ip) return json({error:"missing-origin"},403);
     const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(ip));
     const key=Array.from(new Uint8Array(digest)).map(x=>x.toString(16).padStart(2,"0")).join("").slice(0,32);
-    const hits=Number(await env.RATE_LIMIT.get("rl:"+key)||0);
-    if (hits>=3) return json({error:"too-many-requests"},429);
-    // This is a best-effort KV limit, NOT an atomic or DDoS-grade defense.
-    await env.RATE_LIMIT.put("rl:"+key,String(hits+1),{expirationTtl:3600});
+    // Built-in rate limiting is location-scoped and eventually consistent.
+    const limits=await Promise.all([
+      env.RATE_LIMIT_IP.limit({key:"report:"+key}),
+      env.RATE_LIMIT_GLOBAL.limit({key:"all-report-submissions"})
+    ]);
+    if (limits.some(x=>!x.success)) return json({error:"too-many-requests"},429);
     let payload;
     try {
-      const raw=await request.text();
-      if(raw.length>4096) return json({error:"payload-too-large"},413);
-      payload=normalize(JSON.parse(raw));
-    } catch {return json({error:"invalid-payload"},400);}
+      payload=normalize(JSON.parse(await boundedText(request)));
+    } catch(error) {
+      if (error.message==="payload-too-large") return json({error:"payload-too-large"},413);
+      return json({error:"invalid-payload"},400);
+    }
     const sig=await fingerprint(payload);
     try {
       const existing=await lookup(env,sig);
