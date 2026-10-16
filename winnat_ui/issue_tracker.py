@@ -112,7 +112,9 @@ def save_entry(payload, issue):
               "url": issue["url"], "operation": payload["operation"],
               "category": payload["category"], "version": payload["version"],
               "reported_at": datetime.now(timezone.utc).isoformat(),
-              "state": "open", "fixed_in": None}
+              "state": "open", "fixed_in": None,
+              "title": None, "triage": "ricevuto", "priority": None,
+              "updated_at": None}
     entries = [e for e in history() if not (
         e.get("fingerprint") == record["fingerprint"] and e.get("number") == record["number"])]
     entries.insert(0, record)
@@ -125,26 +127,36 @@ def save_entry(payload, issue):
 
 
 def public_issues():
-    """Read public labeled issues, not their raw bodies (which may contain secrets)."""
-    issues = _read_json(GITHUB_API + "/issues?state=all&labels=bug-report&per_page=100")
+    """Read GitHub metadata, including renamed titles and triage labels."""
     found = {}
-    if not isinstance(issues, list):
-        return found
-    for item in issues:
-        if "pull_request" in item:
-            continue
-        body = item.get("body") or ""
-        signature = re.search(r"<!-- winnat-fingerprint:([a-f0-9]{24}) -->", body)
-        if not signature:
-            continue
-        fixed = None
-        for label in item.get("labels", []):
-            value = label.get("name", "") if isinstance(label, dict) else ""
-            if re.fullmatch(r"fixed-in/v\d+\.\d+\.\d+", value):
-                fixed = value.split("v", 1)[1]
-        candidate = {"number": item.get("number"), "url": item.get("html_url"),
-                     "state": item.get("state"), "fixed_in": fixed, "fingerprint": signature.group(1)}
-        found.setdefault(signature.group(1), []).append(candidate)
+    for page in range(1, 11):
+        issues = _read_json(GITHUB_API + "/issues?state=all&labels=bug-report&per_page=100&page=" + str(page))
+        if not isinstance(issues, list):
+            raise ValueError("Risposta GitHub Issue non valida")
+        for item in issues:
+            if not isinstance(item, dict) or "pull_request" in item:
+                continue
+            body = item.get("body") or ""
+            match = re.search(r"<!-- winnat-fingerprint:([a-f0-9]{24}) -->", body)
+            if not match:
+                continue
+            labels = [label.get("name", "") for label in item.get("labels", [])
+                      if isinstance(label, dict)]
+            fixed = next((label.split("v", 1)[1] for label in labels
+                          if re.fullmatch(r"fixed-in/v\\d+\\.\\d+\\.\\d+", label)), None)
+            triage = next((label[len("triage:"):] for label in labels
+                           if label.startswith("triage:")), None)
+            priority = next((label[len("priority:"):] for label in labels
+                             if label.startswith("priority:")), None)
+            candidate = {"number": item.get("number"), "url": item.get("html_url"),
+                         "state": item.get("state"), "fixed_in": fixed,
+                         "fingerprint": match.group(1),
+                         "title": str(item.get("title") or "")[:240],
+                         "triage": triage, "priority": priority,
+                         "updated_at": item.get("updated_at")}
+            found.setdefault(match.group(1), []).append(candidate)
+        if len(issues) < 100:
+            break
     return found
 
 
@@ -168,6 +180,8 @@ def synchronize(installed=VERSION, remote=None, latest_version=None):
             issue = matches[0]
             record["state"] = issue["state"]
             record["fixed_in"] = issue["fixed_in"]
+            for field in ("title", "triage", "priority", "updated_at"):
+                record[field] = issue.get(field)
             record["fix_available"] = (bool(issue["fixed_in"]) and latest_version is not None
                                        and comparable_release(latest_version, issue["fixed_in"])
                                        and not comparable_release(installed, issue["fixed_in"]))
