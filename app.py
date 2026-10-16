@@ -1398,6 +1398,9 @@ class App(tk.Tk):
             first.set(choice[0] if choice else "")
         self.layout_wan_rows()
         self.on_lan_changed()
+        # Refresh the detected DHCP/static state without overwriting the
+        # user's candidate address or prefix after a successful commit.
+        self.subnet_source = network_guide.detect_lan_subnet(self.data, self.lan.get())
 
         lines = ["WAN prevista: " + (routes[0].get("InterfaceAlias", "?") if routes else "nessuna default route"), "",
                  "Interfacce e indirizzi IPv4:"]
