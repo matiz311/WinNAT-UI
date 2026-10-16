@@ -159,7 +159,9 @@ param(
     [string]$FromVersion = '',
     [string]$ToVersion = '',
     [switch]$NoUi,
-    [switch]$NoLaunch
+    [switch]$NoLaunch,
+    # Tests only: close the error window after N seconds instead of waiting.
+    [int]$AutoCloseSeconds = 0
 )
 $ErrorActionPreference = 'Stop'
 $backup = Join-Path $StageRoot 'previous'
@@ -411,7 +413,9 @@ function Show-Result([bool]$ok, [string]$message, [bool]$canReopen) {
         $u.form.ControlBox = $true
         $u.form.TopMost = $false
         $u.form.Activate()
-        while ($script:ui -and $u.form.Visible) { Start-Sleep -Milliseconds 50; Invoke-Pump }
+        $limit = if ($AutoCloseSeconds -gt 0) { (Get-Date).AddSeconds($AutoCloseSeconds) } else { [DateTime]::MaxValue }
+        while ($script:ui -and $u.form.Visible -and (Get-Date) -lt $limit) { Start-Sleep -Milliseconds 50; Invoke-Pump }
+        if ($script:ui -and $u.form.Visible) { $u.form.Close() }
     } catch { Disable-Ui $_ }
 }
 

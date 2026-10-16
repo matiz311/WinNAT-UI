@@ -41,10 +41,9 @@ class LaunchTests(unittest.TestCase):
             self.assertIn(needed, script)
 
 
-def _dead_pid():
-    proc = subprocess.Popen([sys.executable, "-c", "pass"])
-    proc.wait()
-    return proc.pid
+# Windows PIDs are multiples of 4 well below this value, so it never belongs to
+# a live process (a recycled PID would make the helper wait for 45 s).
+ABSENT_PID = 2147483644
 
 
 @unittest.skipUnless(sys.platform == "win32", "richiede Windows")
@@ -64,10 +63,11 @@ class HelperOnWindowsTests(unittest.TestCase):
         script.write_text(updater.HELPER_PS, encoding="utf-8-sig")
         result = subprocess.run(
             ["powershell.exe", "-NoProfile", "-NonInteractive", "-Sta", "-ExecutionPolicy",
-             "Bypass", "-File", str(script), "-ParentPid", str(_dead_pid()),
+             "Bypass", "-File", str(script), "-ParentPid", str(ABSENT_PID),
              "-InstallDir", str(inst), "-StageRoot", str(stage),
-             "-FromVersion", "1.14.0", "-ToVersion", "1.15.0", "-NoLaunch", *extra],
-            capture_output=True, text=True, timeout=180)
+             "-FromVersion", "1.14.0", "-ToVersion", "1.15.0", "-NoLaunch",
+             "-AutoCloseSeconds", "20", *extra],
+            capture_output=True, text=True, timeout=150)
         log = (stage / "update-log.txt").read_text(encoding="utf-8-sig")
         return result, inst, stage, log
 
