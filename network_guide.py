@@ -34,13 +34,46 @@ def suggest_metric(wans):
     return min(9999, (max(metrics) + METRIC_STEP) if metrics else 10)
 
 
-def detect_lan_subnet(data, alias):
-    """Subnet currently on the LAN adapter, kept as the static LAN network.
+def lan_addresses(profile):
+    """Normalize one or more IPv4 addresses on the same LAN interface.
 
-    Returns {"prefix", "gateway", "source", "origin"}: source is "rilevata" when
-    a usable IPv4 exists on the interface (manual addresses preferred over DHCP),
-    otherwise "predefinita" with 10.10.10.0/24 and 10.10.10.1.
+    New profiles use lan_addresses. Legacy single-prefix profiles remain valid.
+    NAT names are derived from the base name unless a row explicitly supplies one.
     """
+    raw = profile.get("lan_addresses")
+    if raw is None:
+        raw = [{"prefix": profile.get("prefix", ""),
+                "gateway": profile.get("gateway", ""),
+                "nat": profile.get("nat", "NAT-Firewall")}]
+    if not raw:
+        raise ValueError("Indica almeno una subnet LAN e un IP del PC.")
+
+    base_nat = network.validate_name(profile.get("nat", "NAT-Firewall"))
+    normalized = []
+    prefixes = set()
+    gateways = set()
+    nat_names = set()
+    for index, item in enumerate(raw):
+        prefix = ipaddress.IPv4Network(network.validate_prefix(item.get("prefix", "")))
+        gateway = network.validate_gateway(item.get("gateway", ""), prefix)
+        nat_name = str(item.get("nat", "")).strip() or (
+            base_nat if index == 0 else base_nat + "-" + str(index + 1))
+        nat_name = network.validate_name(nat_name)
+        if str(prefix) in prefixes:
+            raise ValueError("Subnet LAN duplicata: " + str(prefix) + ".")
+        if gateway in gateways:
+            raise ValueError("IP LAN duplicato: " + gateway + ".")
+        if nat_name in nat_names:
+            raise ValueError("Nome NAT duplicato: " + nat_name + ".")
+        prefixes.add(str(prefix))
+        gateways.add(gateway)
+        nat_names.add(nat_name)
+        normalized.append({"prefix": str(prefix), "gateway": gateway, "nat": nat_name})
+    return normalized
+
+
+def detect_lan_addresses(data, alias):
+    """Return every usable IPv4 currently assigned to the selected LAN adapter."""
     candidates = []
     for ip in data.get("ips", []):
         if ip.get("InterfaceAlias") != alias:
@@ -55,11 +88,18 @@ def detect_lan_subnet(data, alias):
         if iface.ip in (net.network_address, net.broadcast_address):
             continue
         origin = str(ip.get("PrefixOrigin") or "")
-        candidates.append((0 if origin == "Manual" else 1, str(net), str(iface.ip), origin))
+        candidates.append((0 if origin == "Manual" else 1, int(iface.ip),
+                           {"prefix": str(net), "gateway": str(iface.ip),
+                            "source": "rilevata", "origin": origin}))
     if candidates:
-        _rank, prefix, gateway, origin = sorted(candidates)[0]
-        return {"prefix": prefix, "gateway": gateway, "source": "rilevata", "origin": origin}
-    return {"prefix": DEFAULT_PREFIX, "gateway": DEFAULT_GATEWAY, "source": "predefinita", "origin": ""}
+        return [entry for _rank, _value, entry in sorted(candidates, key=lambda item: (item[0], item[1]))]
+    return [{"prefix": DEFAULT_PREFIX, "gateway": DEFAULT_GATEWAY,
+             "source": "predefinita", "origin": ""}]
+
+
+def detect_lan_subnet(data, alias):
+    """Backward-compatible single-address view."""
+    return detect_lan_addresses(data, alias)[0]
 
 
 def wan_networks(data, aliases):
@@ -105,9 +145,8 @@ def validate(profile, data, action):
         raise ValueError("Almeno un'interfaccia non è presente sul PC.")
     for a in aliases:
         _iface(data, a)
-    prefix = ipaddress.IPv4Network(network.validate_prefix(profile.get("prefix", "")))
-    gateway = network.validate_gateway(profile.get("gateway", ""), prefix)
-    nat = network.validate_name(profile.get("nat", "NAT-Firewall"))
+
+    addresses = lan_addresses(profile)
     previous = 0
     for i, w in enumerate(wans):
         try:
@@ -120,20 +159,26 @@ def validate(profile, data, action):
             raise ValueError("Le metriche devono crescere secondo la priorità: " + w["alias"]
                              + " deve avere una metrica maggiore di " + str(previous) + ".")
         previous = w["metric"]
-    for alias, net in (wan_networks(data, [w["alias"] for w in wans]) if action == "apply" else []):
-        if net.overlaps(prefix):
-            raise ValueError("La subnet LAN " + str(prefix) + " si sovrappone alla rete della WAN "
-                             + alias + " (" + str(net) + "): scegli un'altra subnet.")
-    normalized = dict(lan=lan, wans=wans, prefix=str(prefix), gateway=gateway, nat=nat)
+
     if action == "apply":
-        # One physical WinNAT: any LAN prefix it covers is a logical network.
-        network.nat_network_preflight(nat, str(prefix), data)
+        wan_nets = wan_networks(data, [w["alias"] for w in wans])
+        for address in addresses:
+            lan_net = ipaddress.IPv4Network(address["prefix"])
+            for alias, wan_net in wan_nets:
+                if wan_net.overlaps(lan_net):
+                    raise ValueError("La subnet LAN " + str(lan_net) + " si sovrappone alla rete della WAN "
+                                     + alias + " (" + str(wan_net) + "): scegli un'altra subnet.")
+            network.nat_add_preflight(address["nat"], address["prefix"], data)
         for i, w in enumerate(wans):
             if not any(r.get("InterfaceAlias") == w["alias"] and r.get("DestinationPrefix") == "0.0.0.0/0"
                        for r in data.get("routes", [])):
                 raise ValueError(("WAN primaria " if i == 0 else "WAN ") + w["alias"] +
                                  " senza default route: collegala a Internet o rimuovila dalla configurazione.")
-    return normalized
+
+    first = addresses[0]
+    return dict(lan=lan, wans=wans, prefix=first["prefix"], gateway=first["gateway"],
+                lan_addresses=addresses, nat=first["nat"])
+
 
 
 def _wan_aliases(p):
@@ -156,6 +201,9 @@ def preview(action, profile, data):
         items = [step["label"] for step in steps]
         if not items:
             return ["Nessuna modifica necessaria: la configurazione rilevata coincide già con il candidato."]
+        if len(p["lan_addresses"]) > 1:
+            items.append("LAN: " + str(len(p["lan_addresses"])) + " subnet/IP sullo stesso adattatore; "
+                         "un oggetto WinNAT distinto per ogni subnet.")
         items.append("WAN: DHCP, gateway e DNS esistenti NON vengono modificati.")
     elif action == "disable":
         items = ["Elimina tutti gli oggetti WinNAT (" + str(len(names)) + "): " + (", ".join(names) or "nessuno"),
@@ -290,31 +338,39 @@ def _target_nat_present(data, p):
 
 
 def apply_diff(profile, data):
-    """Return the minimal operations still required to reach the apply target.
+    """Return the minimal operations required for the requested gateway profile.
 
-    The current Windows inventory is the source of truth. Re-running the same
-    candidate therefore becomes a no-op once the requested state is present.
+    Every requested IPv4 subnet can coexist on the same LAN interface. Existing
+    addresses are preserved, missing ones are added, and each subnet receives its
+    own WinNAT object. No NAT prefix aggregation or migration is performed.
     """
     p = validate(profile, data, "apply")
     steps = []
     lan_iface = _iface(data, p["lan"])
     lan_ips = _relevant_lan_ips(data, p["lan"])
-    prefixlen = ipaddress.IPv4Network(p["prefix"]).prefixlen
-    lan_matches = [
-        row for row in lan_ips
-        if row.get("IPAddress") == p["gateway"]
-        and _safe_int(row.get("PrefixLength"), -1) == prefixlen
-    ]
-    lan_converged = len(lan_matches) == 1
 
-    if not lan_converged:
-        if _enabled(lan_iface.get("Dhcp")):
-            raise ValueError("LAN con DHCP attivo: nessuna sostituzione automatica della configurazione IPv4.")
+    missing = []
+    for address in p["lan_addresses"]:
+        prefixlen = ipaddress.IPv4Network(address["prefix"]).prefixlen
+        present = any(
+            row.get("IPAddress") == address["gateway"]
+            and _safe_int(row.get("PrefixLength"), -1) == prefixlen
+            for row in lan_ips
+        )
+        if not present:
+            missing.append((address, prefixlen))
+
+    if missing and _enabled(lan_iface.get("Dhcp")):
+        raise ValueError("LAN con DHCP attivo: nessuna sostituzione automatica della configurazione IPv4.")
+
+    has_existing_source = bool(lan_ips)
+    for index, (address, prefixlen) in enumerate(missing):
+        skip_as_source = has_existing_source or index > 0
         steps.append({
-            "key": "lan-address",
-            "label": "LAN " + p["lan"] + ": aggiungi IP " + p["gateway"] + "/" + str(prefixlen),
+            "key": "lan-address:" + address["gateway"],
+            "label": "LAN " + p["lan"] + ": aggiungi IP " + address["gateway"] + "/" + str(prefixlen),
             "script": [
-                "$lanIP = " + psquote(p["gateway"]),
+                "$lanIP = " + psquote(address["gateway"]),
                 "$lanPrefix = " + str(prefixlen),
                 "$duplicate = @(Get-NetIPAddress -AddressFamily IPv4 -IPAddress $lanIP -ErrorAction SilentlyContinue | "
                 "Where-Object { $_.InterfaceIndex -ne $lanIndex -or $_.PrefixLength -ne $lanPrefix })",
@@ -325,13 +381,10 @@ def apply_diff(profile, data):
                 "  $iface = Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop",
                 "  if ($iface.Dhcp -ne 'Disabled') { throw 'DHCP LAN attivo: configurazione mantenuta' }",
                 "  New-NetIPAddress -InterfaceAlias $lan -IPAddress $lanIP -PrefixLength $lanPrefix "
-                "-SkipAsSource $true -ErrorAction Stop | Out-Null",
+                "-SkipAsSource $" + ("true" if skip_as_source else "false") + " -ErrorAction Stop | Out-Null",
                 "}",
             ],
         })
-
-    # Existing LAN routes are left untouched; their ownership is unknown.
-    # Modifying a NAT profile must not silently remove firewall/site routes.
 
     if _safe_int(data.get("globalRouter"), 0) != 1:
         steps.append({
@@ -373,27 +426,24 @@ def apply_diff(profile, data):
                 ],
             })
 
-    nat_action = network.nat_network_preflight(p["nat"], p["prefix"], data)
-    if nat_action == "create":
-        steps.append({
-            "key": "nat",
-            "label": "Crea WinNAT unico " + p["nat"] + " per " + p["prefix"],
-            "script": [
-                "New-NetNat -Name " + psquote(p["nat"])
-                + " -InternalIPInterfaceAddressPrefix " + psquote(p["prefix"])
-                + " -ErrorAction Stop | Out-Null"
-            ],
-        })
-    elif nat_action == "expand":
-        aggregate = network.shared_nat_prefix(
-            data["nats"][0]["InternalIPInterfaceAddressPrefix"], p["prefix"])
-        steps.append({
-            "key": "nat-expand",
-            "label": "Espandi WinNAT unico a " + aggregate
-                     + " (ricreazione, interruzione sessioni esistenti)",
-            "script": [network.nat_expansion_script(p["prefix"], data)],
-        })
+    staged_nats = list(data.get("nats", []))
+    for address in p["lan_addresses"]:
+        action = network.nat_add_preflight(address["nat"], address["prefix"], {"nats": staged_nats})
+        if action == "create":
+            steps.append({
+                "key": "nat:" + address["nat"],
+                "label": "Crea WinNAT " + address["nat"] + " per " + address["prefix"],
+                "script": [
+                    "New-NetNat -Name " + psquote(address["nat"])
+                    + " -InternalIPInterfaceAddressPrefix " + psquote(address["prefix"])
+                    + " -ErrorAction Stop | Out-Null"
+                ],
+            })
+            staged_nats.append({"Name": address["nat"],
+                                "InternalIPInterfaceAddressPrefix": address["prefix"],
+                                "ExternalIPInterfaceAddressPrefix": None})
     return p, steps
+
 
 
 def _guard_script(p):
@@ -493,8 +543,9 @@ def execute(action, profile, current, expected_fingerprint, verify=False):
             "Interfaccia LAN: " + p["lan"] + "\n"
             "WAN (in ordine di priorità): " + ", ".join(
                 w["alias"] + " [metrica " + str(w["metric"]) + "]" for w in p["wans"]) + "\n"
-            "IPv4 atteso: " + p["gateway"] + "/" + p["prefix"].split("/")[1] + "\n"
-            "NAT atteso: " + p["nat"] + "\n\n"
+            "IPv4 attesi: " + ", ".join(a["gateway"] + "/" + a["prefix"].split("/")[1]
+                                                   for a in p["lan_addresses"]) + "\n"
+            "NAT attesi: " + ", ".join(a["nat"] + "=" + a["prefix"] for a in p["lan_addresses"]) + "\n\n"
             "ERRORE ORIGINALE:\n" + str(error) + "\n\n"
             "CONFIGURAZIONE RILEVATA PRIMA DEL COMMIT:\n"
             + json.dumps(current, indent=2, ensure_ascii=False, default=str) + "\n\n"
