@@ -556,16 +556,20 @@ class App(tk.Tk):
         lan_header.grid(row=row[0], column=0, columnspan=2, sticky="ew")
         lan_header.columnconfigure(1, weight=1)
         lan_header.columnconfigure(2, weight=1)
+        lan_header.columnconfigure(3, weight=1)
         tk.Label(lan_header, text="", width=2, bg=C["surface"]).grid(row=0, column=0)
         ttk.Label(lan_header, text="Subnet LAN (CIDR)", style="Card.TLabel").grid(row=0, column=1, sticky="w")
         ttk.Label(lan_header, text="IP del PC sulla LAN", style="Card.TLabel").grid(
             row=0, column=2, sticky="w", padx=(S2, 0))
+        ttk.Label(lan_header, text="Nome NAT", style="Card.TLabel").grid(
+            row=0, column=3, sticky="w", padx=(S2, 0))
         row[0] += 1
 
         self.lan_frame = tk.Frame(form, bg=C["surface"])
         self.lan_frame.grid(row=row[0], column=0, columnspan=2, sticky="ew", pady=(2, 0))
         self.lan_frame.columnconfigure(1, weight=1)
         self.lan_frame.columnconfigure(2, weight=1)
+        self.lan_frame.columnconfigure(3, weight=1)
         row[0] += 1
 
         lan_add_bar = tk.Frame(form, bg=C["surface"])
@@ -575,13 +579,11 @@ class App(tk.Tk):
         self.add_lan_button.pack(side="left")
         row[0] += 1
 
-        self.add_lan_row(network_guide.DEFAULT_PREFIX, network_guide.DEFAULT_GATEWAY, validate=False)
+        self.add_lan_row(network_guide.DEFAULT_PREFIX, network_guide.DEFAULT_GATEWAY,
+                         "NAT-Firewall", validate=False)
         self.subnet_hint = ttk.Label(form, text="", style="Card.Caption.TLabel", wraplength=420, justify="left")
         self.subnet_hint.grid(row=row[0], column=0, columnspan=2, sticky="w", pady=(S1, S1))
         row[0] += 1
-        field("nat", "Nome base NAT", self.profile_nat,
-              hint="La prima subnet usa questo nome; le successive aggiungono -2, -3, ...")
-        self.profile_nat.trace_add("write", lambda *a: self.layout_lan_rows())
         heading("2", "Uscite Internet (WAN)")
         wan_intro = ttk.Label(form, text="In ordine di priorit\u00e0: la prima \u00e8 la primaria, le altre "
                                          "subentrano se cade quella sopra. Metrica pi\u00f9 bassa = preferita.",
@@ -658,29 +660,45 @@ class App(tk.Tk):
 
     # ---- LAN IPv4 rows (primary + secondary addresses on one adapter) ----
     def nat_name_for_lan_row(self, index):
+        if 0 <= index < len(self.lan_rows):
+            return self.lan_rows[index]["nat"].get().strip()
         base = self.profile_nat.get().strip() or "NAT-Firewall"
         return base if index == 0 else base + "-" + str(index + 1)
 
-    def add_lan_row(self, prefix="", gateway="", validate=True):
+    def suggested_lan_nat_name(self):
+        base = self.profile_nat.get().strip() or "NAT-Firewall"
+        used = {row["nat"].get().strip() for row in self.lan_rows}
+        if not self.lan_rows and base not in used:
+            return base
+        number = max(2, len(self.lan_rows) + 1)
+        while base + "-" + str(number) in used:
+            number += 1
+        return base + "-" + str(number)
+
+    def add_lan_row(self, prefix="", gateway="", nat="", validate=True):
         primary = not self.lan_rows
         if primary:
-            prefix_var, gateway_var = self.prefix, self.gateway
+            prefix_var, gateway_var, nat_var = self.prefix, self.gateway, self.profile_nat
             prefix_var.set(prefix or network_guide.DEFAULT_PREFIX)
             gateway_var.set(gateway or network_guide.DEFAULT_GATEWAY)
+            nat_var.set(nat or "NAT-Firewall")
         else:
             prefix_var = tk.StringVar(value=prefix)
             gateway_var = tk.StringVar(value=gateway)
-        row = {"prefix": prefix_var, "gateway": gateway_var}
+            nat_var = tk.StringVar(value=nat or self.suggested_lan_nat_name())
+        row = {"prefix": prefix_var, "gateway": gateway_var, "nat": nat_var}
         self.lan_rows.append(row)
         if primary:
             if not self._primary_lan_traces:
                 prefix_var.trace_add("write", lambda *a: (
                     self.follow_lan_prefix(self.lan_rows[0]) if self.lan_rows else None))
                 gateway_var.trace_add("write", lambda *a: self.validate_form())
+                nat_var.trace_add("write", lambda *a: self.validate_form())
                 self._primary_lan_traces = True
         else:
             prefix_var.trace_add("write", lambda *a, row=row: self.follow_lan_prefix(row))
             gateway_var.trace_add("write", lambda *a: self.validate_form())
+            nat_var.trace_add("write", lambda *a: self.validate_form())
         if hasattr(self, "lan_frame"):
             self.layout_lan_rows()
         if validate:
@@ -715,7 +733,7 @@ class App(tk.Tk):
         for child in self.lan_frame.winfo_children():
             child.destroy()
         for key in [k for k in self.field_errors
-                    if k.startswith("prefix:") or k.startswith("gateway:")]:
+                    if k.startswith("prefix:") or k.startswith("gateway:") or k.startswith("natrow:")]:
             del self.field_errors[key]
             del self.field_widgets[key]
         for i, row in enumerate(self.lan_rows):
@@ -728,18 +746,21 @@ class App(tk.Tk):
             prefix_entry.grid(row=r, column=1, sticky="ew")
             gateway_entry = ttk.Entry(self.lan_frame, textvariable=row["gateway"])
             gateway_entry.grid(row=r, column=2, sticky="ew", padx=(S2, 0))
+            nat_entry = ttk.Entry(self.lan_frame, textvariable=row["nat"])
+            nat_entry.grid(row=r, column=3, sticky="ew", padx=(S2, 0))
             remove = ttk.Button(self.lan_frame, text="✕", width=2, style="CardGhost.TButton",
                                 command=lambda row=row: self.remove_lan_row(row))
-            remove.grid(row=r, column=3, padx=(S1, 0))
+            remove.grid(row=r, column=4, padx=(S1, 0))
             if i == 0:
                 remove.state(["disabled"])
-            hint = ("Primaria" if i == 0 else "Secondaria") + " · NAT " + self.nat_name_for_lan_row(i)
+            hint = "Primaria" if i == 0 else "Secondaria"
             msg = ttk.Label(self.lan_frame, text=hint, style="Card.Caption.TLabel")
-            msg.grid(row=r + 1, column=1, columnspan=3, sticky="w", pady=(2, S2))
-            self.field_errors["prefix:%d" % i] = (msg, hint)
-            self.field_widgets["prefix:%d" % i] = prefix_entry
-            self.field_errors["gateway:%d" % i] = (msg, hint)
-            self.field_widgets["gateway:%d" % i] = gateway_entry
+            msg.grid(row=r + 1, column=1, columnspan=4, sticky="w", pady=(2, S2))
+            for kind, widget in (("prefix", prefix_entry), ("gateway", gateway_entry), ("natrow", nat_entry)):
+                key = kind + ":%d" % i
+                self.field_errors[key] = (msg, hint)
+                self.field_widgets[key] = widget
+
 
     # ---- WAN rows (1..N, bounded by the adapters on this PC) ----
     def adapter_names(self):
