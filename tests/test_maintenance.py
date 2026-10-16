@@ -1,4 +1,5 @@
 """Offline and stale-status tests for advisory maintenance detection."""
+import io
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
@@ -29,6 +30,26 @@ class MaintenanceTests(unittest.TestCase):
         record = dict(self.record, services={"github-releases": {
             "status": "anything", "event_id": None}})
         self.assertEqual(maintenance.parse_status(record, now=self.now), {})
+
+    def test_maintenance_requires_traceable_event_id(self):
+        for event_id in (None, "", "untracked", "MAINT-20261017-1",
+                         "MAINT-20261017-001\\nInjected"):
+            with self.subTest(event_id=event_id):
+                services = {"github-releases": {
+                    "status": "maintenance", "event_id": event_id}}
+                document = dict(self.record, services=services)
+                self.assertEqual(maintenance.parse_status(document, now=self.now), {})
+        self.assertEqual(
+            maintenance.parse_status(self.record, now=self.now)
+            ["github-releases"]["event_id"], "MAINT-20261017-001")
+
+    def test_non_https_status_redirect_is_rejected(self):
+        class Response(io.BytesIO):
+            def geturl(self):
+                return "http://raw.githubusercontent.com/test.json"
+        with patch("winnat_ui.maintenance.urllib.request.urlopen",
+                   return_value=Response(b"{}")):
+            self.assertEqual(maintenance.current_services(), {})
 
     def test_network_failure_is_nonblocking(self):
         with patch("winnat_ui.maintenance.urllib.request.urlopen",
