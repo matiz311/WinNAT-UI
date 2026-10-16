@@ -32,7 +32,7 @@ Obiettivo: sostituire la numerazione storica incoerente con una sequenza **univo
 | `v1.9.13` | `v1.12.4` | PATCH |
 | `v1.9.14` | `v1.12.5` | PATCH |
 | `v1.9.15` | `v1.13.0` | MINOR |
-| `v1.9.15.1` | `v1.13.1` | PATCH |
+| `v1.9.15.1` | `v1.13.0.1` | HOTFIX |
 | `v1.10.0` | `v1.14.0` | MINOR |
 
 ## Controlli di preflight obbligatori
@@ -52,5 +52,6 @@ Obiettivo: sostituire la numerazione storica incoerente con una sequenza **univo
 - Non usare `--force` o sovrascrivere SHA e asset storici senza backup.
 - Non creare release vuote o tag alias che puntino a eseguibili con numerazione differente.
 - Non inserire in `main` script di migrazione una tantum dopo il completamento: lavorare su branch dedicato, riportando in `main` solo codice, policy e documentazione definitiva.
-- Per aderire al SemVer standard le correzioni urgenti usano PATCH; niente quarta componente HOTFIX nei **nuovi** identificativi. `1.9.15.1` diventa quindi `1.13.1`.
+- Il progetto mantiene l'estensione a quattro componenti `MAJOR.MINOR.PATCH.HOTFIX` per le sole correzioni urgenti a una release già pubblicata. È una convenzione del progetto (non SemVer 2.0.0 puro). `1.9.15.1` diventa quindi `1.13.0.1`. Le normali correzioni successive usano PATCH (`1.13.1`), dopo aver integrato gli eventuali HOTFIX; la componente HOTFIX torna a zero a ogni incremento PATCH, MINOR o MAJOR.
+- Sequenza consentita: `1.13.0` → `1.13.0.1` → `1.13.0.2` → `1.13.1` → `1.14.0`. Non creare `1.13.0.1` prima di `1.13.0`, né cambiare un HOTFIX già pubblicato.
 - Questa tabella deriva dal changelog, **non** costituisce ancora un inventario verificato dei tag e degli asset realmente presenti.
