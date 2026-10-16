@@ -56,6 +56,40 @@ class MaintenanceRegistryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unknown maintenance"):
             guard.validate(history, status)
 
+    def test_legacy_pr67_gateway_commit_is_explicitly_allowlisted(self):
+        legacy = "ba987780caa641b84340e278d9e9fb70bf26401c"
+
+        def fake_git(*args):
+            if args[0] == "merge-base":
+                return "base"
+            if args[0] == "rev-list":
+                return legacy
+            if args[0] == "diff-tree":
+                return ".github/workflows/new.yml" if extra_path else (
+                    "services/bug-gateway/src/index.js")
+            raise AssertionError(args)
+
+        for extra_path in (False, True):
+            with (patch.object(guard, "git", side_effect=fake_git),
+                  patch.object(guard, "at_commit", return_value={"events": []})):
+                if extra_path:
+                    with self.assertRaisesRegex(ValueError, "PREVIOUS-COMMIT"):
+                        guard.check_pr("base", 67)
+                else:
+                    guard.check_pr("base", 67)
+
+    def test_legacy_pr67_does_not_exempt_future_commits(self):
+        def fake_git(*args):
+            if args[0] == "merge-base": return "base"
+            if args[0] == "rev-list": return "new-commit"
+            if args[0] == "diff-tree": return "services/bug-gateway/src/index.js"
+            if args[0] == "rev-parse": return "previous"
+            raise AssertionError(args)
+        with (patch.object(guard, "git", side_effect=fake_git),
+              patch.object(guard, "at_commit", return_value={"events": []})):
+            with self.assertRaisesRegex(ValueError, "PREVIOUS-COMMIT"):
+                guard.check_pr("base", 67)
+
     def test_missing_prior_registration_fails_pr(self):
         def fake_git(*args):
             if args[0] == "merge-base":
