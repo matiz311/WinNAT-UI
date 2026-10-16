@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 import urllib.error
 import urllib.request
 
-import bug_report
+from . import bug_report
 from version import VERSION
 
 REPO = "matiz311/WinNAT-UI"

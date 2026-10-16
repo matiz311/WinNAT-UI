@@ -9,17 +9,17 @@ import time
 import tkinter as tk
 import webbrowser
 from tkinter import ttk, messagebox, filedialog
-import network
-import nat_backend  # Include headless NAT/IP capabilities in packaged Windows executable.
-import network_plan
-import network_guide
-import network_rollback
-import bug_report
-import issue_tracker
-import updater
-import ui_theme as ui
+from winnat_ui import network
+from winnat_ui import nat_backend  # Include headless NAT/IP capabilities in packaged Windows executable.
+from winnat_ui import network_plan
+from winnat_ui import network_guide
+from winnat_ui import network_rollback
+from winnat_ui import bug_report
+from winnat_ui import issue_tracker
+from winnat_ui import updater
+from winnat_ui import ui_theme as ui
 from version import VERSION
-from ui_theme import C, F, S1, S2, S3, S4, S5
+from winnat_ui.ui_theme import C, F, S1, S2, S3, S4, S5
 
 REPO_URL = "https://github.com/matiz311/WinNAT-UI"
 

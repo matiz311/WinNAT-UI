@@ -6,8 +6,8 @@ restoration. The original error and snapshot remain available.
 """
 import ipaddress
 import json
-import network
-import network_guide
+from . import network
+from . import network_guide
 
 
 def quote(value):

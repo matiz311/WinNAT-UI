@@ -4,7 +4,7 @@ Windows WinNAT only supports one internal NAT prefix. Multiple translations must
 share that NAT. This module intentionally does not mutate unrelated WinNAT objects.
 """
 import ipaddress
-import network
+from . import network
 
 
 def _quote(value):
