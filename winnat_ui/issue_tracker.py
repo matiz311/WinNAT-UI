@@ -143,7 +143,7 @@ def public_issues():
             labels = [label.get("name", "") for label in item.get("labels", [])
                       if isinstance(label, dict)]
             fixed = next((label.split("v", 1)[1] for label in labels
-                          if re.fullmatch(r"fixed-in/v\\d+\\.\\d+\\.\\d+", label)), None)
+                          if re.fullmatch(r"fixed-in/v\d+\.\d+\.\d+(?:\.\d+)?", label)), None)
             triage = next((label[len("triage:"):] for label in labels
                            if label.startswith("triage:")), None)
             priority = next((label[len("priority:"):] for label in labels
