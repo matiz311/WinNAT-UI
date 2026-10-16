@@ -208,7 +208,7 @@ WinNAT-UI completa il canale di segnalazione anonima introdotto nella serie 1.9:
 
 ## [1.5.0] - non pubblicata
 - Numero saltato: nessuna release 1.5.0 è stata distribuita.
-- Anche 1.10.0 non è mai stata pubblicata (build annullata).
+- Una precedente build con numero 1.10.0 era stata annullata; il numero è stato successivamente riutilizzato per la release candidata del 16 ottobre 2026. Distinguere le build annullate dalle release pubblicate.
 
 ## [1.4.0] - 2026-10-14
 ### Aggiunto
