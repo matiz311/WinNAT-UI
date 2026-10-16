@@ -20,7 +20,7 @@ def lan_rows(inventory, alias):
     return sorted(
         [row for row in inventory.get("ips", []) if row.get("InterfaceAlias") == alias
          and not str(row.get("IPAddress", "")).startswith("169.254.")],
-        key=lambda row: (not skip_as_source(row.get("SkipAsSource")),
+        key=lambda row: (skip_as_source(row.get("SkipAsSource")),
                          int(ipaddress.IPv4Address(row["IPAddress"])))
     )
 
