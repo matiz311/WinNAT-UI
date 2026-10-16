@@ -15,6 +15,7 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 Release funzionale retrocompatibile della serie 1.x: migliora la configurazione LAN, estende la gestione degli indirizzi IPv4, rende le segnalazioni dei problemi più diagnostiche e perfeziona l'esperienza di aggiornamento. Include una nuova icona vettoriale. Rimane invariato il vincolo architetturale di un'unica istanza fisica WinNAT.
 
 ### Funzionalità
+- Ridimensionamento più fluido delle pagine: aggregazione degli eventi di larghezza e aggiornamenti condizionati di wrapping, canvas topologia e ScrollFrame per ridurre ridisegni ridondanti (PR #59).
 - La configurazione guidata della LAN rileva il DHCP attivo e propone la conversione esplicita a IPv4 statico, con possibilità di scegliere indirizzo e prefisso, senza bloccare la preparazione delle modifiche per il solo DHCP.
 - Gestione degli IPv4 secondari direttamente dall'interfaccia LAN, conservando l'indirizzo primario e rispettando il modello single-WinNAT.
 - Segnalazioni di bug opzionali più dettagliate con contesto d'errore, traceback, output e configurazione di rete; anteprima e conferma esplicita prima della pubblicazione di informazioni potenzialmente sensibili su GitHub.
@@ -22,6 +23,7 @@ Release funzionale retrocompatibile della serie 1.x: migliora la configurazione 
 - Nuova icona piatta in stile vettoriale, con risoluzioni dedicate per 16/32 pixel e asset ICO/PNG/SVG coordinati.
 
 ### Correzioni
+- Corrette le interruzioni di riga nella conferma di aggiornamento, prima mostrate come sequenze letterali (PR #57).
 - Migliorata la selezione dell'IPv4 LAN primario in presenza di indirizzi secondari e il trattamento degli indirizzi assegnati via DHCP nei piani di setup.
 - Conservati i messaggi di errore e il flusso di conferma dei report durante le operazioni in background; ampliati i test d'integrazione.
 - Classificazione degli errori HTTP e di connessione nel controllo aggiornamenti GitHub (404, 403/429, 5xx, DNS e timeout), incorporando il fix previsto nella manutenzione 1.14.1.

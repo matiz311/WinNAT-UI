@@ -9,6 +9,7 @@ Le note di questa pagina sono destinate agli utilizzatori dell'applicazione. Per
 **Tema: configurazione LAN più flessibile, diagnostica completa e nuova identità visiva.**
 
 ### Novità
+- Ridimensionamento della finestra più fluido, con meno ricalcoli di layout e disegni della topologia.
 - Un'interfaccia LAN che utilizza DHCP può essere preparata per il passaggio a IP statico, scegliendo indirizzo/prefisso oppure mantenendo il valore proposto.
 - Aggiunta e gestione di IPv4 secondari sulla LAN tramite interfaccia grafica.
 - Nuova icona vettoriale nei formati Windows, con migliore leggibilità anche nella barra delle applicazioni.
@@ -16,6 +17,7 @@ Le note di questa pagina sono destinate agli utilizzatori dell'applicazione. Per
 - Installazione degli aggiornamenti accompagnata da una finestra di avanzamento dedicata.
 
 ### Correzioni e compatibilità
+- Corretta la disposizione su più righe del testo nella finestra di conferma aggiornamento.
 - Rilevamento coerente di DHCP e IPv4 primario/secondario, senza modificare in modo implicito altri indirizzi della scheda.
 - Diagnostica specifica per risposte HTTP 404, 403, 429 e 5xx, errori DNS e timeout nel controllo aggiornamenti, includendo quanto preparato per la v1.14.1.
 - Continua a essere supportata una sola istanza fisica WinNAT; non viene introdotta la proposta multi-oggetto della PR #37.
