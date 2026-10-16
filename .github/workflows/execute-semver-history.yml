@@ -1,10 +1,13 @@
 name: Execute historical SemVer republishing
 
 on:
-  push:
-    branches: [maintenance/semver-history-migration]
-    paths:
-      - .github/workflows/execute-semver-history.yml
+  workflow_dispatch:
+    inputs:
+      confirm_republish:
+        description: 'Confirm that the original 28 Releases are restored and the credential probe is approved'
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   contents: read
@@ -15,6 +18,7 @@ concurrency:
 
 jobs:
   backup:
+    if: github.ref == 'refs/heads/maintenance/semver-history-migration' && inputs.confirm_republish == true
     runs-on: ubuntu-latest
     timeout-minutes: 75
     steps:
@@ -64,6 +68,7 @@ jobs:
         with:
           ref: maintenance/semver-history-migration
           fetch-depth: 0
+          token: ${{ secrets.WINNAT_MIGRATION_PAT }}
       - name: Checkout approved new release notes
         uses: actions/checkout@v4
         with:
@@ -83,5 +88,10 @@ jobs:
           path: work/staged/
       - name: Validate files and perform controlled tag and release replacement
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: python tools/execute_semver_migration.py publish --work work --docs release_docs
+          GH_TOKEN: ${{ secrets.WINNAT_MIGRATION_PAT }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::WINNAT_MIGRATION_PAT is not configured. No tags were touched."
+            exit 2
+          fi
+          python tools/execute_semver_migration.py publish --work work --docs release_docs
