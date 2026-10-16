@@ -1,4 +1,4 @@
-"""Privacy regression tests: unknown log content must never enter an issue URL."""
+"""Regression tests for detailed diagnostics and targeted credential masking."""
 import unittest
 from urllib.parse import parse_qs, urlparse
 
@@ -6,63 +6,78 @@ from winnat_ui import bug_report
 
 
 class BugReportTests(unittest.TestCase):
-    def test_report_is_allowlisted_and_contains_no_sensitive_inputs(self):
-        sensitive = [
-            "10.10.10.1", "192.168.1.22", "2001:db8::abcd",
-            "AA:BB:CC:DD:EE:FF", "00-15-5d-01-02-03",
-            "Connessione di rete Bluetooth", "Loopback0", "HQ-Firewall",
-            "C:\\Users\\mario.rossi\\Documents\\private.xml",
-            "/home/alice/private/secret.txt",
-            "mario.rossi@example.com", "password=superSecret123",
-            "token=AbC012secret", "MYPC-CORP", "corp.example.internal",
-        ]
-        message = ("ESECUZIONE POWERSHELL NON RIUSCITA\nPowerShell exit code: 1\n"
-                   "STDERR:\nImpossibile impostare IP statico LAN tramite netsh: "
-                   "L'oggetto esiste già.\n" + "\n".join(sensitive)
-                   + "\nSCRIPT ESEGUITO:\nNew-NetIPAddress -IPAddress 10.10.10.1")
-        trace = ('Traceback (most recent call last):\n'
-                 ' File "C:\\Users\\mario.rossi\\AppData\\app.py", line 819, in runner\n'
-                 ' File "D:\\project\\network_guide.py", line 147, in execute\n'
-                 ' File "/home/alice/private/secret.py", line 1, in secret\n'
-                 'RuntimeError: ' + message)
-        title, body = bug_report.make_report("Commit", message, trace, "1.9.4")
-        url = bug_report.issue_link("Commit", message, trace, "1.9.4")
-        self.assertIn("Commit", title)
-        self.assertIn("Oggetto Windows già esistente", body)
-        self.assertIn("PowerShell:** 1", body)
+    def test_report_preserves_relevant_command_output_and_network_context(self):
+        message = (
+            "ESECUZIONE POWERSHELL NON RIUSCITA\nExit code: 1\n"
+            "STDERR:\nNew-NetIPAddress : L'oggetto esiste già.\n"
+            "STDOUT:\nTentativo con interfaccia Ethernet 2\n"
+            "SCRIPT ESEGUITO:\nNew-NetIPAddress -IPAddress 10.10.10.1 -PrefixLength 24\n"
+            "password=superSecret123\n"
+            "token=AbC012secret\n"
+            "C:\\Users\\mario.rossi\\AppData\\Local\\config.txt\n"
+            "mario.rossi@example.com\n"
+        )
+        trace = (
+            'Traceback (most recent call last):\n'
+            '  File "C:\\Users\\mario.rossi\\AppData\\app.py", line 819, in runner\n'
+            '  File "D:\\project\\network_guide.py", line 147, in execute\n'
+            "RuntimeError: " + message
+        )
+        inventory = {
+            "adapters": [{"Name": "Ethernet 2", "Status": "Up"}],
+            "ips": [{"InterfaceAlias": "Ethernet 2", "IPAddress": "10.10.10.1", "PrefixLength": 24}],
+            "nats": [{"Name": "NAT-LAN", "InternalIPInterfaceAddressPrefix": "10.10.10.0/24"}],
+        }
+        payload = bug_report.build_payload("Commit", message, trace, "1.14.0", inventory, True)
+        title, body = bug_report.format_report(payload)
+        self.assertIn("New-NetIPAddress", body)
+        self.assertIn("Ethernet 2", body)
+        self.assertIn("10.10.10.1", body)
+        self.assertIn("10.10.10.0/24", body)
+        self.assertIn("RuntimeError", body)
         self.assertIn("app.py", body)
         self.assertIn("network_guide.py", body)
-        self.assertNotIn("secret.py", body)
-        for secret in sensitive:
-            with self.subTest(secret=secret):
-                self.assertNotIn(secret, title + body + url)
+        self.assertIn("1.14.0", body)
+        self.assertIn("New-NetIPAddress", title)
+        self.assertIn("ESECUZIONE POWERSHELL", body)
+        for secret in ["superSecret123", "AbC012secret", "mario.rossi@example.com", r"Users\mario.rossi"]:
+            self.assertNotIn(secret, title + body)
+        self.assertEqual(len(payload["signature"]), 24)
+
+    def test_unknown_errors_are_preserved_instead_of_suppressed(self):
+        unknown = "Errore custom su rete Produzione-OT IP 172.19.17.1"
+        title, body = bug_report.make_report("Commit", unknown, "", "1.14.0.1")
+        self.assertIn(unknown, body)
+        self.assertIn("172.19.17.1", body)
+        self.assertIn("Errore operativo non classificato", title)
+        self.assertIn("1.14.0.1", body)
+
+    def test_sensitive_patterns_are_redacted_without_discarding_diagnostics(self):
+        text = (
+            "Authorization: Bearer AbcDef01234567890\n"
+            "password='my secret pass'\n"
+            "https://user:pass@host.example.net/a\n"
+            "C:\\Users\\alice\\Desktop\\file.txt\n"
+            "New-NetNat -Name Office -InternalIPInterfaceAddressPrefix 192.168.55.0/24"
+        )
+        safe = bug_report.redact(text)
+        for secret in ["AbcDef01234567890", "my secret pass", "user:pass", r"Users\alice"]:
+            self.assertNotIn(secret, safe)
+        self.assertIn("New-NetNat", safe)
+        self.assertIn("192.168.55.0/24", safe)
+
+    def test_large_sections_are_bounded_with_truncation_marker(self):
+        payload = bug_report.build_payload("Commit", "X" * 50000, "Y" * 40000, "1.14.0")
+        self.assertLessEqual(len(payload["message"]), 16000)
+        self.assertLessEqual(len(payload["traceback"]), 13000)
+        self.assertIn("TRONCATO", payload["message"])
+        self.assertIn("TRONCATO", payload["traceback"])
+
+    def test_manual_link_does_not_generate_excessive_url(self):
+        url = bug_report.issue_link("Commit", "failure " + "X" * 30000, "", "1.14.0")
+        self.assertTrue(len(url) < 7000)
         query = parse_qs(urlparse(url).query)
-        self.assertEqual(query["title"], [title])
-        self.assertEqual(query["body"], [body])
-
-    def test_never_echoes_unrecognized_error_or_operation(self):
-        marker = "TOP_SECRET_INFORMATION_4798"
-        title, body = bug_report.make_report(marker, marker, marker, marker)
-        self.assertNotIn(marker, title + body)
-        self.assertIn("Altra operazione", body)
-        self.assertIn("Non determinata", body)
-
-    def test_no_sensitive_data_even_if_in_exception_name_or_module(self):
-        message = "Exit code: 55; hostname=OFFICE-BOX; wifi=SSID-Secret"
-        trace = ('File "/etc/username/private.py", line 1, in fn\n'
-                 'MySensitiveClassError: employee@example.org')
-        _, body = bug_report.make_report("Commit", message, trace, "1.9.4")
-        self.assertIn("55", body)
-        self.assertNotIn("private.py", body)
-        self.assertNotIn("MySensitiveClassError", body)
-        self.assertNotIn("employee@example.org", body)
-
-    def test_unknown_category_never_contains_raw_text(self):
-        message = "Rete di Produzione-OT IP 172.19.17.1 non connessa"
-        title, body = bug_report.make_report("Commit", message, "", "1.9.4")
-        self.assertIn("Errore operativo non classificato", body)
-        self.assertNotIn("Produzione-OT", title + body)
-        self.assertNotIn("172.19.17.1", title + body)
+        self.assertTrue(query["title"][0].startswith("[Bug]"))
 
 
 if __name__ == "__main__":
