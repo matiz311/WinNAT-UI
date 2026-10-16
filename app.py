@@ -10,7 +10,7 @@ import network
 import network_plan
 import network_guide
 
-VERSION = "1.6.1"
+VERSION = "1.5.1"
 
 class App(tk.Tk):
     def __init__(self):
