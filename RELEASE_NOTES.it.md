@@ -4,11 +4,9 @@ Le note di questa pagina sono destinate agli utilizzatori dell'applicazione. Per
 
 > **Importante:** WinNAT-UI modifica routing, indirizzi IPv4 e Windows NAT. Prima di applicare configurazioni su computer utilizzati per l'accesso remoto, verificare di disporre di un accesso locale e di una procedura di ripristino. Le operazioni che ricreano WinNAT possono interrompere sessioni NAT attive.
 
-## 1.14.1 — 16 ottobre 2026 (candidata alla pubblicazione)
+## 1.14.1 — 16 ottobre 2026
 
 **Correzione di manutenzione del controllo aggiornamenti.** Le risposte HTTP 404, 403/429 e 5xx di GitHub vengono distinte da errori di connessione/DNS/proxy e mostrate con indicazioni operative. Il controllo silenzioso all'avvio rimane non bloccante. Nessuna variazione intenzionale a NAT, LAN/WAN, interfaccia grafica o gestione degli IP secondari. L'updater mantiene tutte le verifiche di autenticità e SHA-256 già previste.
-
-**Stato:** versione preparata su ramo di manutenzione dalla v1.14.0, da verificare mediante build Windows e da pubblicare separatamente; non dichiarare questa release pubblicata prima della creazione del tag e dell'asset ZIP ufficiale.
 
 ## 1.14.0 — 16 ottobre 2026
 

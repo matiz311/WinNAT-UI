@@ -8,7 +8,7 @@
 [![Latest release](https://img.shields.io/github/v/release/matiz311/WinNAT-UI)](https://github.com/matiz311/WinNAT-UI/releases/latest)
 [![Build Windows executable](https://github.com/matiz311/WinNAT-UI/actions/workflows/build.yml/badge.svg)](https://github.com/matiz311/WinNAT-UI/actions/workflows/build.yml)
 
-**[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)** — scarica lo ZIP della release pubblica, estrai completamente la cartella e avvia `WinNAT-UI.exe`. La release attuale è **non firmata**; la firma tramite SignPath Foundation non è ancora approvata.
+**[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)** — scarica lo ZIP della release pubblica, estrai completamente la cartella e avvia `WinNAT-UI.exe`. La release v1.14.1 è **non firmata**; la firma tramite SignPath Foundation non è ancora approvata.
 
 - [Release e changelog](https://github.com/matiz311/WinNAT-UI/releases)
 - [Informativa privacy](PRIVACY.it.md) ([English](PRIVACY.md))

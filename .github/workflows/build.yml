@@ -49,7 +49,7 @@ jobs:
           if (-not (Get-ChildItem $out -Filter 'WinNAT-Diagnostica-*.json')) { throw 'Diagnostic JSON not produced.' }
           Get-Content (Get-ChildItem $out -Filter '*.json' | Select-Object -First 1).FullName -Raw | ConvertFrom-Json | Out-Null
       - name: Check version is not already released
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release/1.14.1'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -135,7 +135,7 @@ jobs:
           path: dist/WinNAT-UI/
           if-no-files-found: error
       - name: Authorize semantic release
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release/1.14.1'
         id: release_gate
         shell: pwsh
         env:
@@ -146,6 +146,11 @@ jobs:
           # Compare with the latest PUBLISHED release: the version jump that
           # matters is from what users have, not from the previous commit
           # (squash merges, docs-only commits, shallow checkouts).
+          # On maintenance branches, only the explicitly planned PATCH may publish.
+          if ($env:GITHUB_REF -eq 'refs/heads/release/1.14.1') {
+            $patchVersion = (python tools/release.py version).Trim()
+            if ($patchVersion -ne '1.14.1') { throw 'Maintenance branch cannot publish any version other than 1.14.1.' }
+          }
           $tag = gh api "repos/$env:GITHUB_REPOSITORY/releases/latest" --jq '.tag_name' 2>$null
           if ($LASTEXITCODE -eq 0 -and $tag -match '^v(\d+\.\d+\.\d+(?:\.\d+)?)$') {
             $previous = $Matches[1]
@@ -168,7 +173,7 @@ jobs:
             Write-Host "::notice::MINOR/MAJOR richiede riepilogo e approvazione tramite workflow_dispatch. Build artifact disponibile."
           }
       - name: Publish public GitHub release
-        if: github.ref == 'refs/heads/main' && steps.release_gate.outputs.allowed == 'true'
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release/1.14.1') && steps.release_gate.outputs.allowed == 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -176,7 +181,8 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $version = (python tools/release.py version).Trim()
           $tag = "v$version"
-          $head = gh api "repos/$env:GITHUB_REPOSITORY/branches/main" --jq '.commit.sha'
+          $lookupBranch = if ($env:GITHUB_REF -eq 'refs/heads/release/1.14.1') { 'release%2F1.14.1' } else { 'main' }
+          $head = gh api "repos/$env:GITHUB_REPOSITORY/branches/$lookupBranch" --jq '.commit.sha'
           if ($LASTEXITCODE -ne 0) { throw 'Cannot verify main branch HEAD.' }
           if ($head.Trim() -ne $env:GITHUB_SHA) {
             Write-Host 'A newer commit exists. Skip release of a stale build.'
@@ -198,9 +204,9 @@ jobs:
           ---
           **UNSIGNED DEVELOPMENT BUILD**. The project is applying to SignPath Foundation for free code signing. No SignPath certificate has yet been issued, and this version is not signed or endorsed by SignPath Foundation.
 
-          Signing policy: https://github.com/matiz311/WinNAT-UI/blob/main/CODE_SIGNING_POLICY.md
-          Privacy policy: https://github.com/matiz311/WinNAT-UI/blob/main/PRIVACY.md
-          Changelog: https://github.com/matiz311/WinNAT-UI/blob/main/CHANGELOG.md
+          Signing policy: https://github.com/matiz311/WinNAT-UI/blob/release/1.14.1/CODE_SIGNING_POLICY.md
+          Privacy policy: https://github.com/matiz311/WinNAT-UI/blob/release/1.14.1/PRIVACY.md
+          Changelog: https://github.com/matiz311/WinNAT-UI/blob/release/1.14.1/CHANGELOG.md
 
           This ZIP contains the complete application directory and the SHA256.txt and DEFENDER_SCAN.txt manifests. GitHub Actions performed a Microsoft Defender scan before release. Scan success does not guarantee that the software is harmless; users should verify downloads locally.
 

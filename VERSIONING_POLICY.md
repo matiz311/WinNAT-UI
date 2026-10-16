@@ -1,5 +1,7 @@
 # Versioning e pubblicazione — WinNAT-UI
 
+**Ramo di manutenzione:** la release v1.14.1 deriva direttamente dal tag v1.14.0 e include esclusivamente correzioni dell'updater. Il ramo main prepara invece la MINOR 1.15.0. Le due linee devono avere tag, build e metadati Windows separati.
+
 ## Fonte della versione
 La versione funzionale è `MAJOR.MINOR.PATCH[.HOTFIX]`; il quarto componente è una **estensione del progetto**, riservata agli interventi urgenti. La fonte è `version.py`. La versione dell'eseguibile Windows in `version_info.txt`, il tag Git `vX.Y.Z[.H]`, il nome della release e i metadati dell'updater devono coincidere. Nelle proprietà Windows le versioni a tre componenti mostrano il quarto componente numerico zero.
 
@@ -10,7 +12,7 @@ La build CI ha un identificatore indipendente `X.Y.Z[.H]+ci.<run>.<sha>` scritto
 |---|---|---|
 | MAJOR | `2.0.0` | Incompatibilità intenzionali e migrazioni |
 | MINOR | `1.14.0` | Nuove capacità rilevanti e retrocompatibili |
-| PATCH | `1.14.1` | Correzioni ordinarie, sicurezza e stabilità |
+| PATCH | `1.14.1` | Manutenzione del controllo aggiornamenti, dalla base stabile 1.14.0 |
 | HOTFIX | `1.14.0.1` | Correzione urgente della release già pubblicata |
 | BUILD | `1.14.0+ci.209.abcd1234` | Ricompilazione senza nuove funzionalità |
 
