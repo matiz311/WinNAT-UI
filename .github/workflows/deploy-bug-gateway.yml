@@ -71,9 +71,28 @@ jobs:
               url.username || url.password || url.port || url.search || url.hash) {
             throw new Error('Refusing to publish an untrusted or unsupported Worker URL');
           }
-          const health = await fetch(new URL('/health',url), {signal:AbortSignal.timeout(15000)});
-          if (!health.ok || (await health.json()).status !== 'ready')
-            throw new Error('Worker health check failed; will not publish endpoint');
+          let ready = false;
+          for (let attempt = 1; attempt <= 10; attempt++) {
+            try {
+              const health = await fetch(new URL('/health',url), {signal:AbortSignal.timeout(15000)});
+              const body = await health.text();
+              let state;
+              try { state = JSON.parse(body).status; } catch { state = 'invalid-json'; }
+              if (health.ok && state === 'ready') {
+                ready = true;
+                break;
+              }
+              console.warn('Worker health attempt '+attempt+'/10: HTTP '+health.status+', status='+state);
+              if (state === 'not-configured') {
+                throw new Error('Worker deployment is missing expected bindings or secret');
+              }
+            } catch (error) {
+              if (error.message === 'Worker deployment is missing expected bindings or secret') throw error;
+              console.warn('Worker health attempt '+attempt+'/10: '+error.message);
+            }
+            if (attempt < 10) await new Promise(resolve => setTimeout(resolve,3000));
+          }
+          if (!ready) throw new Error('Worker health check failed after retries; endpoint not published');
           const submit = new URL('/report',url).toString();
           writeFileSync('bug-service.json',JSON.stringify({submit_url:submit},null,2)+'\n');
           console.log('Verified anonymous reporting endpoint:',submit);
