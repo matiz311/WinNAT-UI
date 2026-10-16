@@ -31,6 +31,21 @@ class RollbackTests(unittest.TestCase):
         self.assertEqual(scope["nats"], {"NAT-Firewall"})
         self.assertTrue(scope["router"])
 
+    def test_scope_of_multi_ip_guide_includes_every_target_nat(self):
+        before = state()
+        p = dict(
+            lan="Loopback0",
+            wans=[{"alias": "Wi-Fi", "metric": 10}],
+            nat="NAT-Firewall",
+            lan_addresses=[
+                {"prefix": "192.168.1.0/24", "gateway": "192.168.1.1", "nat": "NAT-Firewall"},
+                {"prefix": "192.168.192.0/24", "gateway": "192.168.192.1", "nat": "NAT-Firewall-2"},
+                {"prefix": "10.16.0.0/24", "gateway": "10.16.0.1", "nat": "NAT-Firewall-3"},
+            ])
+        scope = rb.scope_for("guide", ("apply", p, "fingerprint"), before)
+        self.assertEqual(scope["nats"], {"NAT-Firewall", "NAT-Firewall-2", "NAT-Firewall-3"})
+        self.assertFalse(scope["nat_rebuild"])
+
     def test_no_changes_requires_no_mutations(self):
         before = state()
         scope = rb.scope_for("add", ("NAT-Firewall", "10.10.10.0/24"), before)
