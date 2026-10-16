@@ -66,7 +66,13 @@ def _latest_release_metadata():
     """
     try:
         with urllib.request.urlopen(_request(API_URL), timeout=20) as response:
-            return json.load(response)
+            try:
+                return json.load(response)
+            except (json.JSONDecodeError, UnicodeError) as error:
+                raise UpdateChannelError(
+                    "invalid_release_metadata",
+                    "Controllo aggiornamenti: risposta JSON di GitHub non valida."
+                ) from error
     except urllib.error.HTTPError as error:
         code = error.code
         if code == 404:
@@ -95,11 +101,30 @@ def _latest_release_metadata():
 
 def release_info(installed):
     data = _latest_release_metadata()
-    tag = data.get("tag_name", "")
-    version_tuple(tag)
+    if not isinstance(data, dict):
+        raise UpdateChannelError(
+            "invalid_release_metadata",
+            "Controllo aggiornamenti: struttura dei metadati GitHub non valida.")
+    tag = data.get("tag_name")
+    try:
+        version_tuple(tag)
+    except (ValueError, TypeError) as error:
+        raise UpdateChannelError(
+            "invalid_release_metadata",
+            "Controllo aggiornamenti: versione della release GitHub non valida."
+        ) from error
     if data.get("draft") or data.get("prerelease"):
-        raise ValueError("L'ultima release non è una versione stabile pubblicata.")
-    assets = [a for a in data.get("assets", []) if a.get("name") == ASSET_NAME]
+        raise UpdateChannelError(
+            "invalid_release_metadata",
+            "L'ultima release non è una versione stabile pubblicata.")
+    asset_list = data.get("assets")
+    if not isinstance(asset_list, list) or any(
+            not isinstance(item, dict) for item in asset_list):
+        raise UpdateChannelError(
+            "invalid_release_metadata",
+            "Controllo aggiornamenti: elenco degli asset GitHub non valido.",
+            phase="inspect_asset")
+    assets = [a for a in asset_list if a.get("name") == ASSET_NAME]
     if len(assets) != 1:
         hint = maintenance.maintenance_hint("release-assets")
         raise UpdateChannelError(
@@ -116,14 +141,21 @@ def release_info(installed):
             "URL dell'asset non corrispondente alla release ufficiale.",
             phase="inspect_asset")
     digest = asset.get("digest", "")
-    if not re.fullmatch(r"sha256:[a-fA-F0-9]{64}", digest):
+    if not isinstance(digest, str) or not re.fullmatch(
+            r"sha256:[a-fA-F0-9]{64}", digest):
         raise UpdateChannelError(
             "invalid_asset_metadata",
             "GitHub non fornisce un digest SHA256 verificabile per l'archivio.",
             phase="inspect_asset")
+    size = asset.get("size", 0)
+    if isinstance(size, bool) or not isinstance(size, int) or size < 0:
+        raise UpdateChannelError(
+            "invalid_asset_metadata",
+            "Dimensione dell'archivio GitHub non valida.",
+            phase="inspect_asset")
     return {"version": tag.lstrip("v"), "tag": tag, "url": url,
             "sha256": digest.split(":", 1)[1].lower(),
-            "size": int(asset.get("size") or 0),
+            "size": size,
             "available": newer(tag, installed),
             "page": data.get("html_url", "")}
 
