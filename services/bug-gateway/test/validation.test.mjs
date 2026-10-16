@@ -40,3 +40,23 @@ test("changes in bug category alter signature", async () => {
   const two = await fingerprint(normalize({ ...sample, category: "Ripristino non completato" }));
   assert.notEqual(one, two);
 });
+
+
+test("retains full reports and sanitizes credentials without erasing IP context", ()=>{
+  const payload = normalize({...sample,
+    operation:"Lettura configurazione",
+    signature:"f".repeat(24),
+    summary:"New-NetIPAddress conflict",
+    message:"Failed for 10.0.0.1\npassword=superSecretValue",
+    traceback:'File "C:\\Users\\bob\\network.py", line 89\nRuntimeError: rejected',
+    environment:'{"sistema":"Windows"}',
+    inventory:'{"IPAddress":"10.0.0.1"}',
+  });
+  assert.equal(payload.operation,"Lettura configurazione");
+  assert.match(payload.message,/10\.0\.0\.1/);
+  assert.doesNotMatch(payload.message,/superSecretValue/);
+  assert.doesNotMatch(payload.traceback,/Users\\bob/);
+  assert.match(payload.inventory,/10\.0\.0\.1/);
+  assert.throws(()=>normalize({...payload,message:"x".repeat(16001)}));
+  assert.throws(()=>normalize({...payload,signature:"not-hex"}));
+});

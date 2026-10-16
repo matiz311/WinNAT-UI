@@ -55,7 +55,7 @@ class HelperTests(unittest.TestCase):
         from pathlib import Path
         source = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")
         start = source.index("        def report_bug():")
-        end = source.index("        dlg.cancel_btn.configure(command=copy_anonymized)", start)
+        end = source.index("        dlg.cancel_btn.configure(command=copy_report)", start)
         body = source[start:end]
         self.assertIn('self.run_task("Segnala bug", send, sent)', body)
         self.assertIn('            def sent(result):\n                dlg.destroy()', body)
@@ -65,7 +65,7 @@ class HelperTests(unittest.TestCase):
         from pathlib import Path
         source = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")
         begin = source.index("        def report_bug():")
-        end = source.index("        dlg.cancel_btn.configure(command=copy_anonymized)", begin)
+        end = source.index("        dlg.cancel_btn.configure(command=copy_report)", begin)
         segment = source[begin:end]
         self.assertIn("issue_tracker.submit(payload, endpoint=endpoint)", segment)
         self.assertNotIn("winnat_ui.issue_tracker.public_issues()", segment)

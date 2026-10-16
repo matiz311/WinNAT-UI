@@ -1,6 +1,6 @@
-# Backend per segnalazioni anonime WinNAT-UI
+# Backend segnalazioni diagnostiche WinNAT-UI
 
-L'applicazione invia volontariamente **solo campi diagnostici anonimizzati e predefiniti** a Cloudflare Workers. Il Worker valida ogni campo, limita l'abuso e apre (o riutilizza) una GitHub Issue `bug-report` nel repository `matiz311/WinNAT-UI`. Nessun token GitHub è incluso nell'eseguibile.
+L'applicazione invia **solo dopo esplicita conferma** report dettagliati a Cloudflare Workers. Il report può comprendere errore originale, traceback Python, script e output PowerShell, ambiente, IP e topologia di rete e modifiche in sospeso. Password, token, email e identificativi nei percorsi sono oscurati dove riconoscibili, senza garantire una sanitizzazione perfetta. **Le Issue GitHub sono pubbliche**: l'utente può leggere e copiare il report prima della pubblicazione. Il Worker applica una seconda sanitizzazione, valida ogni campo, limita l'abuso e crea una GitHub Issue etichettata `bug-report` nel repository `matiz311/WinNAT-UI`, oppure commenta la Issue già aperta aggiungendo le nuove evidenze. Nessun token GitHub è incluso nell'eseguibile.
 
 ## Prima attivazione (Cloudflare + GitHub Actions)
 
@@ -22,15 +22,15 @@ Il workflow verifica i test Node, distribuisce il Worker, pubblica il PAT come *
 
 - `GET https://<worker>.<account>.workers.dev/health` deve restituire `{"status":"ready"}`.
 - Lancia un report di **prova** dal client con dati non riservati e verifica la creazione di una GitHub Issue etichettata `bug-report`.
-- Invia di nuovo lo stesso report per controllare la deduplicazione.
+- Invia di nuovo lo stesso report per controllare la deduplicazione e verificare che appaia un nuovo commento con le evidenze.
 - L'health check da solo **non** garantisce che il token GitHub abbia permessi di creazione Issue: serve un invio reale.
 
 ## Protezioni e limiti
 
-- Payload JSON al massimo 4096 byte: categoria, operazione, tipo eccezione, moduli in lista chiusa, versione, codice di uscita. Sono rifiutati campi arbitrari, log grezzi e configurazioni di rete.
+- Payload JSON al massimo 65536 byte. I campi diagnostici includono categoria, operazione, eccezione, moduli, versione, exit code, firma dell'errore, sintesi, messaggio, traceback, ambiente e inventario. Lunghezze massime controllate per campo, rigetto dei campi inattesi e sanitizzazione di segreti riconoscibili sul client e sul gateway. La topologia e gli indirizzi IP vengono mantenuti.
 - Rate limiting integrato in Cloudflare Workers: **6/minuto per IP sorgente** e **30/minuto per location Cloudflare** in totale, senza necessità di configurare KV. Gli IP servono a calcolare chiavi hash a runtime, non sono memorizzati nel report o nelle Issue. Più utenti sotto NAT condividono il limite per-IP.
 - I limiti rate non sono globali né strettamente atomici: Cloudflare applica contatori per location, eventualmente consistenti. Per contrastare abusi consistenti configurare protezioni aggiuntive.
-- La deduplicazione controlla al massimo 100 Issue aperte più recenti con label `bug-report`, usando un fingerprint basato su categoria, operazione, eccezione e moduli. Issue più vecchie o chiuse non sono necessariamente riutilizzate.
+- La deduplicazione controlla al massimo 100 Issue aperte più recenti con label `bug-report`, usando categoria, operazione, eccezione, moduli e firma del messaggio d'errore nei nuovi client. Un duplicato aggiunge sempre un commento con un nuovo report completo, senza perdere le evidenze. Issue più vecchie o chiuse non sono necessariamente riutilizzate.
 - Per segnalare la correzione applica una label `fixed-in/vMAJOR.MINOR.PATCH` alla Issue interessata. **Limite attuale:** il tracciamento delle correzioni riconosce soltanto label a tre componenti; una versione HOTFIX a quattro componenti non è ancora riconosciuta da questa funzione.
 - Cloudflare può trattare l'IP pubblico della connessione per fornire il servizio e il rate limiting. Il maintainer non riceve l'IP tramite il contenuto della Issue.
 
