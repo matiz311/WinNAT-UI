@@ -1,10 +1,10 @@
 # WinNAT-UI — Note di rilascio
 
-Le note di questa pagina sono destinate agli utilizzatori dell'applicazione. Per i dettagli delle singole modifiche, i limiti tecnici e la cronologia completa consultare [CHANGELOG.md](CHANGELOG.md). I numeri riportati corrispondono alle **30 GitHub Releases effettivamente pubblicate**, compresa la versione corrente **v1.14.1**. Il 16 ottobre 2026 la cronologia delle 28 release precedenti è stata rinumerata e i relativi eseguibili ricompilati; non utilizzare riferimenti della numerazione precedente.
+Le note di questa pagina sono destinate agli utilizzatori dell'applicazione. Per i dettagli delle singole modifiche, i limiti tecnici e la cronologia completa consultare [CHANGELOG.md](CHANGELOG.md). I numeri riportati corrispondono alle **31 GitHub Releases**, inclusa la versione **v1.15.0**. Il 16 ottobre 2026 la cronologia delle 28 release precedenti è stata rinumerata e i relativi eseguibili ricompilati; non utilizzare riferimenti della numerazione precedente.
 
 > **Importante:** WinNAT-UI modifica routing, indirizzi IPv4 e Windows NAT. Prima di applicare configurazioni su computer utilizzati per l'accesso remoto, verificare di disporre di un accesso locale e di una procedura di ripristino. Le operazioni che ricreano WinNAT possono interrompere sessioni NAT attive.
 
-## 1.15.0 — 16 ottobre 2026 (candidata, non ancora pubblicata)
+## 1.15.0 — 16 ottobre 2026
 
 **Tema: configurazione LAN più flessibile, diagnostica completa e nuova identità visiva.**
 
@@ -26,7 +26,7 @@ Le note di questa pagina sono destinate agli utilizzatori dell'applicazione. Per
 Le segnalazioni di bug possono includere topologie, IP, output PowerShell e traceback potenzialmente sensibili. La pubblicazione su GitHub avviene **solo dopo conferma esplicita**; controllare l'anteprima prima di inviare. La mascheratura automatica dei dati identificativi è solo parziale.
 La CI Windows non prova da sola l'applicazione di configurazioni IP su una macchina reale, il rollback e l'aggiornamento completo; questi percorsi richiedono collaudo su host Windows con accesso locale.
 
-**Stato:** candidato in preparazione; la pubblicazione richiede build Windows verificata e approvazione manuale MINOR prevista dal workflow.
+**Collaudo:** build e test CI Windows superati; la validazione su dispositivi reali rimane distinta dalla pubblicazione del pacchetto.
 
 ## 1.14.1 — 16 ottobre 2026
 
