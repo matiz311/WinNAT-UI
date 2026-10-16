@@ -2,11 +2,11 @@
 
 ## Stato attuale — 16 ottobre 2026
 
-La **versione stabile pubblicata è `v1.14.0`**: [GitHub Releases](https://github.com/matiz311/WinNAT-UI/releases/latest). Il catalogo comprende **29 release pubbliche**: le 28 precedenti sono state ricompilate e rinumerate il 16 ottobre 2026, seguite da `v1.14.0`. L'ultimo HOTFIX precedente è **`v1.13.0.1`**. I tag e i numeri usati nei documenti sono quelli attualmente pubblicati; gli identificativi dismessi non sono alias di download.
+La **versione stabile pubblicata è `v1.14.1`**: [GitHub Releases](https://github.com/matiz311/WinNAT-UI/releases/latest). Il catalogo comprende **30 release pubbliche**: le 28 precedenti sono state ricompilate e rinumerate il 16 ottobre 2026, seguite da `v1.14.0` e dalla PATCH `v1.14.1`. L'ultimo HOTFIX precedente è **`v1.13.0.1`**. I tag e i numeri usati nei documenti sono quelli attualmente pubblicati; gli identificativi dismessi non sono alias di download.
 
-Le informazioni complete di ogni rilascio si trovano in [CHANGELOG.md](CHANGELOG.md) e [RELEASE_NOTES.it.md](RELEASE_NOTES.it.md). La sequenza effettiva più recente è `v1.13.0` → `v1.13.0.1` → `v1.14.0`.
+Le informazioni complete di ogni rilascio si trovano in [CHANGELOG.md](CHANGELOG.md) e [RELEASE_NOTES.it.md](RELEASE_NOTES.it.md). La sequenza effettiva più recente è `v1.13.0` → `v1.13.0.1` → `v1.14.0` → `v1.14.1`.
 
-**Candidato in preparazione:** v1.15.0 (MINOR) su ramo dedicato, non ancora pubblicato; incorpora il fix di manutenzione v1.14.1 predisposto separatamente dal tag stabile e le funzionalità delle PR #54, #55 e #56. La decisione di pubblicazione rimane subordinata alla verifica del candidato completo e al gate manuale GitHub Actions. Fino alla pubblicazione, v1.14.0 resta l'ultima release ufficiale verificata.
+**Candidato in preparazione:** v1.15.0 (MINOR) su ramo dedicato, non ancora pubblicato; incorpora il fix di manutenzione v1.14.1 già pubblicato separatamente dal tag stabile e le funzionalità delle PR #54, #55 e #56. La decisione di pubblicazione rimane subordinata alla verifica del candidato completo e al gate manuale GitHub Actions. Fino alla pubblicazione, v1.14.1 resta l'ultima release ufficiale verificata.
 
 ## Fonte della versione
 
@@ -20,7 +20,7 @@ L'identificativo di una **build CI** è distinto dalla versione funzionale: `X.Y
 |---|---|---|
 | MAJOR | `2.0.0` | Cambiamenti incompatibili e migrazioni |
 | MINOR | `1.14.0` (pubblicata) | Funzionalità retrocompatibili significative |
-| PATCH | `1.14.1` (esempio futuro) | Correzioni ordinarie, manutenzione e stabilità |
+| PATCH | `1.14.1` (pubblicata) | Correzioni ordinarie, manutenzione e stabilità |
 | HOTFIX | `1.14.0.1` (esempio futuro) | Correzione urgente di una release già pubblicata |
 | BUILD | `1.14.0+ci.<run>.<sha>` (formato) | Compilazione senza incremento di versione funzionale |
 
