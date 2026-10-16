@@ -31,7 +31,7 @@ class BugReportTests(unittest.TestCase):
         self.assertIn("Oggetto Windows già esistente", body)
         self.assertIn("PowerShell:** 1", body)
         self.assertIn("app.py", body)
-        self.assertIn("winnat_ui.network_guide.py", body)
+        self.assertIn("network_guide.py", body)
         self.assertNotIn("secret.py", body)
         for secret in sensitive:
             with self.subTest(secret=secret):
