@@ -346,9 +346,14 @@ class App(tk.Tk):
     def set_window_icon(self):
         """Title bar, taskbar and every dialog use the app icon; never fatal."""
         self.logo = None
-        try:
-            if sys.platform == "win32":
+        # The Windows ICO and Tk PNG are independent: an unavailable or
+        # rejected ICO must not prevent the PNG from reaching Tk dialogs.
+        if sys.platform == "win32":
+            try:
                 self.iconbitmap(default=resource_path("assets", "winnat-ui.ico"))
+            except (tk.TclError, OSError):
+                pass
+        try:
             self.iconphoto(True, tk.PhotoImage(file=resource_path("assets", "winnat-ui-256.png")))
         except (tk.TclError, OSError):
             pass
