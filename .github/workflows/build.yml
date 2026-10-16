@@ -143,6 +143,18 @@ jobs:
           IS_MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
           FEATURE_APPROVED: ${{ inputs.approve_feature_release || false }}
         run: |
+          # Builds of a version that is already a public release are BUILD-only.
+          # A separately published maintenance PATCH may be newer than the
+          # still-integration main branch. Never republish an existing version;
+          # still validate all new/unpublished version numbers using the gate.
+          $current = (python tools/release.py version).Trim()
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read current app version.' }
+          gh release view "v$current" --repo $env:GITHUB_REPOSITORY 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "::notice::Version v$current already published; build-only, no release authorization needed."
+            "allowed=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            exit 0
+          }
           # Compare with the latest PUBLISHED release: the version jump that
           # matters is from what users have, not from the previous commit
           # (squash merges, docs-only commits, shallow checkouts).
