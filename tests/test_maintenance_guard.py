@@ -73,7 +73,7 @@ class MaintenanceRegistryTests(unittest.TestCase):
             with (patch.object(guard, "git", side_effect=fake_git),
                   patch.object(guard, "at_commit", return_value={"events": []})):
                 if extra_path:
-                    with self.assertRaisesRegex(ValueError, "PREVIOUS-COMMIT"):
+                    with self.assertRaisesRegex(ValueError, "legacy exception"):
                         guard.check_pr("base", 67)
                 else:
                     guard.check_pr("base", 67)
