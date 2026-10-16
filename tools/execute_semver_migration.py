@@ -28,11 +28,12 @@ NAME = "WinNAT-UI-Windows.zip"
 def call(*args, capture=False, cwd=None, input_data=None):
     result = subprocess.run(
         list(map(str, args)), cwd=cwd, input=input_data,
-        capture_output=capture, text=True, encoding="utf-8", errors="replace")
+        stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
+        stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
     if result.returncode:
         raise RuntimeError("Command failed: " + " ".join(map(str, args[:4]))
-                           + "\n" + result.stderr[-1200:])
-    return result.stdout.strip() if capture else ""
+                           + "\n" + (result.stderr or "unknown subprocess error")[-1200:])
+    return (result.stdout or "").strip() if capture else ""
 
 
 def sha256(path):
@@ -107,6 +108,49 @@ def backup(plan_file: Path, work: Path, run_id: int):
     print("READY: " + str(len(plan)) + " originals and staged packages verified", flush=True)
 
 
+def _probe_publishing_permissions(source_sha):
+    """Verify ability to create/delete a workflow-bearing tag and draft Release.
+
+    Do this before touching any published historical reference.
+    """
+    run_id = os.environ.get("GITHUB_RUN_ID", "")
+    if not re.fullmatch(r"\d{5,20}", run_id):
+        raise RuntimeError("Permission probe requires a GitHub Actions run ID.")
+    probe = "winnat-migration-capability-" + run_id
+    if not re.fullmatch(r"[0-9a-f]{40}", source_sha):
+        raise ValueError("Unverified historical commit SHA.")
+    tag_created = False
+    release_created = False
+    try:
+        print("Preflight: testing Git tag and Release write permissions", flush=True)
+        call("gh", "api", "-X", "POST", f"repos/{REPO}/git/refs",
+             "-f", "ref=refs/tags/" + probe, "-f", "sha=" + source_sha)
+        tag_created = True
+        call("gh", "release", "create", probe, "--repo", REPO,
+             "--draft", "--verify-tag", "--title", "Migration capability probe",
+             "--notes", "Temporary permission preflight; automatically deleted.")
+        release_created = True
+    finally:
+        failures = []
+        if release_created:
+            try:
+                call("gh", "release", "delete", probe, "--repo", REPO, "--yes")
+            except Exception as exc:
+                failures.append("draft Release: " + str(exc))
+        if tag_created:
+            try:
+                call("gh", "api", "-X", "DELETE",
+                     f"repos/{REPO}/git/refs/tags/{probe}")
+            except Exception as exc:
+                failures.append("temporary tag: " + str(exc))
+        if failures:
+            raise RuntimeError("Permission preflight cleanup failed: " +
+                               "; ".join(failures))
+    if not release_created:
+        raise RuntimeError("Release write permission was not verified.")
+    print("Capability preflight succeeded; no temporary refs remain", flush=True)
+
+
 def _restore(manifest, work, created):
     """Attempt automatic restoration with originals from the verified local backup."""
     print("RESTORING original public Releases after migration error", flush=True)
@@ -179,6 +223,8 @@ def publish(work: Path, docs: Path):
     releases = request(f"repos/{REPO}/releases?per_page=100")
     if set(x["tag_name"] for x in releases) != {x["old"] for x in items}:
         raise ValueError("Published Releases changed while staging")
+    # Never repeat the previous deletion-before-permission-check failure.
+    _probe_publishing_permissions(items[0]["ref_sha"])
     # Build all replacement source commits before removing any historical ref.
     workspace = Path(tempfile.mkdtemp(prefix="winnat-source-snapshots-"))
     commits = _create_snapshot_tags(items, Path.cwd(), workspace)
