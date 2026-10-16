@@ -1347,6 +1347,11 @@ class App(tk.Tk):
             self.issue_table.column(field, width=width)
         self.issue_table.pack(fill="x", pady=(S2, 0))
         self.issue_table.bind("<Double-1>", self.open_tracked_issue)
+        self.issue_table.bind("<<TreeviewSelect>>", self.show_tracked_issue_details)
+        self.issue_details = tk.StringVar(value="Seleziona una segnalazione per visualizzarne i dettagli.")
+        tk.Label(issues.body, textvariable=self.issue_details, bg=C["surface"],
+                 fg=C["text_muted"], font=F["caption"], justify="left",
+                 anchor="w", wraplength=750).pack(fill="x", pady=(S2, 0))
         self.render_issue_tracker()
         self.section(page, "Scorciatoie da tastiera")
         keys = ui.Card(page, padding=S4)
@@ -1394,6 +1399,27 @@ class App(tk.Tk):
             visible += 1
         self.issue_status.set(str(visible) + " di " + str(len(entries)) +
                               " segnalazioni. Doppio clic per aprire GitHub.")
+
+    def show_tracked_issue_details(self, _event=None):
+        """Show locally cached issue metadata without exposing raw diagnostics."""
+        chosen = self.issue_table.selection()
+        entries = issue_tracker.history()
+        if not chosen or not chosen[0].isdigit() or int(chosen[0]) >= len(entries):
+            self.issue_details.set("Seleziona una segnalazione per visualizzarne i dettagli.")
+            return
+        issue = entries[int(chosen[0])]
+        title = issue.get("title") or issue.get("category") or "Problema non classificato"
+        fields = [("Problema", title), ("Issue", "#" + str(issue.get("number", "?"))),
+                  ("Operazione", issue.get("operation")), ("Versione segnalata", issue.get("version")),
+                  ("Prima segnalazione", issue.get("reported_at")),
+                  ("Ultimo aggiornamento GitHub", issue.get("updated_at")),
+                  ("Stato triage", issue.get("triage")),
+                  ("Stato GitHub", issue.get("state")),
+                  ("Priorità", issue.get("priority")),
+                  ("Correzione prevista", issue.get("fixed_in")),
+                  ("Aggiornamento disponibile", "Sì" if issue.get("fix_available") else "No")]
+        self.issue_details.set("\n".join(label + ": " + str(value or "Non disponibile")
+                                         for label, value in fields))
 
     def open_tracked_issue(self, _event=None):
         chosen = self.issue_table.selection()
