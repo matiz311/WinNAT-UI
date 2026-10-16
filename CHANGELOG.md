@@ -10,6 +10,22 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
 
 
+## [1.10.0] - 2026-10-16
+### Sintesi
+WinNAT-UI completa il canale di segnalazione anonima introdotto nella serie 1.9: il backend Cloudflare è ora distribuito e verificato end-to-end, con pubblicazione automatica dell'endpoint utilizzato dal client. La release consolida inoltre la diagnostica dell'updater e la compatibilità con le versioni HOTFIX a quattro componenti. Non modifica la logica NAT/routing già presente nella 1.9.15.1.
+
+### Funzionalità
+- Deploy automatico del gateway anonimo tramite GitHub Actions e Cloudflare Worker, con controllo `/health` prima della pubblicazione dell'endpoint in `bug-service.json`.
+- Smoke test live della catena completa: creazione di una Issue sintetica, verifica della deduplicazione e chiusura automatica della Issue di test.
+- Rate limiting nativo Cloudflare per origine e globale, limite rigido della dimensione del payload e validazione allowlist dei soli metadati anonimizzati previsti.
+
+### Correzioni
+- Il gateway ritenta la ricerca delle Issue aperte per gestire il ritardo di indicizzazione GitHub ed evitare duplicati immediatamente dopo una nuova segnalazione.
+- Il gateway accetta sia versioni `MAJOR.MINOR.PATCH` sia HOTFIX `MAJOR.MINOR.PATCH.HOTFIX`, inclusa l'attuale 1.9.15.1.
+- Il controllo manuale degli aggiornamenti trasforma gli errori di validazione dei metadati GitHub in un messaggio specifico e utilizzabile, senza classificarli come errore operativo generico.
+- Il controllo silenzioso all'avvio resta non bloccante quando il servizio aggiornamenti non è disponibile.
+
+
 ## [1.9.15.1] - 2026-10-15
 ### Corretto
 - **Aggiungi NAT:** esegue direttamente `New-NetNat` per il nome e prefisso richiesti, senza controllare quanti altri NAT siano presenti.
