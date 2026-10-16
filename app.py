@@ -1418,7 +1418,15 @@ class App(tk.Tk):
                   ("Priorità", issue.get("priority")),
                   ("Correzione prevista", issue.get("fixed_in")),
                   ("Aggiornamento disponibile", "Sì" if issue.get("fix_available") else "No")]
-        self.issue_details.set("\n".join(label + ": " + str(value or "Non disponibile")
+        timeline = issue.get("timeline") or []
+        if timeline:
+            fields.append(("Cronologia osservata", str(len(timeline)) + " variazioni"))
+            for event in timeline[-5:]:
+                changes = event.get("changes") or {}
+                details = ", ".join(str(k) + ": " + str(v.get("from") or "—") + " → " +
+                                    str(v.get("to") or "—") for k, v in changes.items())
+                fields.append((str(event.get("observed_at") or "Data sconosciuta"), details))
+        self.issue_details.set("\n".join(label + ": " + str(value if value not in (None, "") else "Non disponibile")
                                          for label, value in fields))
 
     def open_tracked_issue(self, _event=None):
