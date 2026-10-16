@@ -30,7 +30,10 @@ def scope_for(kind, args, before):
         scope["interfaces"] = involved
         scope["forwarding"] = set(involved)
         scope["router"] = True
-        target_nats = {a["nat"] for a in network_guide.lan_addresses(profile)}
+        if profile.get("lan_addresses"):
+            target_nats = {a["nat"] for a in network_guide.lan_addresses(profile)}
+        else:
+            target_nats = {profile.get("nat")} if profile.get("nat") else set()
         scope["nats"] = {n["Name"] for n in before.get("nats", [])} | target_nats
         scope["nat_rebuild"] = False
         if action in ("apply", "reset"):
