@@ -1,34 +1,68 @@
-# Politica di versioning e build
+# Versioning e pubblicazione — WinNAT-UI
 
-## Identificatori distinti
-- **Versione funzionale**: `MAJOR.MINOR.PATCH[.HOTFIX]` in `version.py`, riportata nelle proprietà Windows dell'EXE, nelle release ufficiali e nel changelog.
-- **Identificativo build**: `MAJOR.MINOR.PATCH[.HOTFIX]+ci.<run_number>.<short_sha>`, registrato nel file `BUILD_INFO.txt` all'interno dell'artifact. Ogni esecuzione CI ha un artifact univoco anche se la versione funzionale rimane invariata.
-- Un test di compilazione, refactoring, revisione documentale o ripetizione della pipeline **non incrementa automaticamente** la versione funzionale.
+## Fonte della versione
+La versione funzionale è `MAJOR.MINOR.PATCH[.HOTFIX]`; il quarto componente è una **estensione del progetto**, riservata agli interventi urgenti. La fonte è `version.py`. La versione dell'eseguibile Windows in `version_info.txt`, il tag Git `vX.Y.Z[.H]`, il nome della release e i metadati dell'updater devono coincidere. Nelle proprietà Windows le versioni a tre componenti mostrano il quarto componente numerico zero.
 
-## Quando aggiornare la versione
-| Tipo | Esempio | Criterio |
-| --- | --- | --- |
-| HOTFIX | 1.9.15 → 1.9.15.1 | Correzione piccolissima sul comportamento esistente, senza nuova funzione. |
-| PATCH | 1.9.2 → 1.9.3 | Bugfix, sicurezza, stabilità, diagnostica o miglioramenti senza nuove funzionalità rilevanti. |
-| MINOR | 1.9.x → 1.10.0 | Pacchetto significativo di nuove funzionalità, miglioramenti operativi e correzioni, consolidato e verificato. |
-| MAJOR | 1.x.y → 2.0.0 | Cambi incompatibili, revisione sostanziale dei requisiti o del modello applicativo. |
+La build CI ha un identificatore indipendente `X.Y.Z[.H]+ci.<run>.<sha>` scritto in `BUILD_INFO.txt` e non genera una nuova versione funzionale.
 
-Il passaggio MINOR **non deriva dal numero di build** e non avviene automaticamente quando si aggiunge una singola correzione o una funzione isolata. Le correzioni successive restano nella stessa serie PATCH finché non viene pianificato un rilascio funzionale significativo.
+## Classificazione
+| Classe | Incremento | Uso |
+|---|---|---|
+| MAJOR | `2.0.0` | Incompatibilità intenzionali e migrazioni |
+| MINOR | `1.14.0` | Nuove capacità rilevanti e retrocompatibili |
+| PATCH | `1.14.1` | Correzioni ordinarie, sicurezza e stabilità |
+| HOTFIX | `1.14.0.1` | Correzione urgente della release già pubblicata |
+| BUILD | `1.14.0+ci.209.abcd1234` | Ricompilazione senza nuove funzionalità |
 
-## Procedura obbligatoria per MINOR/MAJOR
-1. Preparare la proposta con il changelog dettagliato, raggruppando tutte le feature e le correzioni dall'ultima versione MINOR.
-2. Inserire nella nuova sezione `## [X.Y.0]` del `CHANGELOG.md` **tutte** le intestazioni `### Sintesi`, `### Funzionalità`, `### Correzioni`; descrivere valore operativo, compatibilità, limiti, test eseguiti e problemi noti. Almeno una voce concreta sia per funzionalità sia per correzioni.
-3. Esaminare e approvare esplicitamente il riepilogo **prima** della pubblicazione. L'approvazione viene espressa da chi avvia manualmente la workflow `Build Windows executable` dal branch `main`, selezionando `approve_feature_release`. Questo selettore è una conferma operativa, non un sistema di approvazione a più persone.
-4. La CI esegue comunque build e test a ogni push/PR, ma **non pubblica automaticamente** un cambio MINOR/MAJOR. Il controllo blocca salti numerici e pubblicazioni prive di note strutturate.
-5. Conservare immutabili i tag già pubblicati; non sovrascrivere pacchetti o SHA256 esistenti.
+Progressione corretta: `1.13.0` → `1.13.0.1` → `1.13.1` → `1.14.0`.
+Un HOTFIX deve incorporare il fix nell'aggiornamento PATCH o MINOR successivo; il quarto componente torna a zero. Non creare un quarto numero per una build ripetuta.
 
-Per la versione PATCH e HOTFIX la pipeline può pubblicare automaticamente una release quando `version.py` aumenta di un solo PATCH e il changelog corrispondente è presente. A versione invariata produce esclusivamente artifact numerati.
+## Procedura di rilascio
+1. Aggiornare `version.py` e `version_info.txt`, verificare che le due rappresentazioni coincidano.
+2. Aggiungere la sezione `## [X.Y.Z]` nel `CHANGELOG.md`. MINOR e MAJOR richiedono obbligatoriamente `### Sintesi`, `### Funzionalità` e `### Correzioni` con informazioni verificabili.
+3. Aggiornare `RELEASE_NOTES.it.md` con novità, correzioni, compatibilità, limitazioni e collegamento alle Issue aperte.
+4. Eseguire test unitari e build Windows, validare versione EXE, scansione Defender, integrità ZIP e digest GitHub.
+5. Per MINOR e MAJOR utilizzare l'approvazione esplicita in GitHub Actions. Non pubblicare automaticamente un avanzamento funzionale a ogni commit.
+6. Non sovrascrivere tag/asset già pubblicati; la migrazione dello storico è una procedura eccezionale e tracciata separatamente.
+7. Eseguire un test reale dell'updater prima di dichiarare stabilità dell'aggiornamento sul campo.
 
-## Classificazione storica e release notes
-La documentazione destinata agli utenti è in [RELEASE_NOTES.it.md](RELEASE_NOTES.it.md). Le note storiche possono segnalare una classificazione oggi non ideale (ad esempio una funzionalità consistente pubblicata in PATCH): non rinumerare tag o artefatti già distribuiti. La release candidata 1.10.0 del 16 ottobre 2026 è distinta da eventuali build precedenti annullate con lo stesso identificativo; lo stato di pubblicazione va verificato sulle GitHub Releases.
+## Migrazione storica approvata nel 2026
+I seguenti identificativi provengono dalle 28 release effettivamente pubblicate il 14–15 ottobre 2026. Ogni nuovo tag deve puntare a un sorgente riprodotto con versione interna aggiornata, non a un tag alias arbitrario. Le build storiche vengono prima conservate e verificate in staging.
 
-## Eccezioni storiche
-Eccezione storica autorizzata: la release erronea `v1.10.1` e il relativo tag sono stati ritirati, mantenendo disponibile la versione corretta `v1.9.2`. I vecchi URL diretti non funzionano più. Nei prossimi rilasci evitare salti numerici non giustificati; non rinominare retroattivamente altre release senza un processo esplicito di migrazione.
+| Tag precedente | Tag rinumerato |
+|---|---|
+| `v1.2.0` | `v1.2.0` |
+| `v1.3.0` | `v1.3.0` |
+| `v1.4.0` | `v1.4.0` |
+| `v1.6.0` | `v1.5.0` |
+| `v1.6.1` | `v1.5.1` |
+| `v1.7.0` | `v1.5.2` |
+| `v1.7.1` | `v1.6.0` |
+| `v1.7.2` | `v1.6.1` |
+| `v1.7.3` | `v1.6.2` |
+| `v1.7.4` | `v1.6.3` |
+| `v1.7.5` | `v1.6.4` |
+| `v1.8.0` | `v1.7.0` |
+| `v1.9.0` | `v1.8.0` |
+| `v1.9.2` | `v1.9.0` |
+| `v1.9.3` | `v1.10.0` |
+| `v1.9.4` | `v1.10.1` |
+| `v1.9.5` | `v1.10.2` |
+| `v1.9.6` | `v1.11.0` |
+| `v1.9.7` | `v1.11.1` |
+| `v1.9.8` | `v1.11.2` |
+| `v1.9.9` | `v1.12.0` |
+| `v1.9.10` | `v1.12.1` |
+| `v1.9.11` | `v1.12.2` |
+| `v1.9.12` | `v1.12.3` |
+| `v1.9.13` | `v1.12.4` |
+| `v1.9.14` | `v1.12.5` |
+| `v1.9.15` | `v1.13.0` |
+| `v1.9.15.1` | `v1.13.0.1` |
 
-## Consultare la build
-Aprire `BUILD_INFO.txt` nell'artifact per identificare versione, numero run, commit e workflow. Per le release pubbliche il riferimento permanente è il tag Git associato e il relativo hash SHA256.
+`v1.9.1` non aveva più un tag o una release al momento dell'inventario, quindi le funzionalità allora documentate sono incorporate nel primo rilascio verificabile `v1.9.0` (precedentemente `v1.9.2`). `v1.10.0` era il numero del sorgente aggiornato, **non una release pubblicata**: la sua nuova prima release è `v1.14.0`. Il vecchio `v1.10.1` errato era già stato ritirato e non fa parte delle 28 release reali.
+
+Le note destinate agli utenti sono in [RELEASE_NOTES.it.md](RELEASE_NOTES.it.md); il dettaglio in [CHANGELOG.md](CHANGELOG.md). Le Issue aperte sono consultabili in https://github.com/matiz311/WinNAT-UI/issues?q=is%3Aissue+is%3Aopen .
+
+## Identificazione e integrità
+`BUILD_INFO.txt` contiene versione, identificativo della build, commit e workflow. Ogni asset ZIP pubblicato deve avere un digest SHA-256 verificabile. La presenza di una scansione Defender non equivale a una firma digitale: indicare sempre lo stato effettivo della firma nelle release notes.
