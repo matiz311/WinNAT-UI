@@ -16,6 +16,8 @@ import urllib.request
 import urllib.error
 import zipfile
 
+from . import maintenance
+
 REPOSITORY = "matiz311/WinNAT-UI"
 API_URL = "https://api.github.com/repos/" + REPOSITORY + "/releases/latest"
 ASSET_NAME = "WinNAT-UI-Windows.zip"
@@ -69,6 +71,9 @@ def _latest_release_metadata():
         code = error.code
         if code == 404:
             description = "Nessuna release stabile pubblicata o endpoint temporaneamente assente."
+            hint = maintenance.maintenance_hint()
+            if hint:
+                description += " " + hint
         elif code in (403, 429):
             description = "Accesso alle API GitHub limitato o non autorizzato; riprovare più tardi."
         elif 500 <= code <= 599:
@@ -96,9 +101,10 @@ def release_info(installed):
         raise ValueError("L'ultima release non è una versione stabile pubblicata.")
     assets = [a for a in data.get("assets", []) if a.get("name") == ASSET_NAME]
     if len(assets) != 1:
+        hint = maintenance.maintenance_hint("release-assets")
         raise UpdateChannelError(
             "release_without_required_asset",
-            "Release senza archivio Windows ufficiale univoco.",
+            "Release senza archivio Windows ufficiale univoco." + (" " + hint if hint else ""),
             phase="inspect_asset")
     asset = assets[0]
     url = asset.get("browser_download_url", "")
