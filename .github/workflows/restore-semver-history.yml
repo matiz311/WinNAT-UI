@@ -1,11 +1,10 @@
 name: Recover original WinNAT-UI releases
 
+# Manual-only restoration: never run automatically on a push.
+# The restoration workflow is staged outside the default branch.
+# Until it is deliberately added to main, resume the existing failed recovery run.
 on:
-  push:
-    branches: [maintenance/semver-history-migration]
-    paths:
-      - .github/workflows/restore-semver-history.yml
-      - tools/restore_semver_history.py
+  workflow_dispatch:
 
 permissions:
   contents: write
