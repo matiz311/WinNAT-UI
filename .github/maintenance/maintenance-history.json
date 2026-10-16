@@ -9,7 +9,7 @@
       "planned_start_at": null,
       "planned_end_at": null,
       "started_at": "2026-10-16T22:34:55Z",
-      "ended_at": "2026-10-16T22:38:36Z",
+      "ended_at": "2026-10-16T22:42:29Z",
       "components": [
         "github-actions",
         "maintenance-policy"
@@ -38,28 +38,37 @@
       ],
       "related_workflows": [
         "https://github.com/matiz311/WinNAT-UI/actions/runs/38976794595",
-        "https://github.com/matiz311/WinNAT-UI/actions/runs/38976794580"
+        "https://github.com/matiz311/WinNAT-UI/actions/runs/38976794580",
+        "https://github.com/matiz311/WinNAT-UI/actions/runs/38977022169",
+        "https://github.com/matiz311/WinNAT-UI/actions/runs/38977099403",
+        "https://github.com/matiz311/WinNAT-UI/actions/runs/38977099384"
       ],
       "executed_steps": [
         "Registro preventivo creato con commit fc85a5b prima della modifica del workflow.",
         "Implementato validatore Python, aggiunti test ed il workflow maintenance-guard.",
         "Documentate le limitazioni di branch protection e aggiornato AGENTS.md.",
-        "Verificati check maintenance-guard e Build Windows executable su commit ee4e8f5."
+        "Verificati check maintenance-guard e Build Windows executable su commit ee4e8f5.",
+        "Corretto accoppiamento dei test unitari al registro live; rerun CI sul commit 278950a."
       ],
       "commits": [
         "fc85a5bfa8b03adca5f19e9ec151e8995c794480",
         "c8bad1444adf116ca36518fb2149559ff6e1f5d3",
         "fb14f9243057027164e84d8a76397d17ece040d3",
-        "ee4e8f5eed39d8c53577ce0bdeb4d1e788e4f2d9"
+        "ee4e8f5eed39d8c53577ce0bdeb4d1e788e4f2d9",
+        "278950ad5a99f5243eaf15755cd2febb645b827f"
       ],
-      "observed_errors": [],
+      "observed_errors": [
+        "2026-10-16T22:39:20Z maintenance guard run 38977022169: due test falliti perché dipendenti dallo stato mutable dell'evento (planned -> completed); codice di validazione superato. Correzione 278950a5."
+      ],
       "evidence": [
         "2026-10-16T22:33:54Z first registration commit fc85a5b; 2026-10-16T22:34:55Z first verified implementation commit c8bad.",
         "2026-10-16T22:37:01Z maintenance-guard conclusion=success, includes schema, tests and pre-change order.",
         "2026-10-16T22:38:36Z Windows build conclusion=success, including tests, Defender, artifact upload; release steps skipped.",
-        "No live service availability has been independently tested; maintenance-status.json remains unknown."
+        "No live service availability has been independently tested; maintenance-status.json remains unknown.",
+        "2026-10-16T22:40:11Z maintenance-guard success dopo fix test 278950a.",
+        "2026-10-16T22:42:29Z Windows build success commit 278950a con test, Defender, metadati EXE, artefatto; publish steps skipped."
       ],
-      "outcome": "Successo: validatore manutenzioni e build Windows del commit ee4e8f5 sono stati verificati. Nessun deploy o modifica di release."
+      "outcome": "Completato con correzione dei test: guard e build Windows riusciti sul commit 278950a; nessuna release o modifica live ai servizi."
     }
   ]
 }
