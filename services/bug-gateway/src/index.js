@@ -69,10 +69,16 @@ async function github(env, endpoint, init={}) {
   return response.json();
 }
 async function lookup(env, sig) {
-  // GitHub Issue listing avoids search indexing delay for recently created bugs.
-  const issues = await github(env, "/repos/"+REPO+"/issues?state=open&labels=bug-report&per_page=100");
-  return issues.find(x=>!x.pull_request && x.state==="open" &&
-    (x.body||"").includes("<!-- winnat-fingerprint:"+sig+" -->"))||null;
+  // GitHub's issue list may lag newly-created issues by several seconds.
+  // Recheck before creating a new one; no raw report or user identity is cached.
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const issues = await github(env, "/repos/"+REPO+"/issues?state=open&labels=bug-report&per_page=100");
+    const found = issues.find(x=>!x.pull_request && x.state==="open" &&
+      (x.body||"").includes("<!-- winnat-fingerprint:"+sig+" -->"));
+    if (found) return found;
+    if (attempt < 5) await new Promise(resolve=>setTimeout(resolve, 1000));
+  }
+  return null;
 }
 export default {
   async fetch(request, env) {
