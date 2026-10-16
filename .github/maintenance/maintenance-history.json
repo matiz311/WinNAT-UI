@@ -1,4 +1,46 @@
 {
   "schema_version": 1,
-  "events": []
+  "events": [
+    {
+      "id": "MAINT-20261016-001",
+      "type": "structural",
+      "status": "planned",
+      "registered_at": "2026-10-16T22:33:41Z",
+      "planned_start_at": null,
+      "planned_end_at": null,
+      "started_at": null,
+      "ended_at": null,
+      "components": [
+        "github-actions",
+        "maintenance-policy"
+      ],
+      "affected_endpoints": [
+        ".github/workflows/maintenance-guard.yml"
+      ],
+      "description": "Introduzione di controlli automatici, non distruttivi, sul registro manutenzioni e sulla registrazione preventiva delle modifiche CI/CD.",
+      "planned_steps": [
+        "Registrare l'intervento in un commit antecedente alla modifica del workflow.",
+        "Aggiungere validatore, test unitari e workflow separato di verifica.",
+        "Verificare il check GitHub Actions sul commit della PR #68 e registrare l'esito."
+      ],
+      "expected_impact": "Nessun downtime previsto su release, download, updater e bug gateway; rischio di blocco delle PR per validazioni errate fino alla correzione o rollback.",
+      "expected_errors": [
+        "maintenance-guard failed on invalid schema",
+        "maintenance-guard failed on missing pre-change record"
+      ],
+      "actor": "ChatGPT",
+      "rollback": "Revert del solo workflow maintenance-guard.yml e dell'eventuale validatore senza alterare build.yml, release, tag o servizi in produzione.",
+      "related_issues": [
+        44
+      ],
+      "related_prs": [
+        68
+      ],
+      "related_workflows": [],
+      "executed_steps": [],
+      "commits": [],
+      "observed_errors": [],
+      "evidence": []
+    }
+  ]
 }
