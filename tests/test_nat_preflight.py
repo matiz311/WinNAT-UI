@@ -1,6 +1,6 @@
 """Single physical WinNAT preflight tests."""
 import unittest
-import network
+from winnat_ui import network
 
 
 class NatPreflightTests(unittest.TestCase):
@@ -23,7 +23,7 @@ class NatPreflightTests(unittest.TestCase):
     def test_direct_add_never_calls_expand_or_remove(self):
         import unittest.mock as mock
         inventory = {"nats": [{"Name": "NAT-Ethernet", "InternalIPInterfaceAddressPrefix": "192.168.192.0/24"}]}
-        with mock.patch("network.ps", return_value="") as ps:
+        with mock.patch("winnat_ui.network.ps", return_value="") as ps:
             self.assertEqual(network.nat_add_preflight("NewName", "192.168.1.0/24", inventory), "create")
             network.create_nat("NewName", "192.168.1.0/24")
             script = ps.call_args[0][0]

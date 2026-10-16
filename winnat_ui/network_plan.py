@@ -1,6 +1,6 @@
 """Explicit Windows networking plan operations (not tied to application ownership)."""
 import ipaddress
-import network
+from . import network
 
 def validate_interface(name, inventory):
     matches=[a for a in inventory.get("adapters",[]) if a.get("Name")==name]

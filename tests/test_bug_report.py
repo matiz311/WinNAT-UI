@@ -2,7 +2,7 @@
 import unittest
 from urllib.parse import parse_qs, urlparse
 
-import bug_report
+from winnat_ui import bug_report
 
 
 class BugReportTests(unittest.TestCase):

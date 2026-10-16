@@ -2,7 +2,7 @@
 import copy
 import unittest
 from unittest.mock import patch
-import network_guide as guide
+from winnat_ui import network_guide as guide
 
 
 def inventory():
@@ -59,9 +59,9 @@ class GuideTests(unittest.TestCase):
         fp = guide.fingerprint(self.profile, self.data)
         post = dict(self.data)
         post["globalRouter"] = 1
-        with patch("network_guide.network.snapshot", return_value="x"), patch(
-                "network_guide.network.ps", side_effect=RuntimeError("netsh exit 1")), patch(
-                "network_guide.network.collect", return_value=post):
+        with patch("winnat_ui.network_guide.network.snapshot", return_value="x"), patch(
+                "winnat_ui.network_guide.network.ps", side_effect=RuntimeError("netsh exit 1")), patch(
+                "winnat_ui.network_guide.network.collect", return_value=post):
             with self.assertRaisesRegex(RuntimeError, "OPERAZIONE GUIDATA FALLITA") as caught:
                 guide.execute("apply", self.profile, self.data, fp)
         message = str(caught.exception)
@@ -74,9 +74,9 @@ class GuideTests(unittest.TestCase):
 
     def test_inventory_failure_preserves_original_error(self):
         fp = guide.fingerprint(self.profile, self.data)
-        with patch("network_guide.network.snapshot", return_value="x"), patch(
-                "network_guide.network.ps", side_effect=RuntimeError("original failure")), patch(
-                "network_guide.network.collect", side_effect=RuntimeError("inventory failure")):
+        with patch("winnat_ui.network_guide.network.snapshot", return_value="x"), patch(
+                "winnat_ui.network_guide.network.ps", side_effect=RuntimeError("original failure")), patch(
+                "winnat_ui.network_guide.network.collect", side_effect=RuntimeError("inventory failure")):
             with self.assertRaises(RuntimeError) as caught:
                 guide.execute("apply", self.profile, self.data, fp)
         self.assertIn("original failure", str(caught.exception))
@@ -87,8 +87,8 @@ class GuideTests(unittest.TestCase):
         self.assertTrue(any("aggiungi IP" in line for line in lines))
         self.assertTrue(any("IPEnableRouter = 1" in line for line in lines))
         fp = guide.fingerprint(self.profile, self.data)
-        with patch("network_guide.network.snapshot",return_value="backup.json"),patch(
-                "network_guide.network.ps",return_value="OK") as call:
+        with patch("winnat_ui.network_guide.network.snapshot",return_value="backup.json"),patch(
+                "winnat_ui.network_guide.network.ps",return_value="OK") as call:
             result=guide.execute("apply",self.profile,self.data,fp)
         text=call.call_args.args[0]
         self.assertIn("Set-NetIPInterface -InterfaceAlias $wan1",text)
@@ -109,8 +109,8 @@ class GuideTests(unittest.TestCase):
             "InterfaceAlias": "Ethernet", "DestinationPrefix": "172.16.0.0/16",
             "InterfaceIndex": 5, "NextHop": "192.168.90.1", "RouteMetric": 5})
         fp = guide.fingerprint(self.profile, self.data)
-        with patch("network_guide.network.snapshot", return_value="x"), patch(
-                "network_guide.network.ps", return_value="") as call:
+        with patch("winnat_ui.network_guide.network.snapshot", return_value="x"), patch(
+                "winnat_ui.network_guide.network.ps", return_value="") as call:
             guide.execute("apply", self.profile, self.data, fp)
         self.assertNotIn("Remove-NetRoute", call.call_args.args[0])
         self.assertFalse(any("route/default gateway residui" in line
@@ -118,8 +118,8 @@ class GuideTests(unittest.TestCase):
 
     def test_static_lan_adds_secondary_without_overwriting(self):
         fp = guide.fingerprint(self.profile, self.data)
-        with patch("network_guide.network.snapshot", return_value="x"), patch(
-                "network_guide.network.ps", return_value="") as call:
+        with patch("winnat_ui.network_guide.network.snapshot", return_value="x"), patch(
+                "winnat_ui.network_guide.network.ps", return_value="") as call:
             guide.execute("apply", self.profile, self.data, fp)
         script = call.call_args.args[0]
         self.assertIn("$duplicate = @(Get-NetIPAddress", script)
@@ -131,8 +131,8 @@ class GuideTests(unittest.TestCase):
     def test_disable_preserves_ip_addresses(self):
         self.data["nats"]=[{"Name":"FromAnotherApp","InternalIPInterfaceAddressPrefix":"10.10.10.0/24"}]
         fp=guide.fingerprint(self.profile,self.data)
-        with patch("network_guide.network.snapshot",return_value="x"),patch(
-                "network_guide.network.ps",return_value="") as call:
+        with patch("winnat_ui.network_guide.network.snapshot",return_value="x"),patch(
+                "winnat_ui.network_guide.network.ps",return_value="") as call:
             guide.execute("disable",self.profile,self.data,fp)
         text=call.call_args.args[0]
         self.assertIn("Remove-NetNat",text)
@@ -143,9 +143,9 @@ class GuideTests(unittest.TestCase):
     def test_reset_cleans_regardless_of_owner(self):
         self.data["nats"]=[{"Name":"NotManaged","InternalIPInterfaceAddressPrefix":"192.168.90.0/24"}]
         fp=guide.fingerprint(self.profile,self.data)
-        with patch("network_guide.network.snapshot",return_value="x"),patch(
-                "network_guide.network.ps",return_value="") as call,patch(
-                "network_guide.network.managed_state",return_value=None):
+        with patch("winnat_ui.network_guide.network.snapshot",return_value="x"),patch(
+                "winnat_ui.network_guide.network.ps",return_value="") as call,patch(
+                "winnat_ui.network_guide.network.managed_state",return_value=None):
             guide.execute("reset",self.profile,self.data,fp)
         text=call.call_args.args[0]
         self.assertIn("Remove-NetNat",text)
@@ -159,9 +159,9 @@ class GuideTests(unittest.TestCase):
     def test_reset_dhcp_is_idempotent(self):
         """When DHCP is already enabled, reset must not fail on netsh exit 1."""
         fp = guide.fingerprint(self.profile, self.data)
-        with patch("network_guide.network.snapshot", return_value="x"), patch(
-                "network_guide.network.ps", return_value="") as call, patch(
-                "network_guide.network.managed_state", return_value=None):
+        with patch("winnat_ui.network_guide.network.snapshot", return_value="x"), patch(
+                "winnat_ui.network_guide.network.ps", return_value="") as call, patch(
+                "winnat_ui.network_guide.network.managed_state", return_value=None):
             guide.execute("reset", self.profile, self.data, fp)
         script = call.call_args.args[0]
         self.assertIn("if ($lanDhcp -ne 'Enabled') {", script)
@@ -177,8 +177,8 @@ class GuideTests(unittest.TestCase):
                                if r["InterfaceAlias"] != "Ethernet"]
         self.data["interfaces"][0]["Dhcp"] = "Disabled"
         fp = guide.fingerprint(self.profile, self.data)
-        with patch("network_guide.network.snapshot", return_value="x"), patch(
-                "network_guide.network.ps", return_value="") as call:
+        with patch("winnat_ui.network_guide.network.snapshot", return_value="x"), patch(
+                "winnat_ui.network_guide.network.ps", return_value="") as call:
             guide.execute("apply", self.profile, self.data, fp)
         text = call.call_args.args[0]
         self.assertIn("New-NetIPAddress", text)
@@ -189,8 +189,8 @@ class GuideTests(unittest.TestCase):
         self.profile["prefix"] = "192.168.192.0/25"
         self.profile["gateway"] = "192.168.192.126"
         fp = guide.fingerprint(self.profile, self.data)
-        with patch("network_guide.network.snapshot", return_value="x"), patch(
-                "network_guide.network.ps", return_value="") as call:
+        with patch("winnat_ui.network_guide.network.snapshot", return_value="x"), patch(
+                "winnat_ui.network_guide.network.ps", return_value="") as call:
             guide.execute("apply", self.profile, self.data, fp)
         text = call.call_args.args[0]
         self.assertIn("$lanPrefix = 25", text)
@@ -211,8 +211,8 @@ class GuideTests(unittest.TestCase):
         expected = guide.fingerprint(self.profile, original)
         partial = converged_inventory(self.profile)
         partial["globalRouter"] = 0
-        with patch("network_guide.network.snapshot", return_value="retry.json"), patch(
-                "network_guide.network.ps", return_value="OK") as call:
+        with patch("winnat_ui.network_guide.network.snapshot", return_value="retry.json"), patch(
+                "winnat_ui.network_guide.network.ps", return_value="OK") as call:
             result = guide.execute("apply", self.profile, partial, expected)
         script = call.call_args.args[0]
         self.assertTrue(result["rebased"])
@@ -230,9 +230,9 @@ class GuideTests(unittest.TestCase):
 
     def test_verified_apply_fails_if_target_did_not_converge(self):
         fp = guide.fingerprint(self.profile, self.data)
-        with patch("network_guide.network.snapshot", return_value="verify.json"), patch(
-                "network_guide.network.ps", return_value="OK"), patch(
-                "network_guide.network.collect", return_value=self.data):
+        with patch("winnat_ui.network_guide.network.snapshot", return_value="verify.json"), patch(
+                "winnat_ui.network_guide.network.ps", return_value="OK"), patch(
+                "winnat_ui.network_guide.network.collect", return_value=self.data):
             with self.assertRaisesRegex(RuntimeError, "stato candidato non raggiunto"):
                 guide.execute("apply", self.profile, self.data, fp, verify=True)
 
@@ -289,7 +289,7 @@ class GuideTests(unittest.TestCase):
         newer=copy.deepcopy(self.data)
         newer["routes"].append({"InterfaceAlias":"Ethernet","DestinationPrefix":"0.0.0.0/0",
                                  "InterfaceIndex":5,"NextHop":"1.1.1.1","RouteMetric":1})
-        with patch("network_guide.network.ps") as ps:
+        with patch("winnat_ui.network_guide.network.ps") as ps:
             with self.assertRaisesRegex(ValueError,"modificata"):
                 guide.execute("reset",self.profile,newer,fp)
         ps.assert_not_called()

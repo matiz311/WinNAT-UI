@@ -5,7 +5,7 @@ No ownership metadata is required to reset NAT, LAN addresses, or routing settin
 """
 import ipaddress
 import json
-import network
+from . import network
 
 DEFAULTS = {"lan": "Ethernet", "wans": [{"alias": "USB-C", "metric": 10}],
             "prefix": "10.10.10.0/24", "gateway": "10.10.10.1", "nat": "NAT-Firewall"}

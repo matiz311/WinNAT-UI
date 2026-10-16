@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 from urllib.parse import urlparse
-import issue_tracker as it
+from winnat_ui import issue_tracker as it
 
 
 class IssueTrackerTests(TestCase):
@@ -31,7 +31,7 @@ class IssueTrackerTests(TestCase):
         self.assertNotEqual(it.fingerprint(original), it.fingerprint(another))
 
     def test_unconfigured_backend_does_not_contact_github_with_secret(self):
-        with patch("issue_tracker.service_endpoint", return_value=None):
+        with patch("winnat_ui.issue_tracker.service_endpoint", return_value=None):
             with self.assertRaisesRegex(RuntimeError, "non ancora configurato"):
                 it.submit(it.safe_payload("Commit", "Access denied", "", "1.9.5"))
 
@@ -40,7 +40,7 @@ class IssueTrackerTests(TestCase):
                          "https://attacker.com/report",
                          "https://someone.workers.dev@evil.com/report"):
             with self.subTest(endpoint=endpoint):
-                with patch("issue_tracker._read_json", return_value={"submit_url": endpoint}):
+                with patch("winnat_ui.issue_tracker._read_json", return_value={"submit_url": endpoint}):
                     self.assertIsNone(it.service_endpoint())
 
     def test_save_then_sync_issue_fixed_only_in_published_new_release(self):
@@ -48,7 +48,7 @@ class IssueTrackerTests(TestCase):
             path = Path(tmp) / "report.json"
             payload = it.safe_payload("Commit", "Access denied", "", "1.9.5")
             issue = {"number": 42, "url": "https://github.com/matiz311/WinNAT-UI/issues/42"}
-            with patch("issue_tracker.store_path", return_value=path):
+            with patch("winnat_ui.issue_tracker.store_path", return_value=path):
                 item = it.save_entry(payload, issue)
                 found = {it.fingerprint(payload): [{"number": 42, "state": "closed",
                     "fixed_in": "1.9.8", "fingerprint": it.fingerprint(payload)}]}

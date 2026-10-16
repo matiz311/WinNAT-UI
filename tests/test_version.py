@@ -4,7 +4,7 @@ import re
 import sys
 import unittest
 
-ROOT = pathlib.Path(__file__).resolve().parent
+ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 import release  # noqa: E402
 from version import VERSION  # noqa: E402
@@ -45,6 +45,13 @@ class VersionTests(unittest.TestCase):
             self.assertIn("v" + VERSION, source, name + " does not mention the live release")
         self.assertNotIn("## Versione 1.9.1", (ROOT / "README.md").read_text(encoding="utf-8"))
         self.assertNotIn("## Version 1.9.1", (ROOT / "README.en.md").read_text(encoding="utf-8"))
+
+    def test_python_files_are_organized(self):
+        self.assertEqual({p.name for p in ROOT.glob("*.py")}, {"app.py", "version.py"})
+        for module in ("network", "network_guide", "network_plan", "network_rollback",
+                       "nat_backend", "bug_report", "issue_tracker", "updater", "ui_theme"):
+            self.assertTrue((ROOT / "winnat_ui" / (module + ".py")).is_file())
+        self.assertTrue((ROOT / "tests" / "__init__.py").is_file())
 
     def test_no_conflict_markers(self):
         for path in ROOT.rglob("*"):

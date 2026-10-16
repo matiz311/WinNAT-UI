@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import zipfile
-import updater
+from winnat_ui import updater
 
 
 class UpdaterTests(unittest.TestCase):
@@ -44,7 +44,7 @@ class UpdaterTests(unittest.TestCase):
             def __enter__(self): return self
             def __exit__(self, *args): return False
             def read(self, n=-1): return json.dumps(data).encode()
-        with patch("updater.urllib.request.urlopen", return_value=Response()):
+        with patch("winnat_ui.updater.urllib.request.urlopen", return_value=Response()):
             release = updater.release_info("1.9.2")
         self.assertTrue(release["available"])
         self.assertEqual(release["sha256"], digest)
@@ -58,7 +58,7 @@ class UpdaterTests(unittest.TestCase):
             def __enter__(self): return self
             def __exit__(self, *args): return False
             def read(self, n=-1): return json.dumps(data).encode()
-        with patch("updater.urllib.request.urlopen", return_value=Response()):
+        with patch("winnat_ui.updater.urllib.request.urlopen", return_value=Response()):
             with self.assertRaisesRegex(ValueError, "digest"):
                 updater.release_info("1.9.2")
 
@@ -79,7 +79,7 @@ class UpdaterTests(unittest.TestCase):
             def __exit__(self, *args): return False
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "asset.zip"
-            with patch("updater.urllib.request.urlopen", return_value=Response(b"invalid")):
+            with patch("winnat_ui.updater.urllib.request.urlopen", return_value=Response(b"invalid")):
                 with self.assertRaisesRegex(ValueError, "SHA256"):
                     updater._download("https://github.com/" + updater.REPOSITORY +
                                       "/releases/download/v1.9.3/" + updater.ASSET_NAME,
