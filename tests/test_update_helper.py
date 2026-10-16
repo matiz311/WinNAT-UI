@@ -1,4 +1,5 @@
 """Update helper: no console window, progress window, real PowerShell run on Windows."""
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -7,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from winnat_ui import updater
+from winnat_ui import bug_report, updater
 
 
 class LaunchTests(unittest.TestCase):
@@ -63,6 +64,56 @@ class LaunchTests(unittest.TestCase):
             self.assertIn(needed, script)
 
 
+class FailureReportTests(unittest.TestCase):
+    FAILURE = {"schema": 1, "from_version": "1.14.0", "to_version": "1.15.0",
+               "step": "Installazione della nuova versione",
+               "error": "Access to the path 'C:\\Users\\mario\\x.dll' is denied.",
+               "outcome": "La versione precedente è stata ripristinata.",
+               "exit_code": 1, "time": "2026-10-16T19:00:00Z",
+               "log": "2026-10-16  Fase: Installazione della nuova versione"}
+
+    def _write(self, tmp, data):
+        path = Path(tmp) / updater.FAILURE_FILE
+        raw = data if isinstance(data, str) else json.dumps(data)
+        path.write_text(raw, encoding="utf-8-sig")
+        return path
+
+    def test_valid_failure_is_read_and_cleared(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._write(tmp, self.FAILURE)
+            failure = updater.pending_failure(path)
+            self.assertEqual(failure["step"], "Installazione della nuova versione")
+            updater.clear_failure(path)
+            self.assertFalse(path.exists())
+            updater.clear_failure(path)  # already gone: no error
+
+    def test_invalid_failure_files_are_ignored(self):
+        bad = ["{not json", json.dumps([1]), json.dumps(dict(self.FAILURE, schema=2)),
+               json.dumps(dict(self.FAILURE, error=7)), json.dumps(dict(self.FAILURE, error=" ")),
+               json.dumps(dict(self.FAILURE, log="x" * (updater.MAX_FAILURE_BYTES + 1)))]
+        with tempfile.TemporaryDirectory() as tmp:
+            for raw in bad:
+                with self.subTest(raw=raw[:30]):
+                    self.assertIsNone(updater.pending_failure(self._write(tmp, raw)))
+            self.assertIsNone(updater.pending_failure(Path(tmp) / "missing.json"))
+
+    def test_report_payload_fits_gateway_rules(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            failure = updater.pending_failure(self._write(tmp, self.FAILURE))
+        message = updater.failure_message(failure)
+        self.assertTrue(message.startswith("Access to the path"))
+        payload = bug_report.build_payload("Aggiornamento", message, "", "1.14.0")
+        # Same constraints as services/bug-gateway/src/index.js.
+        categories = {label for _p, label in bug_report.KNOWN_ERRORS} | {"Errore operativo non classificato"}
+        self.assertIn(payload["category"], categories)
+        self.assertEqual(payload["exception"], "Non determinato")
+        self.assertRegex(payload["operation"], r"^[\w ./:+()\-]{1,80}$")
+        self.assertEqual(payload["exit_code"], 1)
+        self.assertTrue(payload["summary"].startswith("Access to the path"))
+        self.assertNotIn("mario", payload["message"])  # username in the path is redacted
+        self.assertIn("non disponibile", payload["inventory"])
+
+
 # Windows PIDs are multiples of 4 well below this value, so it never belongs to
 # a live process (a recycled PID would make the helper wait for 45 s).
 ABSENT_PID = 2147483644
@@ -91,9 +142,10 @@ class HelperOnWindowsTests(unittest.TestCase):
              "Bypass", "-File", str(script), "-ParentPid", str(ABSENT_PID),
              "-InstallDir", str(inst), "-StageRoot", str(stage),
              "-FromVersion", "1.14.0", "-ToVersion", "1.15.0", "-NoLaunch",
-             "-AutoCloseSeconds", "20", *extra],
+             "-AutoCloseSeconds", "20", "-ReportDir", str(root / "report"), *extra],
             capture_output=True, text=True, timeout=150, env=env)
         log = (stage / "update-log.txt").read_text(encoding="utf-8-sig")
+        self.report = root / "report" / updater.FAILURE_FILE
         return result, inst, stage, log
 
     def test_script_parses(self):
@@ -118,6 +170,7 @@ class HelperOnWindowsTests(unittest.TestCase):
             # The window may be unavailable on a headless runner, but if it was
             # created no UI call may have failed during the update.
             self.assertNotIn("UI disattivata", log)
+            self.assertFalse(self.report.exists())
 
     def test_invalid_package_leaves_installation_untouched(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -125,6 +178,12 @@ class HelperOnWindowsTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertEqual((inst / "WinNAT-UI.exe").read_text(), "old")
             self.assertIn("Eseguibile nuovo assente", log)
+            failure = updater.pending_failure(self.report)
+            self.assertIsNotNone(failure)
+            self.assertEqual(failure["error"], "Eseguibile nuovo assente.")
+            self.assertEqual(failure["to_version"], "1.15.0")
+            self.assertEqual(failure["exit_code"], 1)
+            self.assertIn("Fase: Chiusura di WinNAT UI", failure["log"])
 
 
 if __name__ == "__main__":

@@ -341,7 +341,13 @@ class App(tk.Tk):
         self.show_page("dashboard")
         self.after(100, self.drain)
         self.after(60000, self.periodic_sessions)
-        self.after(2500, lambda: self.check_updates(silent=True))
+        # A failed update saved by the helper is offered for reporting once; in
+        # that session the automatic update prompt is skipped to avoid a loop.
+        self.update_failure = updater.pending_failure()
+        if self.update_failure:
+            self.after(1200, self.report_update_failure)
+        else:
+            self.after(2500, lambda: self.check_updates(silent=True))
         self.after(7000, lambda: self.refresh_issue_tracker(silent=True))
         self.refresh()
 
@@ -1371,20 +1377,29 @@ class App(tk.Tk):
     def refresh_issue_tracker(self, silent=False):
         if "Stato bug" in self.tasks:
             return
+
         def check():
             try:
                 latest = updater.release_info(VERSION)["version"]
             except Exception:
                 latest = None
             try:
-                return issue_tracker.synchronize(VERSION, latest_version=latest)
-            except Exception:
-                if silent:
-                    return issue_tracker.history(), {}
-                raise
+                entries, listed = issue_tracker.synchronize(VERSION, latest_version=latest)
+                return entries, listed, None
+            except issue_tracker.RemoteIssueError as exc:
+                # Expected external-service failure: keep the local history untouched.
+                return issue_tracker.history(), {}, exc
+
         def finished(result):
-            entries, _ = result
+            entries, _, remote_error = result
             self.render_issue_tracker()
+            if remote_error is not None:
+                label = ("Sincronizzazione non disponibile: " + str(remote_error)
+                         + " I dati locali non sono stati modificati. Riprova quando la connessione è disponibile.")
+                self.issue_status.set(label)
+                if not silent:
+                    messagebox.showwarning("Verifica stato Issue non disponibile", label, parent=self)
+                return
             ready = [i for i in entries if i.get("fix_available")]
             if ready:
                 label = ("Nuova versione disponibile con correzioni per "
@@ -1396,7 +1411,20 @@ class App(tk.Tk):
                     messagebox.showinfo("Correzione disponibile", label, parent=self)
             elif not silent:
                 self.toast.show("Stato delle Issue aggiornato.", "success")
+
         self.run_task("Stato bug", check, finished)
+
+    def report_update_failure(self):
+        failure, self.update_failure = self.update_failure, None
+        updater.clear_failure()
+        if not failure:
+            return
+        # Opt-in as every report: the standard dialog shows the full report and
+        # asks for confirmation before publishing. No network inventory: it is
+        # not relevant to the updater and would only add personal data.
+        self.show_error_dialog("Aggiornamento non riuscito", "Aggiornamento",
+                               updater.failure_message(failure), "",
+                               include_inventory=False)
 
     def check_updates(self, silent=False):
         if "Aggiornamenti" in self.tasks or "Download aggiornamento" in self.tasks:
@@ -1507,7 +1535,8 @@ class App(tk.Tk):
             self.bind("<Control-Key-%d>" % (i + 1), lambda e, k=key: self.show_page(k))
 
     # ------------------------------------------------------------ tasks ---
-    def show_error_dialog(self, title, operation, message, traceback_text="", commit=False):
+    def show_error_dialog(self, title, operation, message, traceback_text="", commit=False,
+                          include_inventory=True):
         """Readable summary first; complete, copyable debug details on demand."""
         dlg = Dialog(self, title, "Chiudi", cancel="Copia errore")
         dlg.ok.configure(command=dlg.destroy)
@@ -1515,7 +1544,8 @@ class App(tk.Tk):
         # Build once: the same report shown here is sent to the gateway.
         payload = issue_tracker.safe_payload(
             operation, message, traceback_text, VERSION,
-            inventory=self.data, is_admin=self.is_admin, pending=self.pending)
+            inventory=self.data if include_inventory else None, is_admin=self.is_admin,
+            pending=self.pending if include_inventory else None)
         report_title, report_body = bug_report.format_report(payload)
         report_text = report_title + "\n\n" + report_body
 

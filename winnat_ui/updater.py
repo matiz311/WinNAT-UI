@@ -186,13 +186,18 @@ param(
     [switch]$NoUi,
     [switch]$NoLaunch,
     # Tests only: close the error window after N seconds instead of waiting.
-    [int]$AutoCloseSeconds = 0
+    [int]$AutoCloseSeconds = 0,
+    # Where the failure details for the next app start are saved (tests override it).
+    [string]$ReportDir = ''
 )
 $ErrorActionPreference = 'Stop'
 $backup = Join-Path $StageRoot 'previous'
 $source = Join-Path $StageRoot 'new'
 $log = Join-Path $StageRoot 'update-log.txt'
 $installed = Join-Path $InstallDir 'WinNAT-UI.exe'
+if (-not $ReportDir) { $ReportDir = Join-Path $env:LOCALAPPDATA 'WinNAT-UI' }
+$issuesUrl = 'https://github.com/matiz311/WinNAT-UI/issues'
+$script:reopenMode = 'reopen'
 $stepNames = @('Chiusura di WinNAT UI', 'Copia di sicurezza della versione installata',
                'Installazione della nuova versione', 'Verifica dei file installati',
                'Avvio di WinNAT UI')
@@ -318,7 +323,7 @@ function New-UpdateWindow {
     $detail = Add-Label 'Preparazione…' 24 234 432 22 $fSmall $c.muted
 
     $buttons = @()
-    foreach ($spec in @(@('Chiudi', 368, 88), @('Apri registro', 252, 108), @('Riapri WinNAT UI', 24, 140))) {
+    foreach ($spec in @(@('Chiudi', 368, 88), @('Apri registro', 252, 108), @('Riapri e segnala', 24, 150))) {
         $b = New-Object System.Windows.Forms.Button
         $b.Text = $spec[0]
         $b.Location = New-Object System.Drawing.Point($spec[1], 300)
@@ -331,7 +336,10 @@ function New-UpdateWindow {
     $buttons[0].Add_Click({ $script:ui.form.Close() })
     $buttons[1].Add_Click({ try { Start-Process -FilePath 'notepad.exe' -ArgumentList ('"' + $log + '"') } catch { } })
     $buttons[2].Add_Click({
-        try { Start-Process -FilePath $installed -WorkingDirectory $InstallDir } catch { }
+        try {
+            if ($script:reopenMode -eq 'issues') { Start-Process -FilePath $issuesUrl }
+            else { Start-Process -FilePath $installed -WorkingDirectory $InstallDir }
+        } catch { }
         $script:ui.form.Close()
     })
     $form.AcceptButton = $buttons[0]
@@ -416,6 +424,30 @@ function Copy-Tree([string]$from, [string]$to, [int]$pctFrom, [int]$pctTo, [stri
     return $n
 }
 
+# Saved for the next WinNAT UI start, which offers the usual (opt-in) GitHub
+# bug report: publishing is never automatic and the app is closed right now.
+function Save-FailureReport([string]$errorText, [string]$outcome, [int]$exitCode) {
+    try {
+        $logText = ''
+        if (Test-Path -LiteralPath $log) { $logText = [System.IO.File]::ReadAllText($log) }
+        if ($logText.Length -gt 12000) { $logText = $logText.Substring($logText.Length - 12000) }
+        $stepIndex = [Math]::Min($script:current, $stepNames.Count - 1)
+        $data = [ordered]@{
+            schema = 1; from_version = $FromVersion; to_version = $ToVersion
+            step = $stepNames[$stepIndex]; error = $errorText; outcome = $outcome
+            exit_code = $exitCode; time = (Get-Date).ToUniversalTime().ToString('o'); log = $logText
+        }
+        if (-not (Test-Path -LiteralPath $ReportDir)) { New-Item -ItemType Directory -Path $ReportDir -Force | Out-Null }
+        $target = Join-Path $ReportDir 'update-failure.json'
+        [System.IO.File]::WriteAllText($target, ($data | ConvertTo-Json -Depth 3), (New-Object System.Text.UTF8Encoding($false)))
+        Write-Log ('Dettagli per la segnalazione salvati in ' + $target)
+        return $true
+    } catch {
+        Write-Log ('Salvataggio dei dettagli per la segnalazione non riuscito: ' + $_.Exception.Message)
+        return $false
+    }
+}
+
 function Show-Result([bool]$ok, [string]$message, [bool]$canReopen) {
     $script:busy = $false
     if (-not $script:ui) { return }
@@ -443,7 +475,10 @@ function Show-Result([bool]$ok, [string]$message, [bool]$canReopen) {
         $u.form.ClientSize = New-Object System.Drawing.Size($u.form.ClientSize.Width, ($u.buttons[0].Bottom + 18))
         $u.buttons[0].Visible = $true
         $u.buttons[1].Visible = $true
-        $u.buttons[2].Visible = $canReopen
+        # Reopening shows the report dialog; if the app cannot start, the
+        # button opens GitHub Issues instead.
+        if (-not $canReopen) { $script:reopenMode = 'issues'; $u.buttons[2].Text = 'Apri GitHub Issues' }
+        $u.buttons[2].Visible = $true
         $u.form.ControlBox = $true
         $u.form.TopMost = $false
         $u.form.Activate()
@@ -515,7 +550,9 @@ try {
             $canReopen = $false
         }
     }
-    Show-Result $false ($failure + "`r`n" + $note) $canReopen
+    $saved = Save-FailureReport $failure $note 1
+    $hint = if ($saved -and $canReopen) { "`r`nRiaprendo WinNAT UI potrai inviare la segnalazione del problema." } else { '' }
+    Show-Result $false ($failure + "`r`n" + $note + $hint) $canReopen
     exit 1
 }
 
@@ -529,6 +566,7 @@ try {
     Show-Result $true $label $false
 } catch {
     Write-Log ('Aggiornamento installato, avvio fallito: ' + $_.Exception.ToString())
+    Save-FailureReport ('WinNAT UI non si è avviata dopo l''aggiornamento: ' + $_.Exception.Message) 'La nuova versione è installata.' 2 | Out-Null
     Show-Result $false ('Aggiornamento installato, ma WinNAT UI non si è avviata: ' + $_.Exception.Message) $true
     exit 2
 }
@@ -589,3 +627,72 @@ def launch(staging, install_dir=None, parent_pid=None, from_version="", to_versi
                      env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, close_fds=True,
                      creationflags=CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW)
+
+
+# ---------------------------------------------------- failed update report ---
+FAILURE_FILE = "update-failure.json"
+MAX_FAILURE_BYTES = 64 * 1024
+_FAILURE_TEXT = {"from_version": 40, "to_version": 40, "step": 120, "error": 2000,
+                 "outcome": 600, "time": 60, "log": 12000}
+
+
+def failure_path():
+    root = os.environ.get("LOCALAPPDATA") or str(Path.home() / ".local" / "share")
+    return Path(root) / "WinNAT-UI" / FAILURE_FILE
+
+
+def pending_failure(path=None):
+    """Failure saved by the update helper, validated and bounded; else None.
+
+    The file is written by our own helper, but it is still read as untrusted
+    data: wrong types or sizes are discarded rather than shown or published.
+    """
+    path = Path(path or failure_path())
+    try:
+        if not path.is_file() or path.stat().st_size > MAX_FAILURE_BYTES:
+            return None
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict) or data.get("schema") != 1:
+        return None
+    result = {}
+    for key, size in _FAILURE_TEXT.items():
+        value = data.get(key, "")
+        if not isinstance(value, str):
+            return None
+        result[key] = value[:size]
+    code = data.get("exit_code")
+    result["exit_code"] = code if isinstance(code, int) and 0 <= code <= 9999 else None
+    if not result["error"].strip():
+        return None
+    return result
+
+
+def clear_failure(path=None):
+    try:
+        Path(path or failure_path()).unlink()
+    except OSError:
+        pass
+
+
+def failure_message(failure):
+    """Text for the standard error dialog and bug report.
+
+    The real error comes first: the report summary and its deduplication
+    signature are taken from the first line.
+    """
+    lines = [failure["error"].strip().splitlines()[0]]
+    lines += failure["error"].strip().splitlines()[1:]
+    versions = " → ".join(v for v in (failure["from_version"], failure["to_version"]) if v)
+    lines += ["",
+              "Aggiornamento" + (" " + versions if versions else "")
+              + " non riuscito nella fase: " + (failure["step"] or "non determinata") + ".",
+              failure["outcome"]]
+    if failure["exit_code"] is not None:
+        lines.append("PowerShell exit code: " + str(failure["exit_code"]))
+    if failure["time"]:
+        lines.append("Ora (UTC): " + failure["time"])
+    if failure["log"].strip():
+        lines += ["", "Registro dell'aggiornamento:", failure["log"].strip()]
+    return "\n".join(lines)
