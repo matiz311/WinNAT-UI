@@ -1,0 +1,522 @@
+{
+  "exe": "D:\\a\\WinNAT-UI\\WinNAT-UI\\build\\WinNAT-UI-Windows-313-3eb242657883c28a7bdf5c15a432c2ea2e506640\\WinNAT-UI.exe",
+  "exe_sha256": "d77e6916fa597b77090505536415a90d90f476163fc59687c08cff91b07834fe",
+  "exe_version": {
+    "FileVersion": "1.15.1.0",
+    "ProductVersion": "1.15.1.0",
+    "ProductName": "WinNAT UI"
+  },
+  "windows": "{\n    \"Caption\":  \"Microsoft Windows Server 2025 Datacenter\",\n    \"Version\":  \"10.0.26100\",\n    \"BuildNumber\":  \"26100\"\n}\n",
+  "build_commit": "3eb242657883c28a7bdf5c15a432c2ea2e506640",
+  "build_run": "38973824643",
+  "click": "",
+  "bug_reports_before": 5,
+  "scenarios": [
+    {
+      "scenario": "00-scoperta",
+      "silent_responsive_samples": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "silent_windows": [],
+      "silent_shot": "00-scoperta-1-avvio.png",
+      "silent_store_unchanged": false,
+      "silent_store": [
+        {
+          "fingerprint": "78526215de513c2be66d6b80",
+          "number": 65,
+          "url": "https://github.com/matiz311/WinNAT-UI/issues/65",
+          "operation": "Stato bug",
+          "category": "Errore operativo non classificato",
+          "version": "1.15.0",
+          "reported_at": "2026-10-16T21:26:09+00:00",
+          "state": "open",
+          "fixed_in": null,
+          "fix_available": false
+        },
+        {
+          "fingerprint": "000000000000000000000000",
+          "number": 99999,
+          "url": "https://github.com/matiz311/WinNAT-UI/issues/99999",
+          "operation": "Collaudo",
+          "category": "Voce solo locale",
+          "version": "1.15.1",
+          "reported_at": "2026-10-17T00:00:00+00:00",
+          "state": "open",
+          "fixed_in": null
+        }
+      ],
+      "tk_children": [
+        [
+          8,
+          31,
+          1028,
+          749
+        ],
+        [
+          236,
+          31,
+          800,
+          749
+        ],
+        [
+          236,
+          49,
+          800,
+          661
+        ],
+        [
+          236,
+          49,
+          800,
+          661
+        ],
+        [
+          264,
+          494,
+          744,
+          200
+        ],
+        [
+          281,
+          511,
+          710,
+          166
+        ],
+        [
+          281,
+          586,
+          710,
+          91
+        ],
+        [
+          281,
+          556,
+          243,
+          22
+        ],
+        [
+          281,
+          511,
+          710,
+          37
+        ],
+        [
+          844,
+          511,
+          147,
+          37
+        ],
+        [
+          281,
+          516,
+          186,
+          26
+        ],
+        [
+          264,
+          333,
+          744,
+          149
+        ],
+        [
+          281,
+          350,
+          710,
+          115
+        ],
+        [
+          281,
+          428,
+          180,
+          37
+        ],
+        [
+          281,
+          380,
+          590,
+          40
+        ],
+        [
+          281,
+          350,
+          187,
+          26
+        ],
+        [
+          264,
+          146,
+          744,
+          175
+        ],
+        [
+          289,
+          171,
+          694,
+          125
+        ],
+        [
+          289,
+          274,
+          456,
+          22
+        ],
+        [
+          289,
+          239,
+          193,
+          23
+        ],
+        [
+          289,
+          208,
+          229,
+          23
+        ],
+        [
+          289,
+          171,
+          164,
+          33
+        ],
+        [
+          264,
+          65,
+          744,
+          65
+        ],
+        [
+          1007,
+          129,
+          1,
+          1
+        ],
+        [
+          264,
+          65,
+          241,
+          65
+        ],
+        [
+          264,
+          109,
+          241,
+          21
+        ],
+        [
+          264,
+          65,
+          161,
+          40
+        ],
+        [
+          236,
+          710,
+          800,
+          70
+        ],
+        [
+          264,
+          723,
+          744,
+          45
+        ],
+        [
+          294,
+          723,
+          714,
+          45
+        ],
+        [
+          294,
+          746,
+          423,
+          22
+        ],
+        [
+          294,
+          723,
+          173,
+          23
+        ],
+        [
+          264,
+          734,
+          22,
+          22
+        ],
+        [
+          236,
+          710,
+          800,
+          1
+        ],
+        [
+          236,
+          31,
+          800,
+          18
+        ],
+        [
+          8,
+          31,
+          228,
+          749
+        ],
+        [
+          24,
+          711,
+          196,
+          53
+        ],
+        [
+          24,
+          742,
+          111,
+          22
+        ],
+        [
+          54,
+          711,
+          103,
+          23
+        ],
+        [
+          24,
+          711,
+          22,
+          22
+        ],
+        [
+          8,
+          653,
+          216,
+          41
+        ],
+        [
+          35,
+          663,
+          22,
+          22
+        ],
+        [
+          23,
+          653,
+          201,
+          41
+        ],
+        [
+          8,
+          653,
+          3,
+          41
+        ],
+        [
+          8,
+          351,
+          228,
+          301
+        ],
+        [
+          8,
+          309,
+          216,
+          41
+        ],
+        [
+          35,
+          319,
+          22,
+          22
+        ],
+        [
+          23,
+          309,
+          201,
+          41
+        ],
+        [
+          8,
+          309,
+          3,
+          41
+        ],
+        [
+          8,
+          266,
+          216,
+          41
+        ],
+        [
+          35,
+          276,
+          22,
+          22
+        ],
+        [
+          23,
+          266,
+          201,
+          41
+        ],
+        [
+          8,
+          266,
+          3,
+          41
+        ],
+        [
+          8,
+          223,
+          216,
+          41
+        ],
+        [
+          35,
+          233,
+          22,
+          22
+        ],
+        [
+          23,
+          223,
+          201,
+          41
+        ],
+        [
+          8,
+          223,
+          3,
+          41
+        ],
+        [
+          8,
+          180,
+          216,
+          41
+        ],
+        [
+          35,
+          190,
+          22,
+          22
+        ],
+        [
+          23,
+          180,
+          201,
+          41
+        ],
+        [
+          8,
+          180,
+          3,
+          41
+        ],
+        [
+          8,
+          137,
+          216,
+          41
+        ],
+        [
+          35,
+          147,
+          22,
+          22
+        ],
+        [
+          23,
+          137,
+          201,
+          41
+        ],
+        [
+          8,
+          137,
+          3,
+          41
+        ],
+        [
+          24,
+          122,
+          196,
+          2
+        ],
+        [
+          24,
+          55,
+          196,
+          51
+        ],
+        [
+          64,
+          55,
+          108,
+          51
+        ],
+        [
+          64,
+          86,
+          88,
+          20
+        ],
+        [
+          64,
+          55,
+          108,
+          31
+        ],
+        [
+          24,
+          64,
+          32,
+          32
+        ]
+      ],
+      "store_unchanged": false,
+      "store_after": [
+        {
+          "fingerprint": "78526215de513c2be66d6b80",
+          "number": 65,
+          "url": "https://github.com/matiz311/WinNAT-UI/issues/65",
+          "operation": "Stato bug",
+          "category": "Errore operativo non classificato",
+          "version": "1.15.0",
+          "reported_at": "2026-10-16T21:26:09+00:00",
+          "state": "open",
+          "fixed_in": null,
+          "fix_available": false
+        },
+        {
+          "fingerprint": "000000000000000000000000",
+          "number": 99999,
+          "url": "https://github.com/matiz311/WinNAT-UI/issues/99999",
+          "operation": "Collaudo",
+          "category": "Voce solo locale",
+          "version": "1.15.1",
+          "reported_at": "2026-10-17T00:00:00+00:00",
+          "state": "open",
+          "fixed_in": null
+        }
+      ],
+      "process_alive": true,
+      "network_unchanged": true
+    }
+  ],
+  "bug_reports_after": 5
+}
