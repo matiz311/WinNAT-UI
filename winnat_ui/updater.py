@@ -47,6 +47,16 @@ def _request(url, *, timeout=20):
     })
 
 
+class UpdateChannelError(ValueError):
+    """Stable error classification without breaking existing ValueError callers."""
+
+    def __init__(self, reason, message, *, phase="release_lookup", http_status=None):
+        super().__init__(message)
+        self.reason = reason
+        self.phase = phase
+        self.http_status = http_status
+
+
 def _latest_release_metadata():
     """Translate GitHub connectivity/status errors into actionable information.
 
@@ -65,9 +75,15 @@ def _latest_release_metadata():
             description = "Servizio GitHub temporaneamente non disponibile; riprovare più tardi."
         else:
             description = "Il servizio GitHub ha rifiutato la richiesta."
-        raise ValueError("Controllo aggiornamenti: HTTP " + str(code) + ". " + description) from error
+        reason = ("no_published_release" if code == 404 else
+                  "rate_limited" if code in (403, 429) else
+                  "service_unavailable" if 500 <= code <= 599 else "http_failure")
+        raise UpdateChannelError(reason, "Controllo aggiornamenti: HTTP "
+                                 + str(code) + ". " + description,
+                                 http_status=code) from error
     except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
-        raise ValueError(
+        raise UpdateChannelError(
+            "network_failure",
             "Impossibile contattare GitHub per gli aggiornamenti: verificare connessione, DNS e proxy."
         ) from error
 
@@ -80,16 +96,25 @@ def release_info(installed):
         raise ValueError("L'ultima release non è una versione stabile pubblicata.")
     assets = [a for a in data.get("assets", []) if a.get("name") == ASSET_NAME]
     if len(assets) != 1:
-        raise ValueError("Release senza archivio Windows ufficiale univoco.")
+        raise UpdateChannelError(
+            "release_without_required_asset",
+            "Release senza archivio Windows ufficiale univoco.",
+            phase="inspect_asset")
     asset = assets[0]
     url = asset.get("browser_download_url", "")
     expected = ("https://github.com/" + REPOSITORY + "/releases/download/"
                 + tag + "/" + ASSET_NAME)
     if url != expected:
-        raise ValueError("URL dell'asset non corrispondente alla release ufficiale.")
+        raise UpdateChannelError(
+            "invalid_asset_metadata",
+            "URL dell'asset non corrispondente alla release ufficiale.",
+            phase="inspect_asset")
     digest = asset.get("digest", "")
     if not re.fullmatch(r"sha256:[a-fA-F0-9]{64}", digest):
-        raise ValueError("GitHub non fornisce un digest SHA256 verificabile per l'archivio.")
+        raise UpdateChannelError(
+            "invalid_asset_metadata",
+            "GitHub non fornisce un digest SHA256 verificabile per l'archivio.",
+            phase="inspect_asset")
     return {"version": tag.lstrip("v"), "tag": tag, "url": url,
             "sha256": digest.split(":", 1)[1].lower(),
             "size": int(asset.get("size") or 0),
