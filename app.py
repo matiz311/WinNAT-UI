@@ -1223,11 +1223,11 @@ class App(tk.Tk):
         """Readable summary first; complete, copyable debug details on demand."""
         dlg = Dialog(self, title, "Chiudi", cancel="Copia errore")
         dlg.ok.configure(command=dlg.destroy)
-        details = format_error_debug(operation, message, traceback_text)
+        # The diagnostic report embeds the original error and traceback.
         # Build once: the same report shown here is sent to the gateway.
         payload = issue_tracker.safe_payload(
             operation, message, traceback_text, VERSION,
-            inventory=self.data, is_admin=self.is_admin)
+            inventory=self.data, is_admin=self.is_admin, pending=self.pending)
         report_title, report_body = bug_report.format_report(payload)
         report_text = report_title + "\n\n" + report_body
 
