@@ -86,7 +86,7 @@ def redact(text):
                    "[TOKEN DI AUTORIZZAZIONE OSCURATO]", value)
     value = re.sub(r"(?i)([a-z][a-z0-9+.-]*://)[^/@\s:]+:[^/@\s]+@",
                    r"\1[credenziali oscurate]@", value)
-    value = re.sub(r"(?i)(\b(?:password|passwd|pwd|api[_-]?key|access[_-]?token|"
+    value = re.sub(r"(?i)(\b(?:password|passwd|pwd|token|api[_-]?key|access[_-]?token|"
                    r"refresh[_-]?token|secret|authorization|client[_-]?secret|"
                    r"cookie|set-cookie)\b\s*[:=]\s*)"
                    r"(?:\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\s,;]+)",
@@ -121,7 +121,7 @@ def _summary(message):
 def build_payload(operation, message, traceback_text, version, inventory=None, is_admin=None, pending=None):
     """One source of truth for manually copied and automatically submitted reports."""
     op = redact(str(operation or "")).strip()
-    if not re.fullmatch(r"[w .:()/+-]{1,80}", op):
+    if not re.fullmatch(r"[\w .:()/+\-]{1,80}", op):
         op = "Altra operazione"
     ver = str(version) if re.fullmatch(r"\d{1,3}\.\d{1,3}\.\d{1,3}(?:\.\d{1,3})?", str(version)) else "0.0.0"
     original = str(message or "")
