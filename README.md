@@ -26,7 +26,7 @@ Applicazione desktop per Windows 10/11 dedicata alla diagnostica e gestione di *
 - Riepilogo delle regole WinNAT, sessioni NAT e stato del servizio SharedAccess.
 - Identificazione *indicativa* della WAN tramite la default route e della LAN tramite la selezione manuale.
 - Creazione e rimozione di NAT con avvisi sui conflitti; la UI consente più oggetti WinNAT indipendenti anche se Microsoft non supporta ufficialmente più reti NAT contemporanee.
-- Setup guidato LAN Ethernet -> Internet con uno o più IPv4 sulla stessa interfaccia LAN; ogni subnet può avere il proprio WinNAT (`NAT-Firewall`, `NAT-Firewall-2`, ...).
+- Setup guidato LAN Ethernet -> Internet con uno o più IPv4 sulla stessa interfaccia LAN; subnet, IP del PC e nome WinNAT sono visibili e modificabili per ogni riga.
 - Rimozione guidata del setup creato dall'app, mantenendo gli IP preesistenti.
 - Esportazione diagnostica JSON e backup di configurazione prima dei cambiamenti.
 - Conferme esplicite per ogni intervento potenzialmente distruttivo.
