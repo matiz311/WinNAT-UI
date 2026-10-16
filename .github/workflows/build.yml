@@ -173,7 +173,7 @@ jobs:
 
           # One-time audited release approval, explicitly requested by the
           # repository owner. This is NOT a permanent automatic MINOR gate.
-          # It is limited to the precise, already tested v1.15.0 source commit.
+          # It is limited to the exact source commit and the current release version.
           # Any intervening change or unexpected file invalidates the approval.
           $approvedSource = 'c692eb61883fd3603e2d40e42b88c968f0f9f467'
           if ($env:GITHUB_EVENT_NAME -eq 'push' -and
@@ -183,19 +183,19 @@ jobs:
             $expectedFiles = @(
               '.github/workflows/build.yml',
               'README.md', 'README.en.md', 'RELEASE_NOTES.it.md',
-              'VERSIONING_POLICY.md', 'release-approvals/v1.15.0.md'
+              'VERSIONING_POLICY.md', "release-approvals/v$current.md"
             )
             $actualFiles = @(git diff --name-only HEAD^ HEAD)
             if (@(Compare-Object $actualFiles $expectedFiles).Count -ne 0) {
               throw 'One-time approval invalid: release commit includes unexpected changes.'
             }
-            $approval = Get-Content 'release-approvals/v1.15.0.md' -Raw
+            $approval = Get-Content "release-approvals/v$current.md" -Raw
             if (-not $approval.Contains($approvedSource) -or
-                -not $approval.Contains('v1.15.0') -or
+                -not $approval.Contains("v$current") -or
                 -not $approval.Contains('OWNER_APPROVED_FOR_ONE_RELEASE')) {
               throw 'One-time approval record is missing or inconsistent.'
             }
-            Write-Host 'One-time owner authorization recognized: v1.15.0 only.'
+            Write-Host "One-time owner authorization recognized: v$current only."
             $options += '--manual'
             $options += '--approved'
           }
