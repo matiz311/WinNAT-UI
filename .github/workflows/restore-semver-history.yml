@@ -5,6 +5,7 @@ on:
     branches: [maintenance/semver-history-migration]
     paths:
       - .github/workflows/restore-semver-history.yml
+      - tools/restore_semver_history.py
 
 permissions:
   contents: write
