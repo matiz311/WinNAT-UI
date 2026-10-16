@@ -13,6 +13,13 @@ test("allowlist accepts known sanitized input", () => {
   assert.equal(obj.category, "Accesso negato");
 });
 
+test("accepts release and four-component hotfix versions only", () => {
+  assert.equal(normalize({ ...sample, version: "1.10.0" }).version, "1.10.0");
+  assert.equal(normalize({ ...sample, version: "1.9.15.1" }).version, "1.9.15.1");
+  assert.throws(() => normalize({ ...sample, version: "1.9" }));
+  assert.throws(() => normalize({ ...sample, version: "1.9.15.1.2" }));
+});
+
 test("reject untrusted config data and raw strings", () => {
   for (const extra of [{ secret: "password" }, { ip: "192.168.1.3" }]) {
     assert.throws(() => normalize({ ...sample, ...extra }));
