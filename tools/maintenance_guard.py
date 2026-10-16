@@ -27,6 +27,15 @@ RISK_PATHS = (
     "release-approvals/",
 )
 RISK_FILES = {"tools/release.py", "version.py", "version_info.txt"}
+# Audited pre-policy change; exemption is bound to one immutable commit and path.
+# PR #67 introduced this exact gateway label change before registration became mandatory.
+LEGACY_RISK_COMMITS = {
+    67: {
+        "ba987780caa641b84340e278d9e9fb70bf26401c":
+            {"services/bug-gateway/src/index.js"},
+    },
+}
+
 
 
 def require(condition: bool, message: str) -> None:
@@ -143,6 +152,11 @@ def check_pr(base: str, pr: int) -> None:
         files = git("diff-tree", "--root", "--no-commit-id", "--name-only", "-r", commit).splitlines()
         affected = [path for path in files if risky(path)]
         if not affected:
+            continue
+        legacy_paths = LEGACY_RISK_COMMITS.get(pr, {}).get(commit)
+        if legacy_paths is not None:
+            require(set(affected) == legacy_paths,
+                    f"{commit[:12]}: legacy exception is valid only for exact recorded paths")
             continue
         # Only events already committed in a PRIOR revision qualify; never
         # allow an event added in the disruptive commit or backfilled later.
