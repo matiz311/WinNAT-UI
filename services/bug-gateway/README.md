@@ -11,7 +11,7 @@ L'applicazione invia volontariamente **solo campi diagnostici anonimizzati e pre
 5. In **WinNAT-UI → Settings → Secrets and variables → Actions → Repository secrets**, configura:
    - `CLOUDFLARE_API_TOKEN`: token Cloudflare per il deploy.
    - `CLOUDFLARE_ACCOUNT_ID`: identificatore dell'account Cloudflare.
-   - `GITHUB_ISSUE_TOKEN`: GitHub PAT limitato alle Issue.
+   - `WINNAT_ISSUE_TOKEN`: GitHub PAT limitato alle Issue.
 6. Avvia **Actions → Deploy anonymous issue gateway → Run workflow**, oppure integra le modifiche in `main` con i secret già impostati.
 
 Il workflow verifica i test Node, distribuisce il Worker, pubblica il PAT come **secret lato Cloudflare**, verifica `GET /health`, crea la label `bug-report` e aggiorna `bug-service.json` con l'endpoint effettivo `https://...workers.dev/report`. Il client WinNAT-UI usa la configurazione GitHub senza una nuova build. Il workflow richiede i permessi `contents:write` e `issues:write` tramite `GITHUB_TOKEN` per aggiornare il file e creare la label; eventuali regole di protezione sul branch possono impedirne l'aggiornamento automatico.
