@@ -16,8 +16,8 @@ jobs:
     env:
       BUILD_RUN: '38973824643'
       BUILD_COMMIT: 3eb242657883c28a7bdf5c15a432c2ea2e506640
-      DISCOVERY: '1'
-      ISSUE_BUTTON_XY: ''
+      DISCOVERY: ''
+      ISSUE_BUTTON_XY: '917,529'
     steps:
       - uses: actions/checkout@v7
         with:

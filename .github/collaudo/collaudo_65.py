@@ -184,6 +184,8 @@ def scenario(name, env_extra=None, firewall=False, wait_manual=45):
             while time.time() - t0 < wait_manual:
                 time.sleep(1.5)
                 samples.append(responsive(hwnd))
+                if len(samples) == 2:
+                    rec["manual_early_shot"] = shot(name + "-2a-dopo-3s", hwnd)
                 dialogs = [w for w in windows_of(proc.pid) if w["handle"] != hwnd]
                 if dialogs:
                     break
