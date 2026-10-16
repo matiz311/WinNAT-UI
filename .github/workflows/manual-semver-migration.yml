@@ -2,12 +2,6 @@ name: Historical SemVer migration (manual, guarded)
 
 # Temporary recovery-era workflow. Delete after verified migration.
 on:
-  # One-time launch from an exact opt-in file and commit marker.
-  # Remove this push trigger immediately after the run has been accepted.
-  push:
-    branches: [main]
-    paths:
-      - .github/semver-launch-approved.txt
   workflow_dispatch:
     inputs:
       approval:
@@ -25,22 +19,16 @@ concurrency:
 
 jobs:
   preflight_and_backup:
-    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit.message == 'ops: activate one-time SemVer migration [RENUMBER_28_RELEASES]')) }}
+    if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 75
     steps:
       - name: Require exact approval before downloading or changing releases
         env:
           USER_APPROVAL: ${{ inputs.approval }}
-          PUSH_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            [ "$USER_APPROVAL" = "RENUMBER_28_RELEASES" ] || { echo '::error::Dispatch approval missing.'; exit 2; }
-          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            [ "$PUSH_MESSAGE" = "ops: activate one-time SemVer migration [RENUMBER_28_RELEASES]" ] || { echo '::error::Push approval missing.'; exit 2; }
-            [ "$GITHUB_REF" = "refs/heads/main" ] || exit 2
-          else
-            echo '::error::Unsupported workflow event.'
+          if [ "$USER_APPROVAL" != "RENUMBER_28_RELEASES" ]; then
+            echo '::error::Historical migration requires explicit approval.'
             exit 2
           fi
       - uses: actions/checkout@v4
