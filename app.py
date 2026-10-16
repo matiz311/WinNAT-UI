@@ -146,7 +146,12 @@ class Topology(tk.Canvas):
         a = self.app
         wans = [(row["alias"].get(), row["metric"].get()) for row in a.wan_rows] or [("", "")]
         lan = a.lan.get() or "LAN ?"
-        prefix, gateway = a.prefix.get() or "?", a.gateway.get() or "?"
+        lan_rows = [(row["prefix"].get() or "?", row["gateway"].get() or "?")
+                    for row in getattr(a, "lan_rows", [])]
+        if not lan_rows:
+            lan_rows = [(a.prefix.get() or "?", a.gateway.get() or "?")]
+        prefix, gateway = lan_rows[0]
+        lan_suffix = (" +" + str(len(lan_rows) - 1) + " subnet" if len(lan_rows) > 1 else "")
         n = len(wans)
         gap = 52
         height = max(self.H, 92 + n * gap)
@@ -160,11 +165,12 @@ class Topology(tk.Canvas):
         self.create_line(col[0] + nw / 2, mid, col[1] - nw / 2 - 6, mid, fill=C["accent"], width=3, arrow="last",
                          arrowshape=(10, 12, 5))
         bad = getattr(self, "errors", {})
-        self.node(col[0], mid, nw, 56, "Client / firewall", prefix,
-                  C["danger"] if "prefix" in bad else C["border_strong"])
-        self.node(col[1], mid, nw + 20, 64, "Gateway NAT", gateway,
-                  C["danger"] if "gateway" in bad else C["accent"],
-                  fill=C["danger_soft"] if "gateway" in bad else C["accent_soft"])
+        lan_bad = any(k.startswith("prefix:") or k.startswith("gateway:") for k in bad)
+        self.node(col[0], mid, nw, 56, "Client / firewall", prefix + lan_suffix,
+                  C["danger"] if lan_bad else C["border_strong"])
+        self.node(col[1], mid, nw + 20, 64, "Gateway NAT", gateway + lan_suffix,
+                  C["danger"] if lan_bad else C["accent"],
+                  fill=C["danger_soft"] if lan_bad else C["accent_soft"])
         self.chip((col[0] + col[1]) / 2, mid - 18, lan, C["accent"])
         x_out = col[1] + (nw + 20) / 2
         cx, r = col[3], min(44, w * 0.05)
@@ -188,8 +194,8 @@ class Topology(tk.Canvas):
                              mid + dy * r + k * r - 2, fill=C["surface_alt"], outline="")
         self.create_text(cx, mid + 4, text="Internet", fill=C["text"], font=F["caption"])
         self.create_text(w / 2, height - 16, fill=C["text_muted"], font=F["caption"], width=w - 40,
-                         text="I client usano " + gateway + " come gateway e un DNS raggiungibile: "
-                              "WinNAT non fornisce DHCP n\u00e9 DNS.")
+                         text=("Ogni subnet usa il relativo IP del PC come gateway; " + str(len(lan_rows))
+                               + " subnet LAN configurata/e. WinNAT non fornisce DHCP né DNS."))
 
 
 def format_error_debug(operation, message, traceback_text=""):
