@@ -10,7 +10,7 @@
 
 **[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)** — scarica lo ZIP della release pubblica, estrai completamente la cartella e avvia `WinNAT-UI.exe`. La release corrente è **v1.15.0**, **non firmata**; la firma tramite SignPath Foundation non è ancora approvata.
 
-**Nuova versione:** v1.15.0 include il nuovo logo vettoriale, la gestione degli IPv4 secondari LAN, la configurazione DHCP→statico e migliorie di diagnostica e interfaccia. Verificare sempre il numero della release dalla [pagina GitHub Releases](https://github.com/matiz311/WinNAT-UI/releases).
+**Patch in preparazione:** v1.15.1 corregge il fallback delle icone Windows; la release pubblica corrente rimane v1.15.0. **Novità della 1.15.0:** v1.15.0 include il nuovo logo vettoriale, la gestione degli IPv4 secondari LAN, la configurazione DHCP→statico e migliorie di diagnostica e interfaccia. Verificare sempre il numero della release dalla [pagina GitHub Releases](https://github.com/matiz311/WinNAT-UI/releases).
 
 - [Release e changelog](https://github.com/matiz311/WinNAT-UI/releases)
 - [Note di rilascio per versione (consultabili nel README)](#note-di-rilascio-per-versione)
