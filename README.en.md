@@ -33,10 +33,23 @@ py -3 app.py
 ```
 Requires Windows, PowerShell 5.1+, and administrator privileges for network changes.
 
+
+## Repository layout
+The repository keeps documentation at the top level and groups Python files by responsibility:
+
+- `app.py` — application launcher, kept compatible with `py -3 app.py` and PyInstaller.
+- `version.py` and `version_info.txt` — release version and Windows metadata used by the build process.
+- `winnat_ui/` — application modules (networking, WinNAT, UI, updater and issue reporting).
+- `tests/` — Python tests run in CI via `python -m unittest discover -s tests -t . -v`.
+- `tools/` — diagnostic and maintenance scripts; `assets/` — icons and resources.
+- `services/` — external services; `.github/workflows/` — GitHub Actions pipelines.
+
+Markdown documents, `LICENSE` and `bug-service.json` stay in the repository root to keep project information and the client's remote service URL stable.
+
 ## Build and distribution
 [GitHub Actions](.github/workflows/build.yml) builds the Windows application using PyInstaller in `--onedir --noupx` mode, checks binary metadata and invokes Microsoft Defender. The build must pass the required Defender check before an artifact or release is published. Checksums and a scan report accompany the build. The absence of reported threats does not prove that software is safe. The workflow can also be started via **Actions → Build Windows executable → Run workflow**.
 
-The PowerShell backend uses readable `-Command` calls declared in [network.py](network.py), rather than `-EncodedCommand` or Base64. PyInstaller bundles a bootloader and is not an entirely plaintext executable.
+The PowerShell backend uses readable `-Command` calls declared in [winnat_ui/network.py](winnat_ui/network.py), rather than `-EncodedCommand` or Base64. PyInstaller bundles a bootloader and is not an entirely plaintext executable.
 
 ## Networking limitations
 This software does not provide a DHCP or DNS server, and does not test every connected device automatically. Set the connected device's IP within the LAN subnet, its default gateway to the PC's LAN address, and appropriate DNS servers. Do not configure competing ICS and WinNAT sharing on the same LAN. WAN identification is heuristic and must be confirmed.

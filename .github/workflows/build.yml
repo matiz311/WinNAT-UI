@@ -35,9 +35,9 @@ jobs:
           python --version
           python -m PyInstaller --version
       - name: Validate syntax
-        run: python -m compileall -q app.py version.py network.py network_plan.py network_guide.py network_rollback.py updater.py bug_report.py issue_tracker.py ui_theme.py tools/release.py test_release_policy.py test_bug_report.py test_issue_tracker.py test_updater.py test_network_guide.py test_network_rollback.py test_ui_helpers.py test_version.py test_windows_ps.py test_nat_preflight.py test_nat_backend.py
+        run: python -m compileall -q app.py version.py winnat_ui tests tools
       - name: Run tests (planning, UI helpers, versioning, real PowerShell)
-        run: python -m unittest -v test_release_policy test_bug_report test_issue_tracker test_updater test_network_guide test_network_rollback test_ui_helpers test_version test_windows_ps test_nat_preflight test_nat_backend
+        run: python -m unittest discover -s tests -t . -v
       - name: Test anonymous issue gateway validation (Node)
         run: node --test services/bug-gateway/test/validation.test.mjs
       - name: Run read-only diagnostic script (smoke test)
@@ -118,7 +118,7 @@ jobs:
           "Signature version: $($status.AntivirusSignatureVersion)" | Add-Content (Join-Path $scanPath 'DEFENDER_SCAN.txt')
           Write-Host 'Defender scan completed without reported detections for this build.'
       - name: Validate Python source imports
-        run: python -c "import ast,pathlib; [ast.parse(p.read_text(encoding='utf-8')) for p in pathlib.Path('.').glob('*.py')]"
+        run: python -c "import ast,pathlib; paths=[pathlib.Path('app.py'),pathlib.Path('version.py'),*pathlib.Path('winnat_ui').glob('*.py'),*pathlib.Path('tests').glob('*.py'),*pathlib.Path('tools').glob('*.py')]; [ast.parse(p.read_text(encoding='utf-8')) for p in paths]"
       - name: Write unique build identifier
         shell: pwsh
         run: |

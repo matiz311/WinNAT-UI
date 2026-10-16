@@ -41,6 +41,19 @@ py -3 app.py
 
 Richiede Windows con PowerShell 5.1+ e privilegi amministrativi per modificare le impostazioni di rete.
 
+
+## Struttura del repository
+Il codice è organizzato per funzione, senza affollare la radice del progetto:
+
+- `app.py` — punto di avvio dell'app, compatibile con `py -3 app.py` e con PyInstaller.
+- `version.py` e `version_info.txt` — numerazione funzionale e metadati Windows richiesti dalla procedura di rilascio.
+- `winnat_ui/` — moduli dell'app (rete, WinNAT, UI, updater e segnalazione errori).
+- `tests/` — test Python eseguiti in CI con `python -m unittest discover -s tests -t . -v`.
+- `tools/` — script di diagnostica e manutenzione; `assets/` — icone e risorse grafiche.
+- `services/` — servizi esterni; `.github/workflows/` — automazioni GitHub Actions.
+
+I file `.md`, `LICENSE` e `bug-service.json` restano in radice per preservare la documentazione, le policy e l'URL usato dal client.
+
 ## Build
 Workflow GitHub Actions: `.github/workflows/build.yml` produce un file EXE con PyInstaller e lo pubblica come artefatto. Il workflow è avviabile anche manualmente da **Actions -> Build Windows executable -> Run workflow**.
 
@@ -74,7 +87,7 @@ L'app salva checkpoint locali `candidate-commit`, `pre-commit`, `post-commit` e,
 Un utilizzatore ha segnalato il rilevamento `Trojan:Win32/Bearfoos.B!ml` su una build precedente. Il rilevamento **non va ignorato** e non possiamo certificare che sia un falso positivo. Non ripristinare dalla quarantena e non aggiungere esclusioni antivirus. Conservare l'ID del rilevamento, controllare la cronologia di protezione, verificare il codice sorgente e il processo di build e inviare il file a Microsoft per analisi qualora sia stato verificato come legittimo. Le nuove build usano distribuzione `--onedir` e richiedono uno scan Microsoft Defender prima dell'upload; questo non costituisce garanzia di assenza di malware. L'eseguibile rimane non firmato digitalmente.
 
 ## Esecuzione verificabile (plaintext)
-Dal commit di ottobre 2026, il backend esegue PowerShell attraverso `-Command` con script testuale leggibile nel sorgente `network.py`; non utilizza più `-EncodedCommand`, Base64 o finestre PowerShell nascoste. È possibile eseguire direttamente `py -3 app.py` dal codice sorgente senza usare il wrapper PyInstaller. La distribuzione usa `--onedir --noupx`, per evitare la compressione UPX e consentire ispezione separata dei componenti. L'EXE compilato continua comunque a includere il bootloader PyInstaller e non può essere considerato completamente plaintext.
+Dal commit di ottobre 2026, il backend esegue PowerShell attraverso `-Command` con script testuale leggibile nel sorgente [`winnat_ui/network.py`](winnat_ui/network.py); non utilizza più `-EncodedCommand`, Base64 o finestre PowerShell nascoste. È possibile eseguire direttamente `py -3 app.py` dal codice sorgente senza usare il wrapper PyInstaller. La distribuzione usa `--onedir --noupx`, per evitare la compressione UPX e consentire ispezione separata dei componenti. L'EXE compilato continua comunque a includere il bootloader PyInstaller e non può essere considerato completamente plaintext.
 
 La documentazione pubblica Microsoft del rilevamento Bearfoos non pubblica pattern tecnici sufficienti per stabilire la causa esatta. Non assumere che l'encoding fosse la ragione dell'avviso né che la sua rimozione garantisca assenza di segnalazioni. Prima della distribuzione esaminare la segnalazione originale, SHA256, esito Defender e, se necessario, inviare il campione tramite il portale ufficiale Microsoft.
 
