@@ -1,0 +1,35 @@
+name: Recover original WinNAT-UI releases
+
+on:
+  push:
+    branches: [maintenance/semver-history-migration]
+    paths:
+      - .github/workflows/restore-semver-history.yml
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: historical-semver-republish-exclusive
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch immutable backup from the failed republish run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 38899366384 --repo matiz311/WinNAT-UI --name verified-historical-release-backup --dir work
+          test -f work/migration_manifest.json
+      - name: Restore Git refs with REST and republish original verified ZIPs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python tools/restore_semver_history.py work
