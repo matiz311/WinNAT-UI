@@ -2,6 +2,9 @@
 
 ## Stato attuale — 16 ottobre 2026
 
+**Patch v1.15.1 in preparazione (non ancora pubblicata):** correzione del fallback dell'icona PNG quando il caricamento ICO su Windows fallisce. La versione stabile pubblicata rimane v1.15.0 fino al completamento dei test e della GitHub Release.
+
+
 La **versione stabile pubblicata è `v1.15.0`**: [GitHub Releases](https://github.com/matiz311/WinNAT-UI/releases/latest). Il catalogo comprende **31 release pubbliche**: le 28 precedenti sono state ricompilate e rinumerate il 16 ottobre 2026, seguite da `v1.14.0`, dalla PATCH `v1.14.1` e dalla MINOR `v1.15.0`. L'ultimo HOTFIX precedente è **`v1.13.0.1`**. I tag e i numeri usati nei documenti sono quelli attualmente pubblicati; gli identificativi dismessi non sono alias di download.
 
 Le informazioni complete di ogni rilascio si trovano in [CHANGELOG.md](CHANGELOG.md) e [RELEASE_NOTES.it.md](RELEASE_NOTES.it.md). La sequenza effettiva più recente è `v1.13.0` → `v1.13.0.1` → `v1.14.0` → `v1.14.1` → `v1.15.0`.
