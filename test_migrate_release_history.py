@@ -20,5 +20,29 @@ class MigrationTests(unittest.TestCase):
         self.assertFalse(audit(p, releases, tags)["publish_allowed"])
 
 
+    def test_complete_inventory_allows_publication(self):
+        p = [("v1.9.15.1", "v1.13.0.1", "HOTFIX")]
+        releases = [{"tag_name": "v1.9.15.1", "id": 12,
+                     "assets": [{"name": "WinNAT-UI-Windows.zip",
+                                 "size": 1500, "digest": "sha256:" + "a" * 64}]}]
+        tags = [{"name": "v1.9.15.1", "commit": {"sha": "f" * 40}}]
+        self.assertTrue(audit(p, releases, tags)["publish_allowed"])
+
+    def test_missing_digest_blocks_migration(self):
+        p = [("v1.9.15.1", "v1.13.0.1", "HOTFIX")]
+        releases = [{"tag_name": "v1.9.15.1", "id": 12,
+                     "assets": [{"name": "WinNAT-UI-Windows.zip", "size": 1500}]}]
+        tags = [{"name": "v1.9.15.1", "commit": {"sha": "f" * 40}}]
+        self.assertFalse(audit(p, releases, tags)["publish_allowed"])
+
+    def test_untracked_tags_block_migration(self):
+        p = [("v1.9.15.1", "v1.13.0.1", "HOTFIX")]
+        releases = [{"tag_name": "v1.9.15.1", "id": 12,
+                     "assets": [{"name": "WinNAT-UI-Windows.zip",
+                                 "size": 1500, "digest": "sha256:" + "b" * 64}]}]
+        tags = [{"name": "v1.9.15.1", "commit": {"sha": "f" * 40}},
+                {"name": "v1.10.1", "commit": {"sha": "a" * 40}}]
+        self.assertFalse(audit(p, releases, tags)["publish_allowed"])
+
 if __name__ == "__main__":
     unittest.main()
