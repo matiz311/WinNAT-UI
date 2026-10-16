@@ -1,0 +1,40 @@
+name: Historical SemVer migration preflight
+
+on:
+  push:
+    branches:
+      - maintenance/semver-history-migration
+    paths:
+      - SEMVER_MIGRATION_PLAN.md
+      - tools/migrate_release_history.py
+      - test_migrate_release_history.py
+      - .github/workflows/semver-migration-preflight.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate migration plan and tests
+        run: |
+          python -m compileall -q tools/migrate_release_history.py test_migrate_release_history.py
+          python -m unittest -v test_migrate_release_history
+      - name: Inventory published Releases and tags (read only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python tools/migrate_release_history.py --inventory migration-inventory.json
+      - name: Retain inventory even on errors
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semver-migration-inventory-${{ github.run_number }}
+          path: migration-inventory.json
+          if-no-files-found: warn
+          retention-days: 30
