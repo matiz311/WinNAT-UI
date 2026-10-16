@@ -1,8 +1,36 @@
 # WinNAT-UI — Note di rilascio
 
-Le note di questa pagina sono destinate agli utilizzatori dell'applicazione. Per i dettagli delle singole modifiche, i limiti tecnici e la cronologia completa consultare [CHANGELOG.md](CHANGELOG.md). I numeri riportati corrispondono alle **29 GitHub Releases effettivamente pubblicate**, compresa la versione corrente **v1.14.0**. Il 16 ottobre 2026 la cronologia delle 28 release precedenti è stata rinumerata e i relativi eseguibili ricompilati; non utilizzare riferimenti della numerazione precedente.
+Le note di questa pagina sono destinate agli utilizzatori dell'applicazione. Per i dettagli delle singole modifiche, i limiti tecnici e la cronologia completa consultare [CHANGELOG.md](CHANGELOG.md). I numeri riportati corrispondono alle **30 GitHub Releases effettivamente pubblicate**, compresa la versione corrente **v1.14.1**. Il 16 ottobre 2026 la cronologia delle 28 release precedenti è stata rinumerata e i relativi eseguibili ricompilati; non utilizzare riferimenti della numerazione precedente.
 
 > **Importante:** WinNAT-UI modifica routing, indirizzi IPv4 e Windows NAT. Prima di applicare configurazioni su computer utilizzati per l'accesso remoto, verificare di disporre di un accesso locale e di una procedura di ripristino. Le operazioni che ricreano WinNAT possono interrompere sessioni NAT attive.
+
+## 1.15.0 — 16 ottobre 2026 (candidata, non ancora pubblicata)
+
+**Tema: configurazione LAN più flessibile, diagnostica completa e nuova identità visiva.**
+
+### Novità
+- Ridimensionamento della finestra più fluido, con meno ricalcoli di layout e disegni della topologia.
+- Un'interfaccia LAN che utilizza DHCP può essere preparata per il passaggio a IP statico, scegliendo indirizzo/prefisso oppure mantenendo il valore proposto.
+- Aggiunta e gestione di IPv4 secondari sulla LAN tramite interfaccia grafica.
+- Nuova icona vettoriale nei formati Windows, con migliore leggibilità anche nella barra delle applicazioni.
+- Invio bug guidato da una finestra di avanzamento, con report ricchi di informazioni utili per il troubleshooting.
+- Installazione degli aggiornamenti accompagnata da una finestra di avanzamento dedicata.
+
+### Correzioni e compatibilità
+- Corretta la disposizione su più righe del testo nella finestra di conferma aggiornamento.
+- Rilevamento coerente di DHCP e IPv4 primario/secondario, senza modificare in modo implicito altri indirizzi della scheda.
+- Diagnostica specifica per risposte HTTP 404, 403, 429 e 5xx, errori DNS e timeout nel controllo aggiornamenti, includendo quanto preparato per la v1.14.1.
+- Continua a essere supportata una sola istanza fisica WinNAT; non viene introdotta la proposta multi-oggetto della PR #37.
+
+### Privacy e collaudo
+Le segnalazioni di bug possono includere topologie, IP, output PowerShell e traceback potenzialmente sensibili. La pubblicazione su GitHub avviene **solo dopo conferma esplicita**; controllare l'anteprima prima di inviare. La mascheratura automatica dei dati identificativi è solo parziale.
+La CI Windows non prova da sola l'applicazione di configurazioni IP su una macchina reale, il rollback e l'aggiornamento completo; questi percorsi richiedono collaudo su host Windows con accesso locale.
+
+**Stato:** candidato in preparazione; la pubblicazione richiede build Windows verificata e approvazione manuale MINOR prevista dal workflow.
+
+## 1.14.1 — 16 ottobre 2026
+
+**Correzione di manutenzione del controllo aggiornamenti.** Le risposte HTTP 404, 403/429 e 5xx di GitHub vengono distinte da errori di connessione/DNS/proxy e mostrate con indicazioni operative. Il controllo silenzioso all'avvio rimane non bloccante. Nessuna variazione intenzionale a NAT, LAN/WAN, interfaccia grafica o gestione degli IP secondari. L'updater mantiene tutte le verifiche di autenticità e SHA-256 già previste.
 
 ## 1.14.0 — 16 ottobre 2026
 
