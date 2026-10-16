@@ -1,0 +1,139 @@
+name: Stage historical SemVer Windows binaries
+
+on:
+  push:
+    branches: [maintenance/semver-history-migration]
+    paths:
+      - SEMVER_MIGRATION_PLAN.md
+      - tools/migrate_release_history.py
+      - tools/patch_historical_version.py
+      - .github/workflows/stage-semver-history.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: \${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Audit historical Releases and tags
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: python tools/migrate_release_history.py --inventory migration-inventory.json
+      - name: Generate version matrix
+        id: plan
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          from tools.migrate_release_history import parse_plan
+          rows = parse_plan(Path('SEMVER_MIGRATION_PLAN.md').read_text(encoding='utf-8'))
+          print('matrix=' + json.dumps({'include': [{'old': o, 'new': n, 'kind': k} for o,n,k in rows]}, separators=(',', ':')))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: historical-release-inventory
+          path: migration-inventory.json
+          if-no-files-found: warn
+
+  rebuild:
+    needs: preflight
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix: \${{ fromJSON(needs.preflight.outputs.matrix) }}
+    steps:
+      - name: Checkout migration tooling
+        uses: actions/checkout@v4
+        with:
+          path: migration
+      - name: Checkout original release tag
+        uses: actions/checkout@v4
+        with:
+          ref: \${{ matrix.old }}
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply version-only source adjustment
+        shell: pwsh
+        env:
+          OLD_TAG: \${{ matrix.old }}
+          NEW_TAG: \${{ matrix.new }}
+        run: |
+          $old = $env:OLD_TAG.TrimStart('v')
+          $new = $env:NEW_TAG.TrimStart('v')
+          python migration/tools/patch_historical_version.py source $old $new
+          if ($LASTEXITCODE -ne 0) { throw 'Historical version source invalid' }
+      - name: Build historical binary
+        shell: pwsh
+        working-directory: source
+        run: |
+          python -m compileall -q app.py network.py
+          python -m pip install pyinstaller==6.22.3
+          if ($LASTEXITCODE -ne 0) { throw 'PyInstaller installation failed' }
+          $a = @('--noconfirm','--clean','--noupx','--onedir','--windowed','--uac-admin','--version-file','version_info.txt','--name','WinNAT-UI')
+          if (Test-Path 'assets/winnat-ui.ico') {
+            $a += @('--icon','assets/winnat-ui.ico')
+            foreach ($asset in @('winnat-ui.ico','winnat-ui-256.png','winnat-ui-32.png')) {
+              if (Test-Path "assets/$asset") { $a += @('--add-data',"assets/$asset;assets") }
+            }
+          }
+          $a += 'app.py'
+          python -m PyInstaller @a
+          if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
+      - name: Validate EXE and scan with Defender
+        shell: pwsh
+        env:
+          OLD_TAG: \${{ matrix.old }}
+          NEW_TAG: \${{ matrix.new }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = (Resolve-Path 'source/dist/WinNAT-UI/WinNAT-UI.exe').Path
+          $info = (Get-Item $exe).VersionInfo
+          $expected = $env:NEW_TAG.TrimStart('v')
+          if ($expected.Split('.').Count -eq 3) { $expected += '.0' }
+          if ($info.FileVersion -ne $expected -or $info.ProductVersion -ne $expected) {
+            throw "EXE version mismatch $($info.FileVersion) != $expected"
+          }
+          $defender = Get-MpComputerStatus -ErrorAction Stop
+          if (-not $defender.AMServiceEnabled -or -not $defender.AntivirusEnabled) { throw 'Defender is unavailable' }
+          $start = Get-Date
+          Start-MpScan -ScanType CustomScan -ScanPath (Resolve-Path 'source/dist/WinNAT-UI').Path -ErrorAction Stop
+          $detections = @(Get-MpThreatDetection -ErrorAction Stop | Where-Object {
+            $_.InitialDetectionTime -ge $start.AddMinutes(-1) -and
+            (($_.Resources | Out-String) -match 'WinNAT-UI')
+          })
+          if ($detections.Count -gt 0 -or -not (Test-Path $exe)) { throw 'Defender blocked historical binary' }
+          "SHA256: $((Get-FileHash $exe -Algorithm SHA256).Hash)" | Set-Content 'source/dist/WinNAT-UI/SHA256.txt'
+          "Source tag: $env:OLD_TAG" | Set-Content 'source/dist/WinNAT-UI/BUILD_INFO.txt'
+          "Mapped version: $env:NEW_TAG" | Add-Content 'source/dist/WinNAT-UI/BUILD_INFO.txt'
+          "Source commit: $(git -C source rev-parse HEAD)" | Add-Content 'source/dist/WinNAT-UI/BUILD_INFO.txt'
+          "Defender signatures: $($defender.AntivirusSignatureVersion)" | Set-Content 'source/dist/WinNAT-UI/DEFENDER_SCAN.txt'
+      - name: Archive release package
+        shell: pwsh
+        run: |
+          Compress-Archive -Path 'source/dist/WinNAT-UI/*' -DestinationPath 'WinNAT-UI-Windows.zip'
+          $hash = (Get-FileHash 'WinNAT-UI-Windows.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
+          "sha256:$hash  WinNAT-UI-Windows.zip" | Set-Content 'PACKAGE_SHA256.txt'
+          if ((Get-Item 'WinNAT-UI-Windows.zip').Length -lt 1000000) { throw 'Suspiciously small package' }
+      - name: Preserve staged packages without publishing
+        uses: actions/upload-artifact@v4
+        with:
+          name: staged-\${{ matrix.new }}-from-\${{ matrix.old }}
+          path: |
+            WinNAT-UI-Windows.zip
+            PACKAGE_SHA256.txt
+          if-no-files-found: error
+          retention-days: 30
