@@ -14,7 +14,7 @@ import network_guide
 import ui_theme as ui
 from ui_theme import C, F, S1, S2, S3, S4, S5
 
-VERSION = "1.7.1"
+VERSION = "1.6.0"
 REPO_URL = "https://github.com/matiz311/WinNAT-UI"
 
 PAGES = [  # key, label, icon, subtitle
