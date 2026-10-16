@@ -99,7 +99,9 @@ secondari serve un indirizzo LAN principale già configurato staticamente.
 **NAT e subnet multiple:** aggiungere un IP secondario non espande automaticamente
 il prefisso del WinNAT. Se il nuovo IP appartiene a una subnet differente, il
 routing/NAT di quella subnet deve essere valutato separatamente: questa funzione
-non modifica, ricrea o moltiplica le regole WinNAT. Collaudare il traffico reale
+non modifica, ricrea o moltiplica le regole WinNAT. L'aggiunta o la rimozione
+di indirizzi può invece aggiornare automaticamente le route direttamente connesse.
+Collaudare il traffico reale
 su un host Windows e verificare eventuali conflitti con altre interfacce.
 
 ## Rimozione setup
