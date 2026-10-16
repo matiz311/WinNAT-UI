@@ -1,0 +1,137 @@
+test_large_sections_are_bounded_with_truncation_marker (tests.test_bug_report.BugReportTests.test_large_sections_are_bounded_with_truncation_marker) ... ok
+test_manual_link_does_not_generate_excessive_url (tests.test_bug_report.BugReportTests.test_manual_link_does_not_generate_excessive_url) ... ok
+test_report_preserves_relevant_command_output_and_network_context (tests.test_bug_report.BugReportTests.test_report_preserves_relevant_command_output_and_network_context) ... ok
+test_sensitive_patterns_are_redacted_without_discarding_diagnostics (tests.test_bug_report.BugReportTests.test_sensitive_patterns_are_redacted_without_discarding_diagnostics) ... ok
+test_unknown_errors_are_preserved_instead_of_suppressed (tests.test_bug_report.BugReportTests.test_unknown_errors_are_preserved_instead_of_suppressed) ... ok
+test_different_problem_different_fingerprint (tests.test_issue_tracker.IssueTrackerTests.test_different_problem_different_fingerprint) ... ok
+test_payload_retains_diagnostics_and_masks_explicit_secrets (tests.test_issue_tracker.IssueTrackerTests.test_payload_retains_diagnostics_and_masks_explicit_secrets) ... ok
+test_same_problem_across_versions_has_same_signature (tests.test_issue_tracker.IssueTrackerTests.test_same_problem_across_versions_has_same_signature) ... ok
+test_save_then_sync_issue_fixed_only_in_published_new_release (tests.test_issue_tracker.IssueTrackerTests.test_save_then_sync_issue_fixed_only_in_published_new_release) ... ok
+test_similar_issue_by_signature (tests.test_issue_tracker.IssueTrackerTests.test_similar_issue_by_signature) ... ok
+test_unconfigured_backend_does_not_contact_github_with_secret (tests.test_issue_tracker.IssueTrackerTests.test_unconfigured_backend_does_not_contact_github_with_secret) ... ok
+test_unsafe_endpoint_rejected (tests.test_issue_tracker.IssueTrackerTests.test_unsafe_endpoint_rejected) ... ok
+test_mapping_conflict (tests.test_nat_backend.BackendTests.test_mapping_conflict) ... ok
+test_mapping_multiple_external_ports (tests.test_nat_backend.BackendTests.test_mapping_multiple_external_ports) ... ok
+test_mapping_noop (tests.test_nat_backend.BackendTests.test_mapping_noop) ... ok
+test_reject_second_nat_and_foreign_subnet (tests.test_nat_backend.BackendTests.test_reject_second_nat_and_foreign_subnet) ... ok
+test_secondary_dhcp_does_not_get_disabled (tests.test_nat_backend.BackendTests.test_secondary_dhcp_does_not_get_disabled) ... ok
+test_secondary_existing_is_noop (tests.test_nat_backend.BackendTests.test_secondary_existing_is_noop) ... ok
+test_secondary_is_additive (tests.test_nat_backend.BackendTests.test_secondary_is_additive) ... ok
+test_aggregate_covers_two_subnets (tests.test_nat_preflight.NatPreflightTests.test_aggregate_covers_two_subnets) ... ok
+test_direct_add_identical_is_noop (tests.test_nat_preflight.NatPreflightTests.test_direct_add_identical_is_noop) ... ok
+test_direct_add_ignores_other_nat_instances_and_prefixes (tests.test_nat_preflight.NatPreflightTests.test_direct_add_ignores_other_nat_instances_and_prefixes) ... ok
+test_direct_add_never_calls_expand_or_remove (tests.test_nat_preflight.NatPreflightTests.test_direct_add_never_calls_expand_or_remove) ... ok
+test_direct_add_same_name_different_prefix_is_only_preflight_conflict (tests.test_nat_preflight.NatPreflightTests.test_direct_add_same_name_different_prefix_is_only_preflight_conflict) ... ok
+test_empty_inventory_creates_physical_nat (tests.test_nat_preflight.NatPreflightTests.test_empty_inventory_creates_physical_nat) ... ok
+test_identical_is_covered (tests.test_nat_preflight.NatPreflightTests.test_identical_is_covered) ... ok
+test_insufficient_existing_prefix_requires_expansion (tests.test_nat_preflight.NatPreflightTests.test_insufficient_existing_prefix_requires_expansion) ... ok
+test_two_physical_nats_are_not_created (tests.test_nat_preflight.NatPreflightTests.test_two_physical_nats_are_not_created) ... ok
+test_any_number_of_wans (tests.test_network_guide.GuideTests.test_any_number_of_wans) ... ok
+test_apply_after_partial_failed_commit (tests.test_network_guide.GuideTests.test_apply_after_partial_failed_commit)
+Previous 1.6.0 commit may have removed LAN IP and disabled DHCP. ... ok
+test_apply_diff_is_empty_when_target_already_present (tests.test_network_guide.GuideTests.test_apply_diff_is_empty_when_target_already_present) ... ok
+test_apply_from_existing_lan (tests.test_network_guide.GuideTests.test_apply_from_existing_lan) ... ok
+test_apply_preserves_existing_routed_lan_residue (tests.test_network_guide.GuideTests.test_apply_preserves_existing_routed_lan_residue) ... ok
+test_at_least_one_wan (tests.test_network_guide.GuideTests.test_at_least_one_wan) ... ok
+test_changes_since_preview_block_commit (tests.test_network_guide.GuideTests.test_changes_since_preview_block_commit) ... ok
+test_detect_lan_subnet (tests.test_network_guide.GuideTests.test_detect_lan_subnet) ... ok
+test_disable_preserves_ip_addresses (tests.test_network_guide.GuideTests.test_disable_preserves_ip_addresses) ... ok
+test_dynamic_adapter_status_and_apipa_do_not_invalidate_preview (tests.test_network_guide.GuideTests.test_dynamic_adapter_status_and_apipa_do_not_invalidate_preview) ... ok
+test_failed_commit_includes_inventory_before_and_after (tests.test_network_guide.GuideTests.test_failed_commit_includes_inventory_before_and_after) ... ok
+test_inventory_failure_preserves_original_error (tests.test_network_guide.GuideTests.test_inventory_failure_preserves_original_error) ... ok
+test_ip_or_nat_change_invalidates_preview (tests.test_network_guide.GuideTests.test_ip_or_nat_change_invalidates_preview) ... ok
+test_lan_subnet_must_not_overlap_wan (tests.test_network_guide.GuideTests.test_lan_subnet_must_not_overlap_wan) ... ok
+test_legacy_two_wan_profile_still_accepted (tests.test_network_guide.GuideTests.test_legacy_two_wan_profile_still_accepted) ... ok
+test_matching_single_nat_with_covered_logical_subnets (tests.test_network_guide.GuideTests.test_matching_single_nat_with_covered_logical_subnets) ... ok
+test_metrics_follow_priority (tests.test_network_guide.GuideTests.test_metrics_follow_priority) ... ok
+test_real_default_gateway_change_invalidates_preview (tests.test_network_guide.GuideTests.test_real_default_gateway_change_invalidates_preview) ... ok
+test_reset_cleans_regardless_of_owner (tests.test_network_guide.GuideTests.test_reset_cleans_regardless_of_owner) ... ok
+test_reset_dhcp_is_idempotent (tests.test_network_guide.GuideTests.test_reset_dhcp_is_idempotent)
+When DHCP is already enabled, reset must not fail on netsh exit 1. ... ok
+test_retry_rebases_partial_commit_and_skips_existing_nat (tests.test_network_guide.GuideTests.test_retry_rebases_partial_commit_and_skips_existing_nat) ... ok
+test_secondary_wan_can_be_omitted (tests.test_network_guide.GuideTests.test_secondary_wan_can_be_omitted) ... ok
+test_static_lan_adds_secondary_without_overwriting (tests.test_network_guide.GuideTests.test_static_lan_adds_secondary_without_overwriting) ... ok
+test_static_setup_with_non_default_subnet (tests.test_network_guide.GuideTests.test_static_setup_with_non_default_subnet) ... ok
+test_suggest_metric (tests.test_network_guide.GuideTests.test_suggest_metric) ... ok
+test_uncovered_prefix_generates_one_nat_expansion (tests.test_network_guide.GuideTests.test_uncovered_prefix_generates_one_nat_expansion) ... ok
+test_unknown_action_is_rejected (tests.test_network_guide.GuideTests.test_unknown_action_is_rejected) ... ok
+test_verified_apply_fails_if_target_did_not_converge (tests.test_network_guide.GuideTests.test_verified_apply_fails_if_target_did_not_converge) ... ok
+test_wan_aliases_distinct (tests.test_network_guide.GuideTests.test_wan_aliases_distinct) ... ok
+test_wan_without_default_route_is_named (tests.test_network_guide.GuideTests.test_wan_without_default_route_is_named) ... ok
+test_changed_interface_index_prevents_address_write (tests.test_network_rollback.RollbackTests.test_changed_interface_index_prevents_address_write) ... ok
+test_created_nat_removed_and_final_state_verified (tests.test_network_rollback.RollbackTests.test_created_nat_removed_and_final_state_verified) ... ok
+test_invalid_snapshot_does_not_execute_changes (tests.test_network_rollback.RollbackTests.test_invalid_snapshot_does_not_execute_changes) ... ok
+test_no_changes_requires_no_mutations (tests.test_network_rollback.RollbackTests.test_no_changes_requires_no_mutations) ... ok
+test_partial_rollback_is_never_claimed_successful (tests.test_network_rollback.RollbackTests.test_partial_rollback_is_never_claimed_successful) ... ok
+test_scope_covers_every_wan (tests.test_network_rollback.RollbackTests.test_scope_covers_every_wan) ... ok
+test_scope_of_guide_contains_only_involved_network_interfaces (tests.test_network_rollback.RollbackTests.test_scope_of_guide_contains_only_involved_network_interfaces) ... ok
+test_empty_minor_notes_refused_even_if_approved (tests.test_release_policy.ReleasePolicyTests.test_empty_minor_notes_refused_even_if_approved) ... ok
+test_four_digit_hotfix (tests.test_release_policy.ReleasePolicyTests.test_four_digit_hotfix) ... ok
+test_minor_requires_summary_and_explicit_approval (tests.test_release_policy.ReleasePolicyTests.test_minor_requires_summary_and_explicit_approval) ... ok
+test_one_build_does_not_require_new_version (tests.test_release_policy.ReleasePolicyTests.test_one_build_does_not_require_new_version) ... ok
+test_patch_only_for_fixes (tests.test_release_policy.ReleasePolicyTests.test_patch_only_for_fixes) ... ok
+test_unjustified_version_jumps_rejected (tests.test_release_policy.ReleasePolicyTests.test_unjustified_version_jumps_rejected) ... ok
+test_bug_submission_does_not_depend_on_public_issue_lookup (tests.test_ui_helpers.HelperTests.test_bug_submission_does_not_depend_on_public_issue_lookup) ... ok
+test_commit_failure_keeps_candidate_for_diff_retry (tests.test_ui_helpers.HelperTests.test_commit_failure_keeps_candidate_for_diff_retry) ... ok
+test_commit_state_checkpoint_is_persisted_with_stage (tests.test_ui_helpers.HelperTests.test_commit_state_checkpoint_is_persisted_with_stage) ... ok
+test_debug_retains_multiline_output (tests.test_ui_helpers.HelperTests.test_debug_retains_multiline_output) ... ok
+test_error_summary_skips_exit_code (tests.test_ui_helpers.HelperTests.test_error_summary_skips_exit_code) ... ok
+test_friendly_ip_errors (tests.test_ui_helpers.HelperTests.test_friendly_ip_errors) ... ok
+test_icon_assets (tests.test_ui_helpers.HelperTests.test_icon_assets) ... ok
+test_network_command_logger_captures_stderr_before_raising (tests.test_ui_helpers.HelperTests.test_network_command_logger_captures_stderr_before_raising) ... ok
+test_network_command_logger_is_scoped (tests.test_ui_helpers.HelperTests.test_network_command_logger_is_scoped) ... ok
+test_on_off_values_from_powershell (tests.test_ui_helpers.HelperTests.test_on_off_values_from_powershell) ... ok
+test_original_error_dialog_survives_failed_submission (tests.test_ui_helpers.HelperTests.test_original_error_dialog_survives_failed_submission) ... ok
+test_reporting_error_does_not_open_another_bug_dialog (tests.test_ui_helpers.HelperTests.test_reporting_error_does_not_open_another_bug_dialog) ... ok
+test_service_status (tests.test_ui_helpers.HelperTests.test_service_status) ... ok
+test_update_validation_error_is_actionable (tests.test_ui_helpers.HelperTests.test_update_validation_error_is_actionable) ... ok
+test_invalid_package_leaves_installation_untouched (tests.test_update_helper.HelperOnWindowsTests.test_invalid_package_leaves_installation_untouched) ... ok
+test_script_parses (tests.test_update_helper.HelperOnWindowsTests.test_script_parses) ... ok
+test_update_with_progress_window (tests.test_update_helper.HelperOnWindowsTests.test_update_with_progress_window) ... FAIL
+test_helper_runs_without_console_and_with_versions (tests.test_update_helper.LaunchTests.test_helper_runs_without_console_and_with_versions) ... ok
+test_script_has_progress_window_and_rollback (tests.test_update_helper.LaunchTests.test_script_has_progress_window_and_rollback) ... ok
+test_archive_traversal_and_symlinks_rejected (tests.test_updater.UpdaterTests.test_archive_traversal_and_symlinks_rejected) ... ok
+test_download_rejects_corruption (tests.test_updater.UpdaterTests.test_download_rejects_corruption) ... ok
+test_four_digit_hotfix_updates (tests.test_updater.UpdaterTests.test_four_digit_hotfix_updates) ... ok
+test_latest_release_requires_verified_official_asset (tests.test_updater.UpdaterTests.test_latest_release_requires_verified_official_asset) ... ok
+test_release_without_digest_is_rejected (tests.test_updater.UpdaterTests.test_release_without_digest_is_rejected) ... ok
+test_semver_history_cutover_to_114 (tests.test_updater.UpdaterTests.test_semver_history_cutover_to_114) ... ok
+test_update_only_packaged_windows_exe (tests.test_updater.UpdaterTests.test_update_only_packaged_windows_exe) ... ok
+test_version_comparison_is_numeric (tests.test_updater.UpdaterTests.test_version_comparison_is_numeric) ... ok
+test_app_uses_single_source (tests.test_version.VersionTests.test_app_uses_single_source) ... ok
+test_changelog_has_section (tests.test_version.VersionTests.test_changelog_has_section) ... ok
+test_informational_docs_reference_current_version (tests.test_version.VersionTests.test_informational_docs_reference_current_version) ... ok
+test_no_conflict_markers (tests.test_version.VersionTests.test_no_conflict_markers) ... ok
+test_python_files_are_organized (tests.test_version.VersionTests.test_python_files_are_organized) ... ok
+test_semver (tests.test_version.VersionTests.test_semver) ... ok
+test_windows_metadata_matches (tests.test_version.VersionTests.test_windows_metadata_matches) ... ok
+test_accented_text_round_trip (tests.test_windows_ps.PowerShellTests.test_accented_text_round_trip) ... ok
+test_error_keeps_stderr (tests.test_windows_ps.PowerShellTests.test_error_keeps_stderr) ... ok
+test_error_line_matches_numbered_script (tests.test_windows_ps.PowerShellTests.test_error_line_matches_numbered_script) ... ok
+
+======================================================================
+FAIL: test_update_with_progress_window (tests.test_update_helper.HelperOnWindowsTests.test_update_with_progress_window)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\a\WinNAT-UI\WinNAT-UI\tests\test_update_helper.py", line 87, in test_update_with_progress_window
+    self.assertEqual(result.returncode, 0, log + result.stderr)
+AssertionError: 1 != 0 : 2026-10-16T19:08:21.2072590+00:00  Aggiornamento WinNAT UI 1.14.0 -> 1.15.0
+2026-10-16T19:08:21.2191649+00:00  Fase: Chiusura di WinNAT UI
+2026-10-16T19:08:21.2666552+00:00  Fase: Copia di sicurezza della versione installata
+2026-10-16T19:08:21.4095248+00:00  Copia di sicurezza: 3 file
+2026-10-16T19:08:21.4115354+00:00  Fase: Installazione della nuova versione
+2026-10-16T19:08:21.4261150+00:00  Installati: 2 file
+2026-10-16T19:08:21.4281429+00:00  Fase: Verifica dei file installati
+2026-10-16T19:08:21.4812825+00:00  Aggiornamento fallito: System.Management.Automation.CommandNotFoundException: The term 'Get-FileHash' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)
+   at System.Management.Automation.Interpreter.ActionCallInstruction`2.Run(InterpretedFrame frame)
+   at System.Management.Automation.Interpreter.EnterTryCatchFinallyInstruction.Run(InterpretedFrame frame)
+   at System.Management.Automation.Interpreter.EnterTryCatchFinallyInstruction.Run(InterpretedFrame frame)
+2026-10-16T19:08:21.5047061+00:00  Versione precedente ripristinata.
+
+
+----------------------------------------------------------------------
+Ran 108 tests in 91.120s
+
+FAILED (failures=1)
+exit=1
