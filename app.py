@@ -112,6 +112,100 @@ class Dialog(tk.Toplevel):
         return self.result
 
 
+class ProgressDialog(tk.Toplevel):
+    """Modal "sending" window for a background task.
+
+    Shows an indeterminate bar while the work runs, then the outcome in the
+    same window: success closes itself after ``auto_close_ms`` (and runs
+    ``on_success_close``), failure stays open with Riprova / Chiudi so the
+    person decides. It cannot be dismissed while the request is in flight.
+    """
+    AUTO_CLOSE_MS = 2500
+
+    def __init__(self, parent, title, message):
+        super().__init__(parent)
+        self.parent = parent
+        self.busy = True
+        self.title(title)
+        self.configure(bg=C["surface"])
+        self.transient(parent)
+        self.resizable(False, False)
+        self.protocol("WM_DELETE_WINDOW", self.close)
+        self.bind("<Escape>", lambda e: self.close())
+        body = tk.Frame(self, bg=C["surface"])
+        body.pack(fill="both", expand=True, padx=S5, pady=(S5, S4))
+        self.heading = ttk.Label(body, text=title, style="Card.Title.TLabel")
+        self.heading.pack(anchor="w", pady=(0, S3))
+        self.message = tk.Label(body, text=message, font=F["body"], bg=C["surface"], fg=C["text"],
+                                wraplength=420, justify="left", anchor="w")
+        self.message.pack(fill="x", anchor="w")
+        self.bar = ttk.Progressbar(body, mode="indeterminate", length=420)
+        self.bar.pack(fill="x", pady=(S3, 0))
+        self.link = tk.Label(body, font=F["body"], bg=C["surface"], fg=C["accent"], cursor="hand2",
+                             anchor="w")
+        self.footer = tk.Frame(self, bg=C["surface_alt"], highlightthickness=0)
+        tk.Frame(self.footer, bg=C["border"], height=1).pack(fill="x", side="top")
+        self.primary = ttk.Button(self.footer, text="Chiudi", style="Accent.TButton", command=self.close)
+        self.primary.pack(side="right", padx=(S2, S5), pady=S3)
+        self.secondary = ttk.Button(self.footer, text="Riprova")
+        self.on_close = None
+        self.bar.start(11)
+        self.update_idletasks()
+        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_reqwidth()) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_reqheight()) // 3
+        self.geometry("+%d+%d" % (max(x, 0), max(y, 0)))
+        self.grab_set()
+        self.focus_set()
+
+    def _finish(self, heading, text, color):
+        self.busy = False
+        self.bar.stop()
+        self.bar.pack_forget()
+        self.heading.configure(text=heading)
+        self.message.configure(text=text, fg=color)
+        self.footer.pack(fill="x", side="bottom")
+
+    def succeed(self, heading, text, url=None, on_close=None, auto_close_ms=AUTO_CLOSE_MS):
+        self._finish(heading, text, C["success"])
+        if url:
+            self.link.configure(text=url)
+            self.link.bind("<Button-1>", lambda e: webbrowser.open(url))
+            self.link.pack(fill="x", anchor="w", pady=(S2, 0))
+        self.on_close = on_close
+        self.primary.focus_set()
+        self.after(auto_close_ms, self.close)
+
+    def fail(self, heading, text, retry=None):
+        self._finish(heading, text, C["danger"])
+        if retry is not None:
+            self.secondary.configure(command=lambda: (self._close_window(), retry()))
+            self.secondary.pack(side="right", pady=S3)
+        self.primary.focus_set()
+
+    def _close_window(self):
+        if not self.winfo_exists():
+            return
+        try:
+            self.grab_release()
+        except tk.TclError:
+            pass
+        self.destroy()
+        try:
+            if self.parent.winfo_exists():
+                self.parent.grab_set()
+                self.parent.focus_set()
+        except tk.TclError:
+            pass
+
+    def close(self):
+        if self.busy or not self.winfo_exists():
+            return
+        self._close_window()
+        callback, self.on_close = self.on_close, None
+        if callback:
+            callback()
+
+
 class Topology(tk.Canvas):
     """Live sketch of LAN \u2192 PC gateway \u2192 WAN(s) \u2192 Internet built from the form values.
 
@@ -1237,6 +1331,8 @@ class App(tk.Tk):
             if "Segnala bug" in self.tasks:
                 return
             payload = issue_tracker.safe_payload(operation, message, traceback_text, VERSION)
+            progress = ProgressDialog(dlg, "Invio segnalazione",
+                                      "Invio delle informazioni anonimizzate del caso a GitHub…")
             def send():
                 # Remote availability check runs on a worker, not the Tk thread.
                 endpoint = issue_tracker.service_endpoint()
@@ -1248,14 +1344,31 @@ class App(tk.Tk):
                 result = issue_tracker.submit(payload, endpoint=endpoint)
                 issue_tracker.save_entry(payload, result)
                 return result
+            def close_error_dialog():
+                if dlg.winfo_exists():
+                    dlg.destroy()
             def sent(result):
-                dlg.destroy()
-                text = ("Bug già segnalato" if result["already_exists"] else "Bug segnalato")
-                messagebox.showinfo(text, "Issue #" + str(result["number"]) + "\n"
-                                    + result["url"] + "\n\nTracciamento locale attivato.",
-                                    parent=self)
                 self.render_issue_tracker()
-            self.run_task("Segnala bug", send, sent)
+                number = "Issue #" + str(result["number"])
+                if result["already_exists"]:
+                    heading, text = "Bug già segnalato", number + " esiste già: la stai seguendo."
+                else:
+                    heading, text = "Bug segnalato", number + " aperta correttamente."
+                self.notice.set(heading + ": " + number)
+                # Success: the progress window closes itself and takes the
+                # error dialog with it, nothing left to dismiss by hand.
+                progress.succeed(heading, text + " Tracciamento locale attivato.",
+                                 url=result["url"], on_close=close_error_dialog)
+            def failed(error_message):
+                # Failure of the reporting facility must never become
+                # another reportable bug (infinite reporting loop): show it
+                # here and keep the original error dialog open.
+                progress.fail("Segnalazione non inviata",
+                              "Non è stato possibile creare la Issue su GitHub.\n" + error_message
+                              + "\n\nL'errore originale resta aperto: puoi copiarne il report "
+                                "anonimizzato o riprovare.",
+                              retry=report_bug)
+            self.run_task("Segnala bug", send, sent, on_error=failed)
         dlg.cancel_btn.configure(command=copy_anonymized)
         report_actions = tk.Frame(dlg.body, bg=C["surface"])
         report_actions.pack(fill="x", pady=(0, S2))
@@ -1298,7 +1411,8 @@ class App(tk.Tk):
         dlg.resizable(True, True)
         dlg.run(focus=dlg.ok)
 
-    def run_task(self, key, fn, on_success):
+    def run_task(self, key, fn, on_success, on_error=None):
+        """Run ``fn`` on a worker; ``on_success(result)`` / ``on_error(message)`` run on the Tk thread."""
         if key in self.tasks:
             return
         self.tasks.add(key)
@@ -1307,19 +1421,25 @@ class App(tk.Tk):
 
         def runner():
             try:
-                self.work.put((key, True, fn(), on_success))
+                self.work.put((key, True, fn(), (on_success, on_error)))
             except Exception as error:
-                self.work.put((key, False, (str(error), traceback.format_exc()), on_success))
+                self.work.put((key, False, (str(error), traceback.format_exc()), (on_success, on_error)))
         threading.Thread(target=runner, daemon=True).start()
         self.render_changebar()
 
     def drain(self):
+        # Re-arm first. A callback may open a modal dialog (wait_window runs a
+        # nested event loop); if the next poll were scheduled only at the end,
+        # results of tasks started from that dialog (e.g. "Segnala bug" from
+        # the error dialog) would stay queued until the dialog was closed.
+        self.after(100, self.drain)
         try:
             while True:
-                key, ok, value, callback = self.work.get_nowait()
+                key, ok, value, callbacks = self.work.get_nowait()
                 if key == "__commit_log__":
                     self.append_commit_log(value[0], value[1])
                     continue
+                callback, on_error = callbacks if isinstance(callbacks, tuple) else (callbacks, None)
                 self.tasks.discard(key)
                 if not self.tasks:
                     self.progress.stop()
@@ -1329,7 +1449,9 @@ class App(tk.Tk):
                 else:
                     error_message, error_traceback = value
                     self.notice.set("Errore: " + error_summary(error_message)[:80])
-                    if key == "Commit":
+                    if on_error is not None:
+                        on_error(error_message)
+                    elif key == "Commit":
                         # Keep the desired-state candidate. The refresh below reads
                         # Windows again; the next Apply recomputes a minimal diff and
                         # only retries what is still missing.
@@ -1352,7 +1474,6 @@ class App(tk.Tk):
                 self.render_changebar()
         except queue.Empty:
             pass
-        self.after(100, self.drain)
 
     def refresh(self):
         self.run_task("Lettura configurazione", network.collect, self.render)
