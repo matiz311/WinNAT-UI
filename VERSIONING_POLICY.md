@@ -24,6 +24,14 @@ L'identificativo di una **build CI** è distinto dalla versione funzionale: `X.Y
 
 Un HOTFIX incrementa il quarto componente della release di riferimento. La successiva PATCH o MINOR incorpora la correzione e azzera il quarto componente. Non utilizzare un HOTFIX per distinguere semplici ricompilazioni. Non attribuire numeri di esempio a release non ancora pubblicate.
 
+## Controllo versioning obbligatorio prima di ogni merge
+
+ChatGPT, unico responsabile dei merge, deve verificare il versioning di **ogni** PR, anche quando non modifica la versione: confronta `version.py`, `version_info.txt`, l'ultima Release/tag pubblicata, `CHANGELOG.md`, `RELEASE_NOTES.it.md` e le altre PR pendenti. Registra per ciascuna richiesta la categoria MAJOR/MINOR/PATCH/HOTFIX oppure **BUILD-only, senza incremento della versione funzionale**, con motivazione.
+
+Se più PR vengono integrate insieme, la categoria/versione finale è stabilita **una sola volta sul risultato congiunto**, risolvendo prima numeri duplicati, conflitti di changelog, dipendenze e compatibilità dell'updater. La sequenza di merge segue [AGENTS.md](AGENTS.md): priorità alle modifiche ChatGPT, poi Claude; dentro ciascun gruppo, importanza decrescente e cronologia originale crescente. Tale sequenza non autorizza merge tecnicamente incoerenti né pubblicazioni automatiche.
+
+Un merge ordinario non rappresenta di per sé una nuova release. Rimangono obbligatori i test e i controlli di compilazione e, per le pubblicazioni MAJOR/MINOR, il gate manuale esistente.
+
 ## Procedura di rilascio
 
 1. Aggiornare insieme `version.py` e `version_info.txt`.
