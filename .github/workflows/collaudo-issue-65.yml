@@ -5,7 +5,7 @@ on:
     branches: ['collaudo/issue-65-windows']
 
 permissions:
-  contents: read
+  contents: write
   actions: read
   issues: read
 
@@ -45,3 +45,16 @@ jobs:
         with:
           name: collaudo-issue-65
           path: ${{ runner.temp }}/esito
+      - name: Pubblica esito sul branch di collaudo
+        if: always()
+        shell: pwsh
+        run: |
+          $dest = "collaudo-esito/run-${{ github.run_id }}"
+          New-Item -ItemType Directory -Force $dest | Out-Null
+          Copy-Item "$env:RUNNER_TEMP/esito/*" $dest -Recurse
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git sparse-checkout disable
+          git add collaudo-esito
+          git commit -m "collaudo: esito run ${{ github.run_id }}"
+          git push origin HEAD:${{ github.ref_name }}
