@@ -10,6 +10,17 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
 
 
+## [Unreleased]
+### Aggiunto
+- Configurazione di più IPv4/subnet sulla stessa interfaccia LAN direttamente dalla schermata Gateway.
+- Rilevamento e visualizzazione degli IPv4 secondari già presenti sulla LAN.
+- Un oggetto WinNAT distinto per ogni subnet configurata, con nomi derivati dal nome base (`NAT-Firewall`, `NAT-Firewall-2`, ...).
+
+### Modificato
+- Rimossa l'espansione automatica dei prefissi NAT dai percorsi di configurazione ordinari: nessuna aggregazione CIDR, ricostruzione o rimozione implicita dei NAT esistenti.
+- La presenza di altri oggetti WinNAT non blocca la configurazione di una nuova subnet; eventuali limiti runtime vengono lasciati a Windows.
+- Gli IPv4 LAN esistenti restano invariati; vengono aggiunti soltanto gli indirizzi mancanti.
+
 ## [1.9.15.1] - 2026-10-15
 ### Corretto
 - **Aggiungi NAT:** esegue direttamente `New-NetNat` per il nome e prefisso richiesti, senza controllare quanti altri NAT siano presenti.
