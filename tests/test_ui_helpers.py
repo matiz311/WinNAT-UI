@@ -74,7 +74,7 @@ class HelperTests(unittest.TestCase):
         from pathlib import Path
         source = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")
         start = source.index("    def check_updates(self, silent=False):")
-        end = source.index("    def _install_update(self, staging):", start)
+        end = source.index("    def _install_update(self, staging", start)
         segment = source[start:end]
         self.assertIn('except ValueError as error:', segment)
         self.assertIn('"Release GitHub non utilizzabile: " + str(error)', segment)
