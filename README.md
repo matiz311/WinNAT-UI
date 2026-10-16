@@ -8,9 +8,9 @@
 [![Latest release](https://img.shields.io/github/v/release/matiz311/WinNAT-UI)](https://github.com/matiz311/WinNAT-UI/releases/latest)
 [![Build Windows executable](https://github.com/matiz311/WinNAT-UI/actions/workflows/build.yml/badge.svg)](https://github.com/matiz311/WinNAT-UI/actions/workflows/build.yml)
 
-**[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)** — scarica lo ZIP della release pubblica, estrai completamente la cartella e avvia `WinNAT-UI.exe`. La release corrente è **v1.14.1**, **non firmata**; la firma tramite SignPath Foundation non è ancora approvata.
+**[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)** — scarica lo ZIP della release pubblica, estrai completamente la cartella e avvia `WinNAT-UI.exe`. La release corrente è **v1.15.0**, **non firmata**; la firma tramite SignPath Foundation non è ancora approvata.
 
-**Preparazione release:** il codice sorgente della prossima MINOR è identificato come **v1.15.0**. Fino all'approvazione e pubblicazione della nuova GitHub Release, il download ufficiale rimane quello dell'ultima versione effettivamente pubblicata. Il nuovo logo è riservato alla v1.15.0.
+**Nuova versione:** v1.15.0 include il nuovo logo vettoriale, la gestione degli IPv4 secondari LAN, la configurazione DHCP→statico e migliorie di diagnostica e interfaccia. Verificare sempre il numero della release dalla [pagina GitHub Releases](https://github.com/matiz311/WinNAT-UI/releases).
 
 - [Release e changelog](https://github.com/matiz311/WinNAT-UI/releases)
 - [Note di rilascio per versione (consultabili nel README)](#note-di-rilascio-per-versione)

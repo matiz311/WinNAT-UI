@@ -2,11 +2,11 @@
 
 ## Stato attuale — 16 ottobre 2026
 
-La **versione stabile pubblicata è `v1.14.1`**: [GitHub Releases](https://github.com/matiz311/WinNAT-UI/releases/latest). Il catalogo comprende **30 release pubbliche**: le 28 precedenti sono state ricompilate e rinumerate il 16 ottobre 2026, seguite da `v1.14.0` e dalla PATCH `v1.14.1`. L'ultimo HOTFIX precedente è **`v1.13.0.1`**. I tag e i numeri usati nei documenti sono quelli attualmente pubblicati; gli identificativi dismessi non sono alias di download.
+La **versione stabile pubblicata è `v1.15.0`**: [GitHub Releases](https://github.com/matiz311/WinNAT-UI/releases/latest). Il catalogo comprende **31 release pubbliche**: le 28 precedenti sono state ricompilate e rinumerate il 16 ottobre 2026, seguite da `v1.14.0`, dalla PATCH `v1.14.1` e dalla MINOR `v1.15.0`. L'ultimo HOTFIX precedente è **`v1.13.0.1`**. I tag e i numeri usati nei documenti sono quelli attualmente pubblicati; gli identificativi dismessi non sono alias di download.
 
-Le informazioni complete di ogni rilascio si trovano in [CHANGELOG.md](CHANGELOG.md) e [RELEASE_NOTES.it.md](RELEASE_NOTES.it.md). La sequenza effettiva più recente è `v1.13.0` → `v1.13.0.1` → `v1.14.0` → `v1.14.1`.
+Le informazioni complete di ogni rilascio si trovano in [CHANGELOG.md](CHANGELOG.md) e [RELEASE_NOTES.it.md](RELEASE_NOTES.it.md). La sequenza effettiva più recente è `v1.13.0` → `v1.13.0.1` → `v1.14.0` → `v1.14.1` → `v1.15.0`.
 
-**Candidato in preparazione:** v1.15.0 (MINOR) su ramo dedicato, non ancora pubblicato; incorpora il fix di manutenzione v1.14.1 già pubblicato separatamente dal tag stabile e le funzionalità delle PR #54, #55 e #56. La decisione di pubblicazione rimane subordinata alla verifica del candidato completo e al gate manuale GitHub Actions. Fino alla pubblicazione, v1.14.1 resta l'ultima release ufficiale verificata.
+**Rilascio MINOR 1.15.0:** incorpora le correzioni della v1.14.1 e le funzionalità e integrazioni delle PR #54, #55/#60, #56, #57, #59 e #58. Per questo solo rilascio, il proprietario del repository ha autorizzato espressamente ChatGPT ad avviare la pubblicazione in autonomia il 16 ottobre 2026. L'autorizzazione è tracciata in `release-approvals/v1.15.0.md`; il workflow la riconosce una sola volta, soltanto se la versione, il commit di base e i file modificati coincidono con quelli previsti, senza disattivare build/test, scansione Defender, controlli di sicurezza né il gate di versione. Dalle release successive rimane obbligatorio il normale `workflow_dispatch` approvato.
 
 ## Fonte della versione
 
@@ -40,7 +40,7 @@ Un merge ordinario non rappresenta di per sé una nuova release. Rimangono obbli
 2. Inserire la sezione corrispondente nel `CHANGELOG.md`. MAJOR e MINOR richiedono le sezioni **Sintesi**, **Funzionalità** e **Correzioni**, con evidenze verificabili.
 3. Aggiornare `RELEASE_NOTES.it.md` e, quando serve, i README e la documentazione correlata.
 4. Eseguire test automatici, build Windows, verifica della versione nell'EXE, scansione Defender e controllo degli SHA-256.
-5. Per MAJOR e MINOR, richiedere l'approvazione esplicita tramite il workflow manuale GitHub Actions; la semplice compilazione non pubblica un nuovo numero di release.
+5. Per MAJOR e MINOR, richiedere l'approvazione esplicita tramite il workflow manuale GitHub Actions; la semplice compilazione non pubblica un nuovo numero di release. È ammessa soltanto l'eccezione tracciata e vincolata a v1.15.0 descritta sopra, su richiesta esplicita del proprietario.
 6. Pubblicare solo pacchetti verificati, con tag e versione interna coincidenti, senza riscrivere le release già pubblicate.
 7. Validare l'updater su Windows reale prima di considerare completamente collaudato il percorso di aggiornamento.
 
