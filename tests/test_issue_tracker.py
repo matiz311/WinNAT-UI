@@ -64,6 +64,40 @@ class IssueTrackerTests(TestCase):
                 self.assertFalse(entries[0]["fix_available"])
                 self.assertEqual(entries[0]["number"], 42)
 
+    def test_public_issues_reads_renamed_title_triage_and_pagination(self):
+        signature = "a" * 24
+        item = {"number": 65, "html_url": "https://github.com/matiz311/WinNAT-UI/issues/65",
+                "state": "open", "title": "Errore DNS durante verifica stato",
+                "body": "<!-- winnat-fingerprint:" + signature + " -->",
+                "updated_at": "2026-10-16T20:00:00Z",
+                "labels": [{"name": "bug-report"}, {"name": "triage:in-analisi"},
+                           {"name": "priority:high"}, {"name": "fixed-in/v1.16.0"}]}
+        with patch("winnat_ui.issue_tracker._read_json", return_value=[item]) as get:
+            issues = it.public_issues()
+        self.assertEqual(get.call_count, 1)
+        self.assertEqual(issues[signature][0]["title"], item["title"])
+        self.assertEqual(issues[signature][0]["triage"], "in-analisi")
+        self.assertEqual(issues[signature][0]["priority"], "high")
+        self.assertEqual(issues[signature][0]["fixed_in"], "1.16.0")
+
+    def test_sync_updates_title_but_preserves_original_issue_number(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "issues.json"
+            payload = it.safe_payload("Commit", "Access denied", "", "1.9.5")
+            issue = {"number": 42, "url": "https://github.com/matiz311/WinNAT-UI/issues/42"}
+            with patch("winnat_ui.issue_tracker.store_path", return_value=path):
+                original = it.save_entry(payload, issue)
+                matched = dict(number=42, state="open", fixed_in=None,
+                               title="LAN — Indirizzo IPv4 non applicato",
+                               triage="confermato", priority="high",
+                               updated_at="2026-10-16T20:00:00Z")
+                entries, _ = it.synchronize(remote={original["fingerprint"]: [matched]})
+                self.assertEqual(entries[0]["number"], 42)
+                self.assertEqual(entries[0]["title"], matched["title"])
+                self.assertEqual(entries[0]["triage"], "confermato")
+                self.assertEqual(entries[0]["priority"], "high")
+                self.assertEqual(entries[0]["updated_at"], matched["updated_at"])
+
     def test_similar_issue_by_signature(self):
         p = it.safe_payload("Commit", "Access denied", "", "1.9.5")
         issues = {it.fingerprint(p): [{"number": 7, "state": "open", "url": "https://github.com/matiz311/WinNAT-UI/issues/7"}]}
