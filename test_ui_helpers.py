@@ -70,6 +70,18 @@ class HelperTests(unittest.TestCase):
         self.assertIn("issue_tracker.submit(payload, endpoint=endpoint)", segment)
         self.assertNotIn("issue_tracker.public_issues()", segment)
 
+    def test_update_validation_error_is_actionable(self):
+        from pathlib import Path
+        source = Path(__file__).with_name("app.py").read_text(encoding="utf-8")
+        start = source.index("    def check_updates(self, silent=False):")
+        end = source.index("    def _install_update(self, staging):", start)
+        segment = source[start:end]
+        self.assertIn('except ValueError as error:', segment)
+        self.assertIn('"Release GitHub non utilizzabile: " + str(error)', segment)
+        self.assertIn('"Controllo aggiornamenti non disponibile"', segment)
+        self.assertIn('if not silent:', segment)
+        self.assertIn('return updater.release_info(VERSION)', segment)
+
     def test_commit_failure_keeps_candidate_for_diff_retry(self):
         from pathlib import Path
         source = Path(__file__).with_name("app.py").read_text(encoding="utf-8")
