@@ -885,7 +885,8 @@ class App(tk.Tk):
             description = (alias + " · " + str(plan["old_ip"]) + "/" +
                            str(plan["old_prefix"]) + " → " +
                            plan["ip"] + "/" + str(plan["prefix"]))
-        description += "\nNessuna modifica a gateway, route o oggetti WinNAT."
+        description += ("\nNessuna modifica manuale a gateway, route statiche o WinNAT. "
+                        "Le route connesse possono cambiare automaticamente.")
         self.stage("lan_ip", args, labels[action], description)
         self.show_page("changes")
 
