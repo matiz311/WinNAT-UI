@@ -2,7 +2,7 @@
 import copy
 import unittest
 from unittest.mock import patch
-import network_rollback as rb
+from winnat_ui import network_rollback as rb
 
 
 def state():
@@ -34,8 +34,8 @@ class RollbackTests(unittest.TestCase):
     def test_no_changes_requires_no_mutations(self):
         before = state()
         scope = rb.scope_for("add", ("NAT-Firewall", "10.10.10.0/24"), before)
-        with patch("network_rollback.network.collect", return_value=copy.deepcopy(before)), patch(
-                "network_rollback.network.ps") as ps:
+        with patch("winnat_ui.network_rollback.network.collect", return_value=copy.deepcopy(before)), patch(
+                "winnat_ui.network_rollback.network.ps") as ps:
             result = rb.rollback(before, scope, "backup.json")
         self.assertIn("nessuna differenza", result)
         ps.assert_not_called()
@@ -46,8 +46,8 @@ class RollbackTests(unittest.TestCase):
         after["nats"] = [{"Name": "NAT-Firewall",
                           "InternalIPInterfaceAddressPrefix": "10.10.10.0/24"}]
         scope = rb.scope_for("add", ("NAT-Firewall", "10.10.10.0/24"), before)
-        with patch("network_rollback.network.collect", side_effect=[after, before]), patch(
-                "network_rollback.network.ps") as ps:
+        with patch("winnat_ui.network_rollback.network.collect", side_effect=[after, before]), patch(
+                "winnat_ui.network_rollback.network.ps") as ps:
             outcome = rb.rollback(before, scope, "backup.json")
         self.assertIn("ROLLBACK VERIFICATO", outcome)
         self.assertIn("Remove-NetNat", ps.call_args.args[0])
@@ -58,8 +58,8 @@ class RollbackTests(unittest.TestCase):
         after["nats"] = [{"Name": "NAT-Firewall",
                           "InternalIPInterfaceAddressPrefix": "10.10.10.0/24"}]
         scope = rb.scope_for("add", ("NAT-Firewall", "10.10.10.0/24"), before)
-        with patch("network_rollback.network.collect", return_value=after), patch(
-                "network_rollback.network.ps"):
+        with patch("winnat_ui.network_rollback.network.collect", return_value=after), patch(
+                "winnat_ui.network_rollback.network.ps"):
             with self.assertRaisesRegex(RuntimeError, "ROLLBACK INCOMPLETO") as raised:
                 rb.rollback(before, scope, "backup.json")
         self.assertIn("DIFFERENZE RESIDUE", str(raised.exception))
@@ -67,7 +67,7 @@ class RollbackTests(unittest.TestCase):
     def test_invalid_snapshot_does_not_execute_changes(self):
         before = state()
         scope = rb.scope_for("add", ("NAT-Firewall", "10.10.10.0/24"), before)
-        with patch("network_rollback.network.ps") as ps:
+        with patch("winnat_ui.network_rollback.network.ps") as ps:
             with self.assertRaisesRegex(RuntimeError, "snapshot"):
                 rb.rollback(before, scope, "")
         ps.assert_not_called()
@@ -79,8 +79,8 @@ class RollbackTests(unittest.TestCase):
         after["ips"].append({"InterfaceAlias": "Loopback0", "IPAddress": "10.10.10.1", "PrefixLength": 24})
         scope = rb.scope_for("guide", ("apply", dict(lan="Loopback0", wan1="Wi-Fi",
                            wan2="", nat="NAT-Firewall"), "fingerprint"), before)
-        with patch("network_rollback.network.collect", return_value=after), patch(
-                "network_rollback.network.ps") as ps:
+        with patch("winnat_ui.network_rollback.network.collect", return_value=after), patch(
+                "winnat_ui.network_rollback.network.ps") as ps:
             with self.assertRaisesRegex(RuntimeError, "ROLLBACK INCOMPLETO"):
                 rb.rollback(before, scope, "backup.json")
         ps.assert_not_called()

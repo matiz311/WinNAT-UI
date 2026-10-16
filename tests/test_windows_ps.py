@@ -2,7 +2,7 @@
 import sys
 import unittest
 
-import network
+from winnat_ui import network
 
 
 @unittest.skipUnless(sys.platform == "win32", "richiede Windows")

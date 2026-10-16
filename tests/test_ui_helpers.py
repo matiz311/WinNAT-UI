@@ -13,11 +13,11 @@ class HelperTests(unittest.TestCase):
 
     def test_network_command_logger_is_scoped(self):
         from unittest.mock import patch
-        import network
+        from winnat_ui import network
         from types import SimpleNamespace
         events = []
         process = SimpleNamespace(returncode=0, stdout="OK\n", stderr="")
-        with patch("network.subprocess.run", return_value=process):
+        with patch("winnat_ui.network.subprocess.run", return_value=process):
             token = network.command_logger.set(lambda kind, value: events.append((kind, value)))
             try:
                 self.assertEqual(network.ps("Write-Output 'OK'"), "OK")
@@ -28,11 +28,11 @@ class HelperTests(unittest.TestCase):
 
     def test_network_command_logger_captures_stderr_before_raising(self):
         from unittest.mock import patch
-        import network
+        from winnat_ui import network
         from types import SimpleNamespace
         events = []
         process = SimpleNamespace(returncode=1, stdout="partial", stderr="failed")
-        with patch("network.subprocess.run", return_value=process):
+        with patch("winnat_ui.network.subprocess.run", return_value=process):
             token = network.command_logger.set(lambda kind, value: events.append((kind, value)))
             try:
                 with self.assertRaises(RuntimeError):
@@ -44,7 +44,7 @@ class HelperTests(unittest.TestCase):
 
     def test_reporting_error_does_not_open_another_bug_dialog(self):
         from pathlib import Path
-        source = Path(__file__).with_name("app.py").read_text(encoding="utf-8")
+        source = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")
         start = source.index("    def drain(self):")
         segment = source[start:start + 2500]
         self.assertIn('elif key == "Segnala bug":', segment)
@@ -53,7 +53,7 @@ class HelperTests(unittest.TestCase):
 
     def test_original_error_dialog_survives_failed_submission(self):
         from pathlib import Path
-        source = Path(__file__).with_name("app.py").read_text(encoding="utf-8")
+        source = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")
         start = source.index("        def report_bug():")
         end = source.index("        dlg.cancel_btn.configure(command=copy_anonymized)", start)
         body = source[start:end]
@@ -63,16 +63,16 @@ class HelperTests(unittest.TestCase):
 
     def test_bug_submission_does_not_depend_on_public_issue_lookup(self):
         from pathlib import Path
-        source = Path(__file__).with_name("app.py").read_text(encoding="utf-8")
+        source = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")
         begin = source.index("        def report_bug():")
         end = source.index("        dlg.cancel_btn.configure(command=copy_anonymized)", begin)
         segment = source[begin:end]
-        self.assertIn("issue_tracker.submit(payload, endpoint=endpoint)", segment)
-        self.assertNotIn("issue_tracker.public_issues()", segment)
+        self.assertIn("winnat_ui.issue_tracker.submit(payload, endpoint=endpoint)", segment)
+        self.assertNotIn("winnat_ui.issue_tracker.public_issues()", segment)
 
     def test_update_validation_error_is_actionable(self):
         from pathlib import Path
-        source = Path(__file__).with_name("app.py").read_text(encoding="utf-8")
+        source = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")
         start = source.index("    def check_updates(self, silent=False):")
         end = source.index("    def _install_update(self, staging):", start)
         segment = source[start:end]
@@ -84,7 +84,7 @@ class HelperTests(unittest.TestCase):
 
     def test_commit_failure_keeps_candidate_for_diff_retry(self):
         from pathlib import Path
-        source = Path(__file__).with_name("app.py").read_text(encoding="utf-8")
+        source = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")
         start = source.index('                    if key == "Commit":')
         end = source.index('                    elif key == "Segnala bug":', start)
         segment = source[start:end]
@@ -97,7 +97,7 @@ class HelperTests(unittest.TestCase):
         import tempfile
         from pathlib import Path
         from unittest.mock import patch
-        import network
+        from winnat_ui import network
         with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {"LOCALAPPDATA": folder}):
             path = Path(network.save_commit_state(
                 "pre-commit", {"nats": []}, {"label": "Configura gateway"}))
