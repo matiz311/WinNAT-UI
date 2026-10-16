@@ -109,48 +109,52 @@ def backup(plan_file: Path, work: Path, run_id: int):
 
 
 def _probe_publishing_permissions(source_sha):
-    """Verify ability to create/delete a workflow-bearing tag and draft Release.
-
-    Do this before touching any published historical reference.
-    """
+    """Exercise actual tag push and draft Release creation before mutating history."""
     run_id = os.environ.get("GITHUB_RUN_ID", "")
     if not re.fullmatch(r"\d{5,20}", run_id):
         raise RuntimeError("Permission probe requires a GitHub Actions run ID.")
     probe = "winnat-migration-capability-" + run_id
     if not re.fullmatch(r"[0-9a-f]{40}", source_sha):
         raise ValueError("Unverified historical commit SHA.")
-    tag_created = False
-    release_created = False
+    created_locally = False
     try:
-        print("Preflight: testing Git tag and Release write permissions", flush=True)
-        # Check the same authenticated transport used by the migration,
-        # rather than only testing permission to write a REST API ref.
+        print("Preflight: testing the actual Git transport and Release permissions", flush=True)
         call("git", "tag", probe, source_sha)
+        created_locally = True
         call("git", "push", "origin", "refs/tags/" + probe)
-        tag_created = True
         call("gh", "release", "create", probe, "--repo", REPO,
              "--draft", "--verify-tag", "--title", "Migration capability probe",
              "--notes", "Temporary permission preflight; automatically deleted.")
-        release_created = True
     finally:
         failures = []
-        if release_created:
+        # Inspect remote state even after a client-side error; the server may
+        # have accepted the operation before the client returned a failure.
+        release = subprocess.run(
+            ["gh", "release", "view", probe, "--repo", REPO],
+            capture_output=True, text=True)
+        if release.returncode == 0:
             try:
                 call("gh", "release", "delete", probe, "--repo", REPO, "--yes")
             except Exception as exc:
                 failures.append("draft Release: " + str(exc))
-        if tag_created:
+        elif "404" not in release.stderr and "release not found" not in release.stderr.lower():
+            failures.append("Cannot verify temporary Release: " + release.stderr[-300:])
+        ref = subprocess.run(
+            ["gh", "api", f"repos/{REPO}/git/ref/tags/{probe}"],
+            capture_output=True, text=True)
+        if ref.returncode == 0:
             try:
-                call("gh", "api", "-X", "DELETE",
-                     f"repos/{REPO}/git/refs/tags/{probe}")
+                call("gh", "api", "-X", "DELETE", f"repos/{REPO}/git/refs/tags/{probe}")
             except Exception as exc:
                 failures.append("temporary tag: " + str(exc))
+        elif "404" not in ref.stderr:
+            failures.append("Cannot verify temporary tag: " + ref.stderr[-300:])
+        if created_locally:
+            subprocess.run(["git", "tag", "-d", probe],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if failures:
-            raise RuntimeError("Permission preflight cleanup failed: " +
-                               "; ".join(failures))
-    if not release_created:
-        raise RuntimeError("Release write permission was not verified.")
-    print("Capability preflight succeeded; no temporary refs remain", flush=True)
+            raise RuntimeError("Permission preflight cleanup failed: " + "; ".join(failures))
+    print("Capability preflight succeeded and temporary refs removed", flush=True)
 
 
 def _restore(manifest, work, created):
@@ -255,8 +259,10 @@ def publish(work: Path, docs: Path):
             call("git", "tag", "-d", item["old"])
         for item in items:
             call("git", "tag", item["new"], commits[item["new"]])
-            call("git", "push", "origin", "refs/tags/" + item["new"])
+            # Track an attempted tag push for rollback even when a network
+            # error occurs after the remote has accepted the ref.
             created.append(item["new"])
+            call("git", "push", "origin", "refs/tags/" + item["new"])
         for i, item in enumerate(items):
             new = item["new"]
             note_file = work / (new + "-notes.md")
