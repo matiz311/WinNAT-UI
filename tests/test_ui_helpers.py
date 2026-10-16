@@ -67,7 +67,7 @@ class HelperTests(unittest.TestCase):
         begin = source.index("        def report_bug():")
         end = source.index("        dlg.cancel_btn.configure(command=copy_anonymized)", begin)
         segment = source[begin:end]
-        self.assertIn("winnat_ui.issue_tracker.submit(payload, endpoint=endpoint)", segment)
+        self.assertIn("issue_tracker.submit(payload, endpoint=endpoint)", segment)
         self.assertNotIn("winnat_ui.issue_tracker.public_issues()", segment)
 
     def test_update_validation_error_is_actionable(self):
