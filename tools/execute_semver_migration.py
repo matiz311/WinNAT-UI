@@ -226,11 +226,15 @@ def publish(work: Path, docs: Path):
     releases = request(f"repos/{REPO}/releases?per_page=100")
     if set(x["tag_name"] for x in releases) != {x["old"] for x in items}:
         raise ValueError("Published Releases changed while staging")
-    # Never repeat the previous deletion-before-permission-check failure.
-    _probe_publishing_permissions(items[0]["ref_sha"])
-    # Build all replacement source commits before removing any historical ref.
+    # Build replacement source commits locally before touching GitHub releases.
     workspace = Path(tempfile.mkdtemp(prefix="winnat-source-snapshots-"))
     commits = _create_snapshot_tags(items, Path.cwd(), workspace)
+    # Probe the same kind of NEW version-adjusted commit as the real publication.
+    # The earliest entries are unchanged tags; skip these for the permission test.
+    changed = next((item for item in items if item["old"] != item["new"]), None)
+    if not changed:
+        raise ValueError("Migration has no version-adjusted commit to verify")
+    _probe_publishing_permissions(commits[changed["new"]])
     # Parse release sections from the updated canonical CHANGELOG.
     changelog = (docs / "CHANGELOG.md").read_text(encoding="utf-8")
     notes = {}
