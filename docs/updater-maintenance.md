@@ -1,0 +1,9 @@
+# Updater maintenance diagnostics (#44)
+
+The updater continues to use the official GitHub `releases/latest` endpoint and verifies the official Windows ZIP URL and SHA-256 digest. It distinguishes `no_published_release`, `release_without_required_asset`, `invalid_asset_metadata`, `rate_limited`, `service_unavailable`, `network_failure`, and `http_failure`. All failures remain compatible with existing `ValueError` handling through `UpdateChannelError`. The machine-readable fields are `reason`, `phase`, and optional `http_status`.
+
+If a release is missing (404), or release metadata contains no unique official Windows asset, the updater optionally consults `.github/maintenance/maintenance-status.json` over the official GitHub raw endpoint. The lookup has a three-second timeout and is advisory. Only schema version 1, a current UTC timestamp no more than 15 minutes old, and an explicit `maintenance` state can produce the user-facing maintenance hint. Missing/stale/unreachable records produce **no hint** and never become `operational` assertions.
+
+The hint is intentionally phrased **possible correlation, not confirmed cause**. A maintenance event does not suppress errors, authorize downloads, or bypass integrity checks. Neither this file nor updater code changes publish a maintenance status automatically: operators must maintain the current status as described in the policy PR #68. If that PR is not integrated yet, the status lookup gracefully yields no hint.
+
+Regression tests: `python -m unittest tests.test_updater tests.test_maintenance`. Real Windows binary behavior, release workflow instrumentation, lifecycle enforcement, and automatic linking of GitHub issue diagnostics to maintenance history need independent verification.
