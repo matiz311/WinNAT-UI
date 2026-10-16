@@ -197,6 +197,7 @@ function New-UpdateWindow {
 [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
 [DllImport("user32.dll")] public static extern bool ShowWindow(System.IntPtr hWnd, int nCmdShow);
 [DllImport("user32.dll")] public static extern bool SetForegroundWindow(System.IntPtr hWnd);
+[DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(System.IntPtr hWnd, int attr, ref int value, int size);
 '@
         [WinNatUi.Native]::SetProcessDPIAware() | Out-Null
     } catch { }
@@ -316,6 +317,10 @@ function New-UpdateWindow {
         [WinNatUi.Native]::ShowWindow($form.Handle, 1) | Out-Null
         [WinNatUi.Native]::SetForegroundWindow($form.Handle) | Out-Null
     } catch { $form.Hide(); $form.Show() }
+    if ($dark) {
+        # Dark title bar (Windows 10 20H1+ / 11), matching the dark palette.
+        try { $on = 1; [WinNatUi.Native]::DwmSetWindowAttribute($form.Handle, 20, [ref]$on, 4) | Out-Null } catch { }
+    }
     $form.Activate()
     [System.Windows.Forms.Application]::DoEvents()
     return @{ form = $form; c = $c; steps = $steps; track = $track; fill = $fill; detail = $detail;
