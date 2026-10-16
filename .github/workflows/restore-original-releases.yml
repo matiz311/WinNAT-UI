@@ -1,0 +1,57 @@
+name: Restore original WinNAT-UI Releases (emergency)
+
+# Temporary, manual-only recovery entrypoint.
+# Remove this workflow and revoke WINNAT_MIGRATION_PAT after a verified restore.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_restore:
+        description: 'Type RESTORE_28_ORIGINAL_RELEASES to approve restoration'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: historical-semver-republish-exclusive
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Require exact human confirmation
+        env:
+          CONFIRM_RESTORE: ${{ inputs.confirm_restore }}
+        run: |
+          if [ "$CONFIRM_RESTORE" != "RESTORE_28_ORIGINAL_RELEASES" ]; then
+            echo '::error::Explicit confirmation is required to restore 28 original GitHub Releases.'
+            exit 2
+          fi
+      - name: Checkout immutable recovery script commit
+        uses: actions/checkout@v4
+        with:
+          ref: 5b0b59c5e7fda06b1c0c10590aab2bb6e56cd835
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download original backup (read-only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 38899366384 --repo matiz311/WinNAT-UI --name verified-historical-release-backup --dir work
+          test -f work/migration_manifest.json
+      - name: Restore only the 28 original GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.WINNAT_MIGRATION_PAT }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo '::error::Repository secret WINNAT_MIGRATION_PAT is missing.'
+            exit 2
+          fi
+          python tools/restore_semver_history.py work
