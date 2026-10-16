@@ -10,6 +10,26 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag già pubblicati nella numerazione corrente non vengono modificati; la normalizzazione dello storico è stata conclusa il 16 ottobre 2026.
 
 
+## [1.15.0] - 2026-10-16
+### Sintesi
+Release funzionale retrocompatibile della serie 1.x: migliora la configurazione LAN, estende la gestione degli indirizzi IPv4, rende le segnalazioni dei problemi più diagnostiche e perfeziona l'esperienza di aggiornamento. Include una nuova icona vettoriale. Rimane invariato il vincolo architetturale di un'unica istanza fisica WinNAT.
+
+### Funzionalità
+- La configurazione guidata della LAN rileva il DHCP attivo e propone la conversione esplicita a IPv4 statico, con possibilità di scegliere indirizzo e prefisso, senza bloccare la preparazione delle modifiche per il solo DHCP.
+- Gestione degli IPv4 secondari direttamente dall'interfaccia LAN, conservando l'indirizzo primario e rispettando il modello single-WinNAT.
+- Segnalazioni di bug opzionali più dettagliate con contesto d'errore, traceback, output e configurazione di rete; anteprima e conferma esplicita prima della pubblicazione di informazioni potenzialmente sensibili su GitHub.
+- Visualizzazione di avanzamento durante l'invio di segnalazioni e finestra Windows dedicata alle fasi dell'aggiornamento automatico.
+- Nuova icona piatta in stile vettoriale, con risoluzioni dedicate per 16/32 pixel e asset ICO/PNG/SVG coordinati.
+
+### Correzioni
+- Migliorata la selezione dell'IPv4 LAN primario in presenza di indirizzi secondari e il trattamento degli indirizzi assegnati via DHCP nei piani di setup.
+- Conservati i messaggi di errore e il flusso di conferma dei report durante le operazioni in background; ampliati i test d'integrazione.
+- Classificazione degli errori HTTP e di connessione nel controllo aggiornamenti GitHub (404, 403/429, 5xx, DNS e timeout), incorporando il fix previsto nella manutenzione 1.14.1.
+- L'aggiornamento continua a verificare provenienza e digest SHA-256 del pacchetto; il ripristino dei file rimane separato dalle configurazioni di rete.
+
+### Limitazioni di collaudo
+La CI Windows copre test unitari, PowerShell di sola lettura, packaging e scansione Defender. Non sostituisce la validazione su hardware reale delle transizioni DHCP→statico, degli IP secondari e di un aggiornamento completo da EXE.
+
 ## [1.14.0] - 2026-10-16
 ### Sintesi
 WinNAT-UI completa il canale di segnalazione anonima introdotto nella serie precedente: il backend Cloudflare è ora distribuito e verificato end-to-end, con pubblicazione automatica dell'endpoint utilizzato dal client. La release consolida inoltre la diagnostica dell'updater e la compatibilità con le versioni HOTFIX a quattro componenti. Non modifica la logica NAT/routing già presente nella 1.13.0.1.

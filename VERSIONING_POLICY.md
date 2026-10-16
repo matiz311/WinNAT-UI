@@ -6,6 +6,8 @@ La **versione stabile pubblicata è `v1.14.0`**: [GitHub Releases](https://githu
 
 Le informazioni complete di ogni rilascio si trovano in [CHANGELOG.md](CHANGELOG.md) e [RELEASE_NOTES.it.md](RELEASE_NOTES.it.md). La sequenza effettiva più recente è `v1.13.0` → `v1.13.0.1` → `v1.14.0`.
 
+**Candidato in preparazione:** v1.15.0 (MINOR) su ramo dedicato, non ancora pubblicato; incorpora il fix di manutenzione v1.14.1 predisposto separatamente dal tag stabile e le funzionalità delle PR #54, #55 e #56. La decisione di pubblicazione rimane subordinata alla verifica del candidato completo e al gate manuale GitHub Actions. Fino alla pubblicazione, v1.14.0 resta l'ultima release ufficiale verificata.
+
 ## Fonte della versione
 
 La versione funzionale segue `MAJOR.MINOR.PATCH[.HOTFIX]`. Il quarto componente è una **estensione specifica del progetto**, non parte del SemVer 2.0.0 puro. La fonte è `version.py`; la versione nelle risorse Windows (`version_info.txt`), il tag Git `vX.Y.Z[.H]`, la GitHub Release e i metadati dell'updater devono coincidere. Windows rappresenta una versione con tre componenti come `X.Y.Z.0`.

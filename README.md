@@ -10,6 +10,8 @@
 
 **[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)** — scarica lo ZIP della release pubblica, estrai completamente la cartella e avvia `WinNAT-UI.exe`. La release corrente è **v1.14.0**, **non firmata**; la firma tramite SignPath Foundation non è ancora approvata.
 
+**Preparazione release:** il codice sorgente della prossima MINOR è identificato come **v1.15.0**. Fino all'approvazione e pubblicazione della nuova GitHub Release, il download ufficiale rimane quello dell'ultima versione effettivamente pubblicata. Il nuovo logo è riservato alla v1.15.0.
+
 - [Release e changelog](https://github.com/matiz311/WinNAT-UI/releases)
 - [Note di rilascio per versione (consultabili nel README)](#note-di-rilascio-per-versione)
 - [Informativa privacy](PRIVACY.it.md) ([English](PRIVACY.md))
