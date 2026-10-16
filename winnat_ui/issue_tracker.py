@@ -1,7 +1,7 @@
-"""Anonymous issue submission and local issue tracking for WinNAT-UI.
+"""Opt-in diagnostic reporting and local GitHub issue tracking.
 
-The executable never contains a GitHub credential. Only a strictly allowlisted,
-sanitized report is sent to an optional maintainer-operated HTTPS gateway.
+The executable contains no GitHub credentials. Detailed diagnostics are sent
+only after the user confirms publication through the maintainer's HTTPS gateway.
 """
 import hashlib
 import json
@@ -22,25 +22,18 @@ MAX_HISTORY = 150
 SAFE_CATEGORIES = {label for _pattern, label in bug_report.KNOWN_ERRORS} | {"Errore operativo non classificato"}
 
 
-def safe_payload(operation, error, stack, version=VERSION):
-    """No arbitrary input string ever reaches the gateway."""
-    title, _ = bug_report.make_report(operation, error, stack, version)
-    category = bug_report._category(error)
-    modules = bug_report._stack_modules(stack)
-    exception = bug_report._exception_type(stack)
-    op = operation if operation in bug_report.SAFE_OPERATIONS else "Altra operazione"
-    ver = version if re.fullmatch(r"\d+\.\d+\.\d+", str(version)) else "0.0.0"
-    match = re.search(r"(?:PowerShell (?:exit code|terminato con codice)|Exit code:)\s*(\d{1,4})",
-                      str(error or ""), re.IGNORECASE)
-    return {"operation": op, "category": category, "exception": exception,
-            "modules": modules, "version": ver,
-            "exit_code": int(match.group(1)) if match else None}
+def safe_payload(operation, error, stack, version=VERSION, inventory=None, is_admin=None):
+    """Preserve actionable diagnostics; mask recognizable secrets before upload."""
+    return bug_report.build_payload(operation, error, stack, version,
+                                    inventory=inventory, is_admin=is_admin)
 
 
 def fingerprint(payload):
     # Avoid volatile values (version, exit code) to match recurring errors.
     scope = {key: payload[key] for key in ("operation", "category", "exception")}
     scope["modules"] = sorted(payload["modules"])
+    if payload.get("signature"):
+        scope["signature"] = payload["signature"]
     return hashlib.sha256(json.dumps(scope, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()[:24]
 
 
