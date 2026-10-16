@@ -24,6 +24,15 @@ class UpdaterTests(unittest.TestCase):
         self.assertTrue(updater.newer("v1.9.16", "1.9.15.9"))
         self.assertFalse(updater.newer("v1.9.15.0", "1.9.15"))
 
+    def test_semver_history_cutover_to_114(self):
+        # Original published identifiers can still update to the first
+        # post-migration MINOR. The latest release always wins.
+        for installed in ("1.9.15", "1.9.15.1", "1.10.0",
+                          "1.12.5", "1.13.0", "1.13.0.1"):
+            with self.subTest(installed=installed):
+                self.assertTrue(updater.newer("v1.14.0", installed))
+        self.assertFalse(updater.newer("v1.13.0.1", "1.14.0"))
+
     def test_latest_release_requires_verified_official_asset(self):
         digest = "a" * 64
         data = {"tag_name": "v1.9.3", "draft": False, "prerelease": False,

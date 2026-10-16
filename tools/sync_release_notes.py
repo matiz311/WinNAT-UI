@@ -26,11 +26,19 @@ def gh(*args, data=None):
 
 
 def kind(version):
-    """Historical functional class, not a new Git tag."""
-    matrix = (ROOT / "RELEASE_MATRIX.md").read_text(encoding="utf-8")
-    pattern = r"^\| " + re.escape(version) + r" \| ([^|]+) \|"
-    match = re.search(pattern, matrix, re.M)
-    return match.group(1).strip() if match else "Storica"
+    """Release type derived from the canonical functional version."""
+    match = release.SEMVER.fullmatch(version)
+    if not match:
+        raise ValueError("Versione invalida: " + version)
+    major, minor, patch, hotfix = [int(x or 0) for x in match.groups()]
+    if hotfix:
+        return "HOTFIX"
+    if patch:
+        return "PATCH"
+    if minor:
+        return "MINOR"
+    return "MAJOR"
+
 
 
 def preserved_footer(body):
@@ -58,7 +66,7 @@ def new_body(version, old_body):
         "Problemi ancora aperti: " + REPO_URL + "/issues?q=is%3Aissue+is%3Aopen",
         "### Documentazione",
         "- Note per tutte le versioni: " + REPO_URL + "/blob/main/RELEASE_NOTES.it.md",
-        "- Registro versioning: " + REPO_URL + "/blob/main/RELEASE_MATRIX.md",
+        "- Versioning e mappatura storica: " + REPO_URL + "/blob/main/VERSIONING_POLICY.md",
         "- Changelog tecnico: " + REPO_URL + "/blob/main/CHANGELOG.md",
         MARKER,
     ]
