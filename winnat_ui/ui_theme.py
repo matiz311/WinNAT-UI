@@ -100,6 +100,61 @@ def enable_dpi_awareness():
         pass
 
 
+# ------------------------------------------------------- resize helpers ---
+# Dragging a window border fires dozens of <Configure> events per frame. When
+# every one of them rewraps labels or redraws a canvas, each change alters the
+# requested size, which re-runs geometry management, which fires more
+# <Configure> events. Tk then repaints only after that cascade settles, so on
+# Windows the newly exposed area stays black for a moment. These helpers make
+# resize work proportional to real width changes, not to raw events.
+RESIZE_DELAY_MS = 40   # text rewrap / drawings: ~25 updates/s while dragging
+CONTENT_DELAY_MS = 16  # page width: about one update per screen frame
+
+
+def on_width_change(widget, callback, delay=RESIZE_DELAY_MS):
+    """Call ``callback(width)`` when ``widget`` changes width, coalescing bursts.
+
+    Height-only changes are ignored, and at most one callback runs per
+    ``delay`` ms with the latest width, so the work no longer scales with the
+    number of events Tk generates during a drag.
+    """
+    state = {"applied": None, "latest": None, "job": None}
+
+    def fire():
+        state["job"] = None
+        width = state["latest"]
+        if width == state["applied"]:
+            return
+        state["applied"] = width
+        try:
+            callback(width)
+        except tk.TclError:   # widget destroyed while the callback was pending
+            pass
+
+    def on_configure(event):
+        if event.widget is not widget:
+            return
+        state["latest"] = event.width
+        if state["job"] is None and event.width != state["applied"]:
+            state["job"] = widget.after(delay, fire) if delay else None
+            if not delay:
+                fire()
+
+    widget.bind("<Configure>", on_configure, add="+")
+    return on_configure
+
+
+def set_wrap(label, width):
+    """Change ``wraplength`` only when it differs: every change forces a relayout."""
+    width = int(width)
+    try:
+        current = int(float(str(label.cget("wraplength")) or 0))
+    except (tk.TclError, ValueError):
+        current = None
+    if current != width:
+        label.configure(wraplength=width)
+
+
 def _pick(families, *candidates):
     for name in candidates:
         if name in families:
@@ -283,7 +338,7 @@ class Callout(tk.Frame):
         self.label = tk.Label(self, justify="left", anchor="w", font=F["body"], wraplength=wraplength, bd=0)
         self.label.pack(side="left", fill="x", expand=True, pady=S2, padx=(0, S3))
         # Wrap to the available width instead of a fixed pixel count.
-        self.bind("<Configure>", lambda e: self.label.configure(wraplength=max(160, e.width - 64)))
+        on_width_change(self, lambda w: set_wrap(self.label, max(160, w - 64)))
         self.set(text, kind)
 
     def set(self, text, kind="info"):
@@ -305,10 +360,23 @@ class ScrollFrame(ttk.Frame):
         self._win = self.canvas.create_window((0, 0), window=self.inner, anchor="nw")
         self.canvas.configure(yscrollcommand=self._on_scroll)
         self.canvas.pack(side="left", fill="both", expand=True)
-        self.inner.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
-        self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfigure(self._win, width=e.width))
+        # Both handlers run on every resize event, so they only touch the
+        # canvas when the value actually changes (no redundant relayouts).
+        # The page content follows the window width at most every
+        # CONTENT_DELAY_MS while dragging: relaying out a whole page on every
+        # mouse move is what kept Tk from repainting (black areas on Windows).
+        self._region = None
+        self.inner.bind("<Configure>", self._on_inner)
+        on_width_change(self.canvas, lambda w: self.canvas.itemconfigure(self._win, width=w),
+                        delay=CONTENT_DELAY_MS)
         self.bind("<Enter>", lambda e: self.bind_all("<MouseWheel>", self._wheel))
         self.bind("<Leave>", lambda e: self.unbind_all("<MouseWheel>"))
+
+    def _on_inner(self, event):
+        region = (0, 0, event.width, event.height)
+        if region != self._region:
+            self._region = region
+            self.canvas.configure(scrollregion=region)
 
     def _on_scroll(self, first, last):
         self.bar.set(first, last)
