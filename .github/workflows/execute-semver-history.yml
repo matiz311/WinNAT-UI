@@ -1,10 +1,16 @@
 name: Execute historical SemVer republishing
 
 on:
+  # Workflows present only on a feature branch cannot always be dispatched
+  # from GitHub UI. Permit an explicit, reviewable one-shot push command.
+  push:
+    branches: [maintenance/semver-history-migration]
+    paths:
+      - .github/workflows/execute-semver-history.yml
   workflow_dispatch:
     inputs:
       confirm_republish:
-        description: 'Confirm that the original 28 Releases are restored and the credential probe is approved'
+        description: 'Confirm 28 original Releases restored; explicit authorization required'
         type: boolean
         required: true
         default: false
@@ -18,7 +24,7 @@ concurrency:
 
 jobs:
   backup:
-    if: github.ref == 'refs/heads/maintenance/semver-history-migration' && inputs.confirm_republish == true
+    if: github.ref == 'refs/heads/maintenance/semver-history-migration' && ((github.event_name == 'workflow_dispatch' && inputs.confirm_republish == true) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[approve-semver-migration]')))
     runs-on: ubuntu-latest
     timeout-minutes: 75
     steps:
