@@ -17,7 +17,7 @@ jobs:
   preflight:
     runs-on: ubuntu-latest
     outputs:
-      matrix: \${{ steps.plan.outputs.matrix }}
+      matrix: ${{ steps.plan.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -25,7 +25,7 @@ jobs:
           python-version: '3.12'
       - name: Audit historical Releases and tags
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: python tools/migrate_release_history.py --inventory migration-inventory.json
       - name: Generate version matrix
         id: plan
@@ -51,7 +51,7 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 5
-      matrix: \${{ fromJSON(needs.preflight.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.preflight.outputs.matrix) }}
     steps:
       - name: Checkout migration tooling
         uses: actions/checkout@v4
@@ -60,7 +60,7 @@ jobs:
       - name: Checkout original release tag
         uses: actions/checkout@v4
         with:
-          ref: \${{ matrix.old }}
+          ref: ${{ matrix.old }}
           path: source
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -69,8 +69,8 @@ jobs:
       - name: Apply version-only source adjustment
         shell: pwsh
         env:
-          OLD_TAG: \${{ matrix.old }}
-          NEW_TAG: \${{ matrix.new }}
+          OLD_TAG: ${{ matrix.old }}
+          NEW_TAG: ${{ matrix.new }}
         run: |
           $old = $env:OLD_TAG.TrimStart('v')
           $new = $env:NEW_TAG.TrimStart('v')
@@ -96,8 +96,8 @@ jobs:
       - name: Validate EXE and scan with Defender
         shell: pwsh
         env:
-          OLD_TAG: \${{ matrix.old }}
-          NEW_TAG: \${{ matrix.new }}
+          OLD_TAG: ${{ matrix.old }}
+          NEW_TAG: ${{ matrix.new }}
         run: |
           $ErrorActionPreference = 'Stop'
           $exe = (Resolve-Path 'source/dist/WinNAT-UI/WinNAT-UI.exe').Path
@@ -131,7 +131,7 @@ jobs:
       - name: Preserve staged packages without publishing
         uses: actions/upload-artifact@v4
         with:
-          name: staged-\${{ matrix.new }}-from-\${{ matrix.old }}
+          name: staged-${{ matrix.new }}-from-${{ matrix.old }}
           path: |
             WinNAT-UI-Windows.zip
             PACKAGE_SHA256.txt
