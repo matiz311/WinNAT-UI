@@ -1,7 +1,7 @@
-"""Headless backend for supported multi-mapping NAT and secondary IPv4 addresses.
+"""Headless backend for static WinNAT mappings and secondary IPv4 addresses.
 
-Windows WinNAT only supports one internal NAT prefix. Multiple translations must
-share that NAT. This module intentionally does not mutate unrelated WinNAT objects.
+The application may manage multiple independent WinNAT objects. Mapping operations
+target one explicitly named NAT and never mutate unrelated NAT objects.
 """
 import ipaddress
 import network
@@ -62,7 +62,7 @@ def ensure_secondary_ipv4(interface_alias, address, prefix_length, inventory, sk
 
 def ensure_nat_mapping(nat_name, protocol, external_port, internal_address, internal_port, inventory,
                        external_address="0.0.0.0"):
-    """Create a static mapping on an EXISTING WinNAT, never a second NAT network."""
+    """Create a static mapping on one explicitly named existing WinNAT."""
     network.validate_name(nat_name)
     nat = _nat(inventory, nat_name)
     protocol = str(protocol).upper()
