@@ -1,6 +1,6 @@
 # WinNAT-UI — Note di rilascio
 
-Le note di questa pagina sono destinate agli utilizzatori dell'applicazione. Per i dettagli delle singole modifiche, i limiti tecnici e la cronologia completa consultare [CHANGELOG.md](CHANGELOG.md). Le versioni sono mantenute con i loro numeri originali: questa documentazione non modifica tag, asset o versioni degli eseguibili già distribuiti.
+Le note di questa pagina sono destinate agli utilizzatori dell'applicazione. Per i dettagli delle singole modifiche, i limiti tecnici e la cronologia completa consultare [CHANGELOG.md](CHANGELOG.md). I numeri riportati corrispondono alle **29 GitHub Releases effettivamente pubblicate**, compresa la versione corrente **v1.14.0**. Il 16 ottobre 2026 la cronologia delle 28 release precedenti è stata rinumerata e i relativi eseguibili ricompilati; non utilizzare riferimenti della numerazione precedente.
 
 > **Importante:** WinNAT-UI modifica routing, indirizzi IPv4 e Windows NAT. Prima di applicare configurazioni su computer utilizzati per l'accesso remoto, verificare di disporre di un accesso locale e di una procedura di ripristino. Le operazioni che ricreano WinNAT possono interrompere sessioni NAT attive.
 
@@ -111,7 +111,7 @@ Le note di questa pagina sono destinate agli utilizzatori dell'applicazione. Per
 
 - **1.4.0 — 14 ottobre 2026:** gestione della rimozione di NAT creati esternamente all'app e inventario concorrente.
 - **1.3.0 — 14 ottobre 2026:** dashboard, modifiche candidate, Commit, sessioni NAT e avanzamento operazioni.
-- **1.2.0 — 14 ottobre 2026:** prima distribuzione binaria pubblica con modifiche pendenti e Commit; il titolo della finestra indicava erroneamente `1.1.0`.
+- **1.2.0 — 14 ottobre 2026:** prima distribuzione binaria pubblica con modifiche pendenti e Commit; il titolo della finestra conteneva un errore di numerazione.
 
 
 ## Regole di pubblicazione
@@ -121,4 +121,4 @@ Le note di questa pagina sono destinate agli utilizzatori dell'applicazione. Per
 - **HOTFIX:** `1.14.0.1` — correzione urgente e circoscritta; quarto numero riservato agli HOTFIX.
 - **BUILD:** `1.14.0+ci.<run>.<sha>` — ricompilazione senza nuova versione funzionale.
 
-Le 28 release storiche vengono ricostruite a partire dai relativi sorgenti; `1.14.0` rappresenta invece la prima pubblicazione del codice sorgente aggiornato del 16 ottobre 2026. I vecchi tag sono elencati nella tabella di migrazione presente in `VERSIONING_POLICY.md`. La versione `1.10.1` pubblicata erroneamente il 14 ottobre era già stata ritirata e non fa parte della sequenza.
+**Stato della distribuzione:** la migrazione delle 28 release precedenti è stata completata e la `v1.14.0` è stata pubblicata il 16 ottobre 2026. Tutte le versioni di questa pagina usano la numerazione ufficiale corrente. Per le regole di versioning consulta [VERSIONING_POLICY.md](VERSIONING_POLICY.md); per i pacchetti disponibili usa [GitHub Releases](https://github.com/matiz311/WinNAT-UI/releases).

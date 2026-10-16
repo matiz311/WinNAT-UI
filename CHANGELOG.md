@@ -7,7 +7,7 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - **MINOR**: pacchetto significativo di feature e correzioni: non incrementare per singole patch o a ogni build; richiede le sezioni **Sintesi**, **Funzionalità** e **Correzioni**, oltre all'approvazione manuale.
 - **PATCH**: correzioni e stabilizzazione della serie corrente, senza nuove funzionalità significative.
 - **BUILD**: ogni esecuzione GitHub Actions genera un artifact identificato con run number e SHA, senza incrementare la versione funzionale.
-- La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
+- La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag già pubblicati nella numerazione corrente non vengono modificati; la normalizzazione dello storico è stata conclusa il 16 ottobre 2026.
 
 
 ## [1.14.0] - 2026-10-16
@@ -21,7 +21,7 @@ WinNAT-UI completa il canale di segnalazione anonima introdotto nella serie prec
 
 ### Correzioni
 - Il gateway ritenta la ricerca delle Issue aperte per gestire il ritardo di indicizzazione GitHub ed evitare duplicati immediatamente dopo una nuova segnalazione.
-- Il gateway accetta sia versioni `MAJOR.MINOR.PATCH` sia HOTFIX `MAJOR.MINOR.PATCH.HOTFIX`, inclusa l'attuale 1.13.0.1.
+- Il gateway accetta sia versioni `MAJOR.MINOR.PATCH` sia HOTFIX `MAJOR.MINOR.PATCH.HOTFIX`, inclusa la release HOTFIX 1.13.0.1.
 - Il controllo manuale degli aggiornamenti trasforma gli errori di validazione dei metadati GitHub in un messaggio specifico e utilizzabile, senza classificarli come errore operativo generico.
 - Il controllo silenzioso all'avvio resta non bloccante quando il servizio aggiornamenti non è disponibile.
 
@@ -138,12 +138,8 @@ WinNAT-UI completa il canale di segnalazione anonima introdotto nella serie prec
 ### Corretto
 - Impronta anteprima del gateway normalizzata anche con WAN dinamiche: ignora stato/velocità adattatori, AddressState, APIPA e route connesse generate automaticamente, preservando i controlli di sicurezza su IP LAN, gateway WAN, NAT, forwarding, metriche e interfacce.
 - In caso di modifica effettiva tra anteprima e commit, il Debug identifica i gruppi di configurazione cambiati.
-### Nota storica
-- Una release era stata distribuita per errore con il numero **v1.10.1**. La release errata e il relativo tag sono stati rimossi tramite procedura di manutenzione; utilizzare **v1.9.2**.
-
-
-### Funzionalità già incorporate
-- Include le WAN dinamiche e la rilevazione automatica della subnet LAN, precedentemente descritte nella numerazione storica `1.9.1`, che non dispone più di un tag o di una release pubblicata.
+### Funzionalità incluse
+- Include il supporto alle WAN dinamiche e la rilevazione automatica della subnet LAN, insieme alle correzioni di stabilità della verifica dell'anteprima.
 ## [1.8.0] - 2026-10-14
 ### Aggiunto
 - Rollback compensativo automatico su commit non riusciti: ripristina esclusivamente le risorse di rete coinvolte (IPv4, DHCP, route esplicite, forwarding, metriche, WinNAT, IPEnableRouter) secondo lo snapshot iniziale.
@@ -159,7 +155,7 @@ WinNAT-UI completa il canale di segnalazione anonima introdotto nella serie prec
 ### Corretto
 - Finestra d'errore: il riepilogo mostra il primo messaggio utile dello stderr invece delle intestazioni ("ESECUZIONE POWERSHELL NON RIUSCITA", exit code); finestra centrata, coerente con il tema chiaro/scuro, dettagli tecnici a scomparsa, Esc per chiudere. Anche il messaggio di stato nella barra laterale mostra una sola riga leggibile.
 - Output PowerShell letto in UTF-8: nomi di schede e messaggi con lettere accentate non risultano più corrotti (code page OEM 850 su Windows in italiano).
-- Note delle release già pubblicate riallineate al CHANGELOG tramite il workflow manuale "Sync release notes" (tag e file scaricabili invariati).
+- Introdotto l'allineamento delle note pubblicate al CHANGELOG tramite il workflow manuale "Sync release notes".
 - Versioning: unica fonte in `version.py`; versione file Windows, tag e note di release derivati automaticamente e verificati dai test. Le note di release non sono più scritte a mano nel workflow (in passato v1.3.0 e v1.6.1 avevano note copiate da altre versioni).
 
 ## [1.6.3] - 2026-10-14
@@ -176,7 +172,7 @@ WinNAT-UI completa il canale di segnalazione anonima introdotto nella serie prec
 
 ## [1.6.0] - 2026-10-14
 ### Cambiato
-- Nuova interfaccia: navigazione laterale, Panoramica con verdetto sullo stato del gateway, schema topologico LAN → PC → WAN, validazione dei campi in tempo reale, barra delle modifiche persistente, tema chiaro/scuro. *Per le regole sopra sarebbe stata una MINOR (1.8.0).*
+- Nuova interfaccia: navigazione laterale, Panoramica con verdetto sullo stato del gateway, schema topologico LAN → PC → WAN, validazione dei campi in tempo reale, barra delle modifiche persistente, tema chiaro/scuro.
 ### Corretto
 - Ripristino del DHCP LAN idempotente quando il DHCP è già attivo.
 
@@ -184,7 +180,7 @@ WinNAT-UI completa il canale di segnalazione anonima introdotto nella serie prec
 ### Corretto
 - IP statico LAN su schede con DHCP in PersistentStore (`netsh ... store=persistent`) e recupero dopo un Commit fallito.
 ### Nota
-- Contiene ancora l'**interfaccia precedente** (1.6.x): la nuova grafica arriva con la 1.7.1.
+- Contiene ancora l'**interfaccia precedente**: il redesign grafico viene introdotto nella 1.6.0.
 
 ## [1.5.1] - 2026-10-14
 ### Corretto
@@ -206,8 +202,9 @@ WinNAT-UI completa il canale di segnalazione anonima introdotto nella serie prec
 ### Aggiunto
 - Prima release binaria pubblica: modifiche pendenti e Commit una alla volta.
 ### Nota
-- Incoerenza nota: il titolo della finestra mostra "1.1.0", la scheda Informazioni e le proprietà del file "1.2.0". La versione corretta è 1.2.0.
+- La prima build presentava un'incoerenza nel titolo della finestra. Scheda Informazioni, risorse Windows e tag identificano correttamente la versione 1.2.0.
 
 
-## Note sulla migrazione storica
-I tag e i pacchetti pubblicati inizialmente dal 14 al 15 ottobre 2026 hanno utilizzato una numerazione diversa. La mappatura è conservata in `VERSIONING_POLICY.md`; la versione sorgente non distribuita 1.10.0 è diventata la release 1.14.0. La versione storica 1.10.1 del 14 ottobre è stata ritirata prima di questa migrazione e non rappresenta un rilascio valido.
+## Normalizzazione della cronologia — 16 ottobre 2026
+
+La rinumerazione delle 28 release pubblicate in precedenza è **completata**: i tag, i sorgenti con versione aggiornata e gli archivi Windows ricompilati sono stati verificati e ripubblicati. La **v1.14.0 è pubblicata** come 29ª release della sequenza attuale. I numeri nelle sezioni di questo changelog sono gli identificativi ufficiali, consultabili nella [pagina Releases](https://github.com/matiz311/WinNAT-UI/releases); eventuali alias della vecchia numerazione non sono più riferimenti di distribuzione.

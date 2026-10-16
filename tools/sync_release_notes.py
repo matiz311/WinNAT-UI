@@ -1,4 +1,4 @@
-"""Synchronize GitHub Release bodies without modifying historical tags/assets.
+"""Synchronize published GitHub Release bodies without changing tags or assets.
 
 Dry run by default; use --apply after manual review of the proposed changes.
 Changelog is the source of version-specific facts. Open issues are linked
@@ -66,7 +66,7 @@ def new_body(version, old_body):
         "Problemi ancora aperti: " + REPO_URL + "/issues?q=is%3Aissue+is%3Aopen",
         "### Documentazione",
         "- Note per tutte le versioni: " + REPO_URL + "/blob/main/RELEASE_NOTES.it.md",
-        "- Versioning e mappatura storica: " + REPO_URL + "/blob/main/VERSIONING_POLICY.md",
+        "- Regole del versioning e catalogo pubblicato: " + REPO_URL + "/blob/main/VERSIONING_POLICY.md",
         "- Changelog tecnico: " + REPO_URL + "/blob/main/CHANGELOG.md",
         MARKER,
     ]

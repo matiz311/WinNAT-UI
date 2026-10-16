@@ -8,7 +8,7 @@
 [![Latest release](https://img.shields.io/github/v/release/matiz311/WinNAT-UI)](https://github.com/matiz311/WinNAT-UI/releases/latest)
 [![Build Windows executable](https://github.com/matiz311/WinNAT-UI/actions/workflows/build.yml/badge.svg)](https://github.com/matiz311/WinNAT-UI/actions/workflows/build.yml)
 
-**[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)** — scarica lo ZIP della release pubblica, estrai completamente la cartella e avvia `WinNAT-UI.exe`. La release attuale è **non firmata**; la firma tramite SignPath Foundation non è ancora approvata.
+**[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)** — scarica lo ZIP della release pubblica, estrai completamente la cartella e avvia `WinNAT-UI.exe`. La release corrente è **v1.14.0**, **non firmata**; la firma tramite SignPath Foundation non è ancora approvata.
 
 - [Release e changelog](https://github.com/matiz311/WinNAT-UI/releases)
 - [Informativa privacy](PRIVACY.it.md) ([English](PRIVACY.md))
@@ -55,7 +55,7 @@ WinNAT Microsoft è progettato per un singolo prefisso interno: più istanze con
 - [Microsoft: Get-NetNat](https://learn.microsoft.com/en-us/powershell/module/netnat/get-netnat)
 
 ## Stato
-Versione iniziale, da validare su Windows reale. Prima prova consigliata: diagnostica senza modifiche e successiva configurazione in ambiente di test.
+**Versione pubblicata: v1.14.0 (16 ottobre 2026).** Build Windows e test CI superati; restano necessari test operativi su un computer Windows reale, soprattutto per configurazioni di rete e updater. Prima prova consigliata: diagnostica in sola lettura in ambiente di test.
 
 ## Identità e attendibilità dell'eseguibile
 Windows mostra ProductName **WinNAT UI**, CompanyName **Matteo Cannizzo**, FileDescription e FileVersion (uguale alla versione in `version.py`) nelle proprietà dell'eseguibile. Questi campi sono dichiarazioni testuali del progetto, **non** attestano l'identità dell'editore. Un programma compilato da GitHub Actions senza certificato resta **non firmato** e Windows SmartScreen potrebbe avvisare l'utente. Per apparire come editore verificato serve un certificato di firma codice appropriato, mantenuto nei secret della CI o tramite servizio di signing, e una firma Authenticode verificabile con `Get-AuthenticodeSignature`. Nessun certificato o approvazione Microsoft è implicito.
@@ -105,61 +105,17 @@ Consulta la [politica di firma](CODE_SIGNING_POLICY.it.md) ([English](CODE_SIGNI
 
 Per disinstallare il programma portatile, chiudilo e rimuovi la cartella estratta. Prima di farlo, se hai configurato la rete con il wizard, utilizza **Rimuovi setup gestito**.
 
-## Interfaccia v1.3.0
-- **Dashboard**: panoramica della configurazione reale, indipendente dalle sessioni NAT.
-- **NAT**: mostra regole applicate e modifiche candidate nello stesso elenco; le righe indicano se una regola sarà aggiunta o eliminata.
-- **Rete**: prepara configurazione o rimozione del setup guidato.
-- **Modifiche**: mostra il riepilogo prima del commit; **Scarta** annulla la configurazione candidata.
-- **Sessioni**: legge le sessioni con una chiamata indipendente, aggiornandole ogni 60 secondi quando la scheda è aperta; **Aggiorna** forza la lettura.
-- Durante le operazioni asincrone viene mostrata una barra di avanzamento. Il processo PowerShell non apre una finestra separata. La barra è indeterminata: mostra attività in corso, non la percentuale completata.
+## Evoluzione delle funzionalità — release pubblicate
 
-Per prudenza il commit applica **una modifica alla volta**, anche se è possibile prepararne diverse. Non esiste un rollback automatico delle modifiche Windows.
+Le funzioni presenti nella **v1.14.0** derivano dai rilasci elencati sotto. Il 16 ottobre 2026 le 28 release precedenti sono state ripubblicate con numerazione coerente, eseguibili ricompilati e tag verificati. I numeri riportati qui sono **quelli effettivamente disponibili** nella [pagina Releases](https://github.com/matiz311/WinNAT-UI/releases); per il dettaglio di ogni versione consulta il [Changelog](CHANGELOG.md) e le [Note di rilascio](RELEASE_NOTES.it.md).
 
-## Versione 1.4.0: reset di configurazioni preesistenti
-- La raccolta di adattatori, IPv4, route, forwarding e NAT usa thread paralleli; le sessioni restano indipendenti.
-- In **Rete > Rimuovi esistente** puoi preparare la rimozione del NAT presente per la subnet selezionata anche se creato esternamente all'app.
-- L'IP della scheda LAN viene mantenuto salvo selezione esplicita dell'opzione di rimozione esatta; ICS, DHCP, VPN e configurazioni non corrispondenti non vengono rimossi.
-- Controlla la configurazione candidata nella tab **Modifiche**, quindi utilizza **Commit**. Dopo la rimozione puoi preparare un nuovo setup dalla stessa schermata.
-- La modifica delle interfacce può interrompere la connettività: usare una sessione locale, non una connessione remota dipendente dal NAT da rimuovere.
+- **v1.2.0–v1.4.0:** distribuzione iniziale, inventario di rete, dashboard, modifiche candidate, Commit e rimozione guidata di configurazioni NAT.
+- **v1.5.0–v1.5.2:** configurazione completa del gateway Windows, più correzioni per DHCP, PersistentStore e IPv4 LAN statico.
+- **v1.6.0–v1.6.4:** nuova interfaccia laterale, tema chiaro/scuro e diagnostica PowerShell più completa.
+- **v1.7.0–v1.9.0:** diagnostica di compatibilità, rollback compensativo, supporto alle WAN dinamiche e rilevamento della subnet LAN.
+- **v1.10.0–v1.11.2:** updater con verifica SHA-256, segnalazione di bug e relativo gateway, diagnostica e tracciamento delle Issue.
+- **v1.12.0–v1.12.5:** Commit idempotente con checkpoint, evoluzione del backend NAT e gestione più prudente di indirizzi e subnet LAN.
+- **v1.13.0 e v1.13.0.1:** aggregazione delle subnet per i percorsi avanzati del gateway e HOTFIX che mantiene separata l'azione semplice «Aggiungi NAT».
+- **v1.14.0:** distribuzione e verifica del gateway anonimo per le segnalazioni e miglioramento della diagnostica dell'updater.
 
-## Versione 1.6.0 — Configurazione completa da PC vergine
-
-**Rete → Configura** segue la guida operativa «NAT e Routing IPv4 su Windows 11»: scegli LAN, WAN primaria ed eventuale WAN secondaria, subnet LAN, IP gateway, nome NAT e metriche. Il profilo propone Ethernet / USB-C / Wi-Fi, LAN `10.10.10.0/24`, gateway `10.10.10.1`, NAT `NAT-Firewall` e metriche 10/50. Tutti i parametri sono modificabili.
-
-- **Configura:** disabilita DHCP sulla LAN, elimina indirizzi e route IPv4 della LAN, assegna l'IP statico senza default gateway, imposta `IPEnableRouter=1`, abilita il forwarding sulle interfacce selezionate, applica le metriche WAN e crea il NAT. Le WAN devono già essere operative con gateway verso Internet; non vengono cambiati indirizzo, DHCP e DNS delle WAN.
-- **Disabilita:** elimina **tutti gli oggetti WinNAT**, anche quelli creati manualmente o da altre applicazioni; disabilita il forwarding sulle interfacce LAN/WAN selezionate e imposta `IPEnableRouter=0`. Conserva indirizzamento LAN e metriche WAN.
-- **Ripristina:** oltre alla disabilitazione, rimuove tutti gli IPv4 e le route della LAN selezionata, ripristina il DHCP sulla LAN e le metriche automatiche delle WAN selezionate. Non ripristina la configurazione originale preesistente né elimina le configurazioni WAN.
-- **Candidate → Commit:** mostra il delta operativo e richiede conferma. Per Configura rilegge lo stato reale e applica soltanto ciò che manca; Disabilita/Ripristina restano protetti dall'impronta dell'anteprima. Salva checkpoint candidate/pre/post e usa un rollback compensativo best-effort in caso di errore.
-- **Riavvio:** dopo la modifica di `IPEnableRouter` è raccomandato riavviare Windows prima di validare il routing.
-
-**Avviso:** la rimozione di tutti gli oggetti WinNAT può interrompere Hyper-V, WSL2 e ambienti container. Anche il reset di IPv4 o delle route può far perdere una connessione di amministrazione remota. Usare una console locale, controllare tutte le interfacce selezionate e verificare l'anteprima prima del Commit. Un commit fallito può aver già applicato alcune modifiche.
-
-**Test suggerito:** apri l'app con privilegi amministrativi → configura LAN/WAN → controlla Modifiche → Commit → riavvia se richiesto → verifica indirizzamento, default route, NAT e sessioni → Disabilita / Ripristina con un nuovo Commit.
-
-I test automatici di pianificazione sono in `test_network_guide.py`.
-
-## Correzione v1.5.2 — DHCP PersistentStore e IP statico
-In alcune configurazioni Windows 11, `New-NetIPAddress` fallisce con `Inconsistent parameters PolicyStore PersistentStore and Dhcp Enabled`, anche dopo la disabilitazione DHCP con `Set-NetIPInterface`. Il passaggio LAN a IPv4 statico utilizza ora `netsh interface ipv4 set address source=static ... gateway=none store=persistent`, con verifica dell'IP e dello stato DHCP dopo l'operazione. Il ripristino a DHCP utilizza analogamente `source=dhcp`.
-
-Dalla v1.12.0, se un Commit di Configura fallisce la GUI mantiene il candidato e aggiorna lo stato reale di Windows. Il tentativo successivo ricalcola il diff e applica soltanto le parti ancora mancanti; l'anteprima mostra il delta residuo.
-
-Il comando `netsh` è documentato da Microsoft: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/netsh-interface.
-
-## Interfaccia v1.6.0 — redesign UX
-- **Navigazione laterale** con sezioni Panoramica, Regole NAT, Gateway, Modifiche, Sessioni (Ctrl+1…6) e indicatore permanente *Amministratore / Sola lettura*.
-- **Panoramica** con verdetto unico sullo stato del gateway, riquadri WAN/WinNAT/Routing/ICS con badge testuali (mai solo colore), tabelle interfacce e default route; il testo diagnostico grezzo resta in *Dettagli tecnici*.
-- **Gateway**: schema topologico LAN → PC → WAN → Internet aggiornato in tempo reale, campi raggruppati in 3 passi con validazione inline e anteprima numerata di cosa farà il Commit; il pulsante si abilita solo con dati validi.
-- **Barra modifiche** fissa in basso: unico punto per Scarta / Rivedi / Applica; il commit richiede una conferma esplicita della possibile interruzione di rete.
-- Tema chiaro/scuro che segue Windows, testo nitido su schermi high-DPI, notifiche non bloccanti al posto dei popup informativi. Nessuna nuova dipendenza: solo Tkinter/ttk (`ui_theme.py`).
-
-
-## Versione 1.9.9 — Commit a differenze e checkpoint
-- **Configura gateway è idempotente:** il Commit ricalcola il delta sullo stato Windows corrente e non ripete operazioni già applicate.
-- Un WinNAT identico al candidato viene riconosciuto come già convergente; configurazioni NAT differenti restano un conflitto.
-- Il candidato sopravvive a un errore di Commit e viene ricalcolato dopo l'aggiornamento dell'inventario.
-- Gli stati candidate/pre/post commit sono salvati localmente e il post-commit viene verificato prima di dichiarare l'operazione completata.
-
-## Versione 1.9.1 — WAN dinamiche e subnet LAN automatica
-- **Gateway → Configura** parte con una sola WAN; **+ Aggiungi WAN** ne aggiunge altre (fino al numero di interfacce del PC), con priorità riordinabile e metriche crescenti.
-- Scegliendo la LAN, l'IPv4 già presente sulla scheda viene riutilizzato come IP statico senza gateway e la sua subnet diventa quella del NAT; senza un IPv4 utilizzabile si usa `10.10.10.0/24` con IP `10.10.10.1`. I valori restano modificabili.
-- La subnet LAN non può sovrapporsi a quella di una WAN.
+**Nota operativa:** le operazioni di modifica della rete non sono transazioni atomiche Windows. Verifica sempre anteprima, backup e accesso locale; l'updater automatico deve ancora essere validato su una macchina Windows reale.
