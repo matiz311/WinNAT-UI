@@ -162,9 +162,10 @@ def public_issues():
 
 def comparable_release(a, b):
     def version(s):
-        if not isinstance(s, str) or not re.fullmatch(r"\d+\.\d+\.\d+", s):
+        if not isinstance(s, str) or not re.fullmatch(r"\d+\.\d+\.\d+(?:\.\d+)?", s):
             return None
-        return tuple(map(int, s.split(".")))
+        components = tuple(map(int, s.split(".")))
+        return components + (0,) * (4 - len(components))
     aa, bb = version(a), version(b)
     return aa is not None and bb is not None and aa >= bb
 
