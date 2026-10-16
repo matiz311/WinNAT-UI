@@ -38,7 +38,7 @@ async function boundedText(request, limit=4096) {
   return new TextDecoder("utf-8",{fatal:true}).decode(result);
 }
 function configured(env) {
-  return Boolean(env.GITHUB_ISSUE_TOKEN && env.RATE_LIMIT_IP && env.RATE_LIMIT_GLOBAL);
+  return Boolean(env.WINNAT_ISSUE_TOKEN && env.RATE_LIMIT_IP && env.RATE_LIMIT_GLOBAL);
 }
 function normalize(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw Error("bad");
@@ -59,7 +59,7 @@ async function github(env, endpoint, init={}) {
   const response = await fetch("https://api.github.com"+endpoint,{
     ...init,headers:{
       "accept":"application/vnd.github+json",
-      "authorization":"Bearer "+env.GITHUB_ISSUE_TOKEN,
+      "authorization":"Bearer "+env.WINNAT_ISSUE_TOKEN,
       "x-github-api-version":"2022-11-28",
       "user-agent":"WinNAT-UI-Bug-Gateway",
       ...(init.headers||{})
