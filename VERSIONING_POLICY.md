@@ -8,7 +8,8 @@
 ## Quando aggiornare la versione
 | Tipo | Esempio | Criterio |
 | --- | --- | --- |
-| HOTFIX | 1.9.15 → 1.9.15.1 | Correzione piccolissima sul comportamento esistente, senza nuova funzione. |\n| PATCH | 1.9.2 → 1.9.3 | Bugfix, sicurezza, stabilità, diagnostica o miglioramenti senza nuove funzionalità rilevanti. |
+| HOTFIX | 1.9.15 → 1.9.15.1 | Correzione piccolissima sul comportamento esistente, senza nuova funzione. |
+| PATCH | 1.9.2 → 1.9.3 | Bugfix, sicurezza, stabilità, diagnostica o miglioramenti senza nuove funzionalità rilevanti. |
 | MINOR | 1.9.x → 1.10.0 | Pacchetto significativo di nuove funzionalità, miglioramenti operativi e correzioni, consolidato e verificato. |
 | MAJOR | 1.x.y → 2.0.0 | Cambi incompatibili, revisione sostanziale dei requisiti o del modello applicativo. |
 
@@ -22,6 +23,9 @@ Il passaggio MINOR **non deriva dal numero di build** e non avviene automaticame
 5. Conservare immutabili i tag già pubblicati; non sovrascrivere pacchetti o SHA256 esistenti.
 
 Per la versione PATCH e HOTFIX la pipeline può pubblicare automaticamente una release quando `version.py` aumenta di un solo PATCH e il changelog corrispondente è presente. A versione invariata produce esclusivamente artifact numerati.
+
+## Classificazione storica e release notes
+La documentazione destinata agli utenti è in [RELEASE_NOTES.it.md](RELEASE_NOTES.it.md). Le note storiche possono segnalare una classificazione oggi non ideale (ad esempio una funzionalità consistente pubblicata in PATCH): non rinumerare tag o artefatti già distribuiti. La release candidata 1.10.0 del 16 ottobre 2026 è distinta da eventuali build precedenti annullate con lo stesso identificativo; lo stato di pubblicazione va verificato sulle GitHub Releases.
 
 ## Eccezioni storiche
 Eccezione storica autorizzata: la release erronea `v1.10.1` e il relativo tag sono stati ritirati, mantenendo disponibile la versione corretta `v1.9.2`. I vecchi URL diretti non funzionano più. Nei prossimi rilasci evitare salti numerici non giustificati; non rinominare retroattivamente altre release senza un processo esplicito di migrazione.
