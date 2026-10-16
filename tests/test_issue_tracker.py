@@ -109,6 +109,13 @@ class IssueTrackerTests(TestCase):
                 self.assertEqual(entries[0]["priority"], "high")
                 self.assertEqual(entries[0]["updated_at"], matched["updated_at"])
 
+    def test_hotfix_release_comparison(self):
+        self.assertTrue(it.comparable_release("1.15.0.1", "1.15.0"))
+        self.assertTrue(it.comparable_release("1.15.1", "1.15.0.9"))
+        self.assertFalse(it.comparable_release("1.15.0", "1.15.0.1"))
+        self.assertTrue(it.comparable_release("1.15.0.0", "1.15.0"))
+        self.assertFalse(it.comparable_release("unknown", "1.15.0"))
+
     def test_similar_issue_by_signature(self):
         p = it.safe_payload("Commit", "Access denied", "", "1.9.5")
         issues = {it.fingerprint(p): [{"number": 7, "state": "open", "url": "https://github.com/matiz311/WinNAT-UI/issues/7"}]}
