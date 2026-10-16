@@ -4,12 +4,12 @@
     {
       "id": "MAINT-20261016-001",
       "type": "structural",
-      "status": "planned",
+      "status": "completed",
       "registered_at": "2026-10-16T22:33:41Z",
       "planned_start_at": null,
       "planned_end_at": null,
-      "started_at": null,
-      "ended_at": null,
+      "started_at": "2026-10-16T22:34:55Z",
+      "ended_at": "2026-10-16T22:38:36Z",
       "components": [
         "github-actions",
         "maintenance-policy"
@@ -36,11 +36,30 @@
       "related_prs": [
         68
       ],
-      "related_workflows": [],
-      "executed_steps": [],
-      "commits": [],
+      "related_workflows": [
+        "https://github.com/matiz311/WinNAT-UI/actions/runs/38976794595",
+        "https://github.com/matiz311/WinNAT-UI/actions/runs/38976794580"
+      ],
+      "executed_steps": [
+        "Registro preventivo creato con commit fc85a5b prima della modifica del workflow.",
+        "Implementato validatore Python, aggiunti test ed il workflow maintenance-guard.",
+        "Documentate le limitazioni di branch protection e aggiornato AGENTS.md.",
+        "Verificati check maintenance-guard e Build Windows executable su commit ee4e8f5."
+      ],
+      "commits": [
+        "fc85a5bfa8b03adca5f19e9ec151e8995c794480",
+        "c8bad1444adf116ca36518fb2149559ff6e1f5d3",
+        "fb14f9243057027164e84d8a76397d17ece040d3",
+        "ee4e8f5eed39d8c53577ce0bdeb4d1e788e4f2d9"
+      ],
       "observed_errors": [],
-      "evidence": []
+      "evidence": [
+        "2026-10-16T22:33:54Z first registration commit fc85a5b; 2026-10-16T22:34:55Z first verified implementation commit c8bad.",
+        "2026-10-16T22:37:01Z maintenance-guard conclusion=success, includes schema, tests and pre-change order.",
+        "2026-10-16T22:38:36Z Windows build conclusion=success, including tests, Defender, artifact upload; release steps skipped.",
+        "No live service availability has been independently tested; maintenance-status.json remains unknown."
+      ],
+      "outcome": "Successo: validatore manutenzioni e build Windows del commit ee4e8f5 sono stati verificati. Nessun deploy o modifica di release."
     }
   ]
 }
