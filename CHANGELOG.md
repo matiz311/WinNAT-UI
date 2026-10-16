@@ -10,6 +10,12 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag storici non vengono alterati.
 
 
+## [1.14.1] - 2026-10-16
+### Correzioni
+- Gestione esplicita dei fallimenti HTTP durante il controllo degli aggiornamenti GitHub: distingue assenza di release stabile (404), accesso limitato (403/429), errori temporanei del servizio (5xx) e altri codici di risposta.
+- Errori di connessione, DNS, proxy e timeout convertiti in messaggi comprensibili e non bloccanti all'avvio; il controllo manuale mostra un avviso senza creare una segnalazione di errore generica.
+- Aggiunti test di regressione con risposte HTTP simulate. Le verifiche di URL ufficiale e SHA-256 degli aggiornamenti restano invariate.
+
 ## [1.14.0] - 2026-10-16
 ### Sintesi
 WinNAT-UI completa il canale di segnalazione anonima introdotto nella serie precedente: il backend Cloudflare è ora distribuito e verificato end-to-end, con pubblicazione automatica dell'endpoint utilizzato dal client. La release consolida inoltre la diagnostica dell'updater e la compatibilità con le versioni HOTFIX a quattro componenti. Non modifica la logica NAT/routing già presente nella 1.13.0.1.

@@ -2,7 +2,7 @@ name: Build Windows executable
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'release/1.14.1']
   pull_request:
     branches: [main]
   workflow_dispatch:

@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import urllib.request
+import urllib.error
 import zipfile
 
 REPOSITORY = "matiz311/WinNAT-UI"
@@ -46,9 +47,33 @@ def _request(url, *, timeout=20):
     })
 
 
+def _latest_release_metadata():
+    """Translate GitHub connectivity/status errors into actionable information.
+
+    Never relax the official download URL or SHA256 verification on failures.
+    """
+    try:
+        with urllib.request.urlopen(_request(API_URL), timeout=20) as response:
+            return json.load(response)
+    except urllib.error.HTTPError as error:
+        code = error.code
+        if code == 404:
+            description = "Nessuna release stabile pubblicata o endpoint temporaneamente assente."
+        elif code in (403, 429):
+            description = "Accesso alle API GitHub limitato o non autorizzato; riprovare più tardi."
+        elif 500 <= code <= 599:
+            description = "Servizio GitHub temporaneamente non disponibile; riprovare più tardi."
+        else:
+            description = "Il servizio GitHub ha rifiutato la richiesta."
+        raise ValueError("Controllo aggiornamenti: HTTP " + str(code) + ". " + description) from error
+    except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
+        raise ValueError(
+            "Impossibile contattare GitHub per gli aggiornamenti: verificare connessione, DNS e proxy."
+        ) from error
+
+
 def release_info(installed):
-    with urllib.request.urlopen(_request(API_URL), timeout=20) as response:
-        data = json.load(response)
+    data = _latest_release_metadata()
     tag = data.get("tag_name", "")
     version_tuple(tag)
     if data.get("draft") or data.get("prerelease"):
