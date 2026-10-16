@@ -154,31 +154,28 @@ def _probe_publishing_permissions(source_sha):
 
 
 def _restore(manifest, work, created):
-    """Attempt automatic restoration with originals from the verified local backup."""
-    print("RESTORING original public Releases after migration error", flush=True)
+    """Attempt original release recovery through the successfully tested REST path.
+
+    Restore original GitHub Releases from verified backup, never by force-pushing
+    historic refs. Stop and report cleanup errors rather than overwrite unknown refs.
+    """
+    from restore_semver_history import main as restore_originals
+
+    print("RESTORING original Releases after migration error", flush=True)
     for tag in reversed(created):
-        try:
+        release_exists = subprocess.run(
+            ["gh", "release", "view", tag, "--repo", REPO],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+        if release_exists:
             call("gh", "release", "delete", tag, "--repo", REPO, "--yes")
-        except Exception as exc:
-            print("Warning deleting replacement release: " + str(exc), flush=True)
-        try:
-            call("git", "push", "origin", ":refs/tags/" + tag)
-        except Exception as exc:
-            print("Warning deleting replacement tag: " + str(exc), flush=True)
-    for item in manifest["original_releases"]:
-        old = item["old"]
-        call("git", "tag", "-f", old, item["ref_sha"])
-        call("git", "push", "origin", "refs/tags/" + old, "--force")
-        # Recreate only missing old Releases; keep the ZIP bytes unchanged.
-        exists = subprocess.run(["gh", "release", "view", old, "--repo", REPO],
-                                capture_output=True).returncode == 0
-        if not exists:
-            notes = work / "originals" / old / "notes.md"
-            notes.write_text(item["release_body"], encoding="utf-8")
-            call("gh", "release", "create", old, str(work / "originals" / old / NAME),
-                 "--verify-tag", "--repo", REPO, "--title", "WinNAT UI " + old,
-                 "--notes-file", notes, "--latest=false")
-    print("Restoration attempted; verify all release objects manually", flush=True)
+        tag_exists = subprocess.run(
+            ["gh", "api", f"repos/{REPO}/git/ref/tags/{tag}"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+        if tag_exists:
+            call("gh", "api", "-X", "DELETE", f"repos/{REPO}/git/refs/tags/{tag}")
+
+    restore_originals(work)
+    print("Original release recovery completed", flush=True)
 
 
 def _create_snapshot_tags(items, source: Path, workspace: Path):
