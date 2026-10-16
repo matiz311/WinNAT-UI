@@ -46,7 +46,7 @@ function normalize(raw) {
   if (Object.keys(raw).some(k => !allowed.has(k))) throw Error("unexpected fields");
   if (!OPS.has(raw.operation) || !CATS.has(raw.category) || !EXCEPTIONS.has(raw.exception)) throw Error("invalid enums");
   if (!Array.isArray(raw.modules) || raw.modules.length > 8 || raw.modules.some(m=>!MODULES.has(m))) throw Error("invalid modules");
-  if (typeof raw.version !== "string" || !/^\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(raw.version)) throw Error("invalid version");
+  if (typeof raw.version !== "string" || !/^\d{1,3}\.\d{1,3}\.\d{1,3}(?:\.\d{1,3})?$/.test(raw.version)) throw Error("invalid version");
   if (raw.exit_code !== null && (!Number.isInteger(raw.exit_code) || raw.exit_code < 0 || raw.exit_code > 9999)) throw Error("invalid code");
   return {...raw,modules:[...new Set(raw.modules)].sort()};
 }
