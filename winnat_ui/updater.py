@@ -364,6 +364,15 @@ function Set-Progress([int]$percent, [string]$text) {
     Invoke-Pump
 }
 
+# .NET directly: no dependency on Get-FileHash, which is missing when the
+# inherited PSModulePath points to PowerShell 7 modules.
+function Get-Sha256([string]$path) {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $stream = [System.IO.File]::OpenRead($path)
+    try { return [System.BitConverter]::ToString($sha.ComputeHash($stream)) }
+    finally { $stream.Dispose(); $sha.Dispose() }
+}
+
 function Copy-Tree([string]$from, [string]$to, [int]$pctFrom, [int]$pctTo, [string]$verb) {
     $root = (Get-Item -LiteralPath $from).FullName.TrimEnd('\', '/')
     $files = @(Get-ChildItem -LiteralPath $root -Recurse -File -Force)
@@ -456,8 +465,8 @@ try {
     Set-Step 3
     Set-Progress 92 'Controllo di WinNAT-UI.exe…'
     if (-not (Test-Path -LiteralPath $installed)) { throw 'Installazione priva di EXE.' }
-    $expected = (Get-FileHash -LiteralPath (Join-Path $source 'WinNAT-UI.exe') -Algorithm SHA256).Hash
-    if ((Get-FileHash -LiteralPath $installed -Algorithm SHA256).Hash -ne $expected) {
+    $expected = Get-Sha256 (Join-Path $source 'WinNAT-UI.exe')
+    if ((Get-Sha256 $installed) -ne $expected) {
         throw 'WinNAT-UI.exe installato non corrisponde al pacchetto verificato.'
     }
     $installCommitted = $true
@@ -528,9 +537,12 @@ def launch(staging, install_dir=None, parent_pid=None, from_version="", to_versi
     # BOM: Windows PowerShell 5.1 reads BOM-less scripts as ANSI, which would
     # garble the accented Italian text and symbols shown in the progress window.
     script.write_text(HELPER_PS, encoding="utf-8-sig")
+    # Windows PowerShell 5.1 must load its own modules, not PowerShell 7 ones
+    # inherited when the app was started from a pwsh terminal.
+    env = {k: v for k, v in os.environ.items() if k.upper() != "PSMODULEPATH"}
     # No console window: the script shows its own progress window instead.
     subprocess.Popen(helper_command(script, install_dir, staging, parent_pid or os.getpid(),
                                     from_version, to_version),
-                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, close_fds=True,
                      creationflags=CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW)

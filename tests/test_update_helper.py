@@ -31,13 +31,14 @@ class LaunchTests(unittest.TestCase):
             self.assertEqual(command[command.index("-ToVersion") + 1], "1.15.0")
             self.assertEqual(command[command.index("-FromVersion") + 1], "1.14.0")
             self.assertNotIn("-NoUi", command)
+            self.assertNotIn("PSModulePath", {k for k in kwargs["env"]})
             # BOM keeps accented text readable for Windows PowerShell 5.1.
             self.assertTrue((stage / "apply-update.ps1").read_bytes().startswith(b"\xef\xbb\xbf"))
 
     def test_script_has_progress_window_and_rollback(self):
         script = updater.HELPER_PS
         for needed in ("System.Windows.Forms", "Copia di sicurezza", "Ripristino",
-                       "Get-FileHash", "Disable-Ui"):
+                       "Get-Sha256", "Disable-Ui"):
             self.assertIn(needed, script)
 
 
@@ -61,13 +62,16 @@ class HelperOnWindowsTests(unittest.TestCase):
         (stage / "new" / "_internal" / "a.dll").write_text("new")
         script = stage / "apply-update.ps1"
         script.write_text(updater.HELPER_PS, encoding="utf-8-sig")
+        # Same environment as the app (launch() drops PSModulePath): the CI step
+        # runs in pwsh 7, whose module path breaks Windows PowerShell 5.1.
+        env = {k: v for k, v in os.environ.items() if k.upper() != "PSMODULEPATH"}
         result = subprocess.run(
             ["powershell.exe", "-NoProfile", "-NonInteractive", "-Sta", "-ExecutionPolicy",
              "Bypass", "-File", str(script), "-ParentPid", str(ABSENT_PID),
              "-InstallDir", str(inst), "-StageRoot", str(stage),
              "-FromVersion", "1.14.0", "-ToVersion", "1.15.0", "-NoLaunch",
              "-AutoCloseSeconds", "20", *extra],
-            capture_output=True, text=True, timeout=150)
+            capture_output=True, text=True, timeout=150, env=env)
         log = (stage / "update-log.txt").read_text(encoding="utf-8-sig")
         return result, inst, stage, log
 
