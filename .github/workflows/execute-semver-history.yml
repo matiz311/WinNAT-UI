@@ -1,0 +1,87 @@
+name: Execute historical SemVer republishing
+
+on:
+  push:
+    branches: [maintenance/semver-history-migration]
+    paths:
+      - .github/workflows/execute-semver-history.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: historical-semver-republish-exclusive
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: maintenance/semver-history-migration
+          path: migration
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate all 28 old and new binary ZIPs before any mutation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python migration/tools/execute_semver_migration.py backup --plan migration/SEMVER_MIGRATION_PLAN.md --work work --run-id 38897773608
+      - name: Preserve original Git tag objects for recovery
+        run: git -C migration bundle create "$GITHUB_WORKSPACE/work/historical-source-refs.bundle" --tags
+      - name: Store durable backup of original releases and metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-historical-release-backup
+          path: |
+            work/originals/
+            work/migration_manifest.json
+            work/historical-source-refs.bundle
+          compression-level: 0
+          retention-days: 90
+          if-no-files-found: error
+      - name: Store verified replacement packages for publication
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-staged-release-packages
+          path: work/staged/
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
+
+  republish:
+    needs: backup
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: maintenance/semver-history-migration
+          fetch-depth: 0
+      - name: Checkout approved new release notes
+        uses: actions/checkout@v4
+        with:
+          ref: release/1.14.0-clean-semver
+          path: release_docs
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-historical-release-backup
+          path: work/
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-staged-release-packages
+          path: work/staged/
+      - name: Validate files and perform controlled tag and release replacement
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python tools/execute_semver_migration.py publish --work work --docs release_docs
