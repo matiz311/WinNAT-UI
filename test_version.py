@@ -34,10 +34,10 @@ class VersionTests(unittest.TestCase):
 
     def test_informational_docs_reference_current_version(self):
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        documented = set(re.findall(r"(?m)^## \\[([0-9]+\\.[0-9]+\\.[0-9]+(?:\\.[0-9]+)?)\\]", changelog))
+        documented = set(re.findall(r"(?m)^## \[([0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?)\]", changelog))
         self.assertIn(VERSION, documented)
         notes = (ROOT / "RELEASE_NOTES.it.md").read_text(encoding="utf-8")
-        note_versions = set(re.findall(r"(?m)^## ([0-9]+\\.[0-9]+\\.[0-9]+(?:\\.[0-9]+)?) —", notes))
+        note_versions = set(re.findall(r"(?m)^## ([0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?) —", notes))
         self.assertTrue(note_versions.issubset(documented))
         self.assertIn(VERSION, note_versions)
         for name in ("README.md", "README.en.md", "VERSIONING_POLICY.md"):
