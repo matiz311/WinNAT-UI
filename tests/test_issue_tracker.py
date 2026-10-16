@@ -9,16 +9,20 @@ from winnat_ui import issue_tracker as it
 
 
 class IssueTrackerTests(TestCase):
-    def test_payload_contains_only_allowlisted_values(self):
+    def test_payload_retains_diagnostics_and_masks_explicit_secrets(self):
         confidential = "192.168.12.5 PASSWORD=verySensitive C:\\Users\\company\\secret.xml"
         error = "Access is denied Exit code: 5 " + confidential
         stack = 'File "C:\\Users\\company\\app.py", line 20, in execute\nRuntimeError: ' + confidential
         payload = it.safe_payload("Commit", error, stack, "1.9.5")
-        self.assertEqual(set(payload), {"operation", "category", "exception", "modules", "version", "exit_code"})
+        self.assertTrue({"operation", "category", "exception", "modules", "version", "exit_code",
+                         "signature", "summary", "message", "traceback", "environment",
+                         "inventory"}.issubset(payload))
         self.assertEqual(payload["exit_code"], 5)
         self.assertEqual(payload["category"], "Accesso negato")
-        self.assertNotIn(confidential, json.dumps(payload))
-        self.assertNotIn("192.168.", json.dumps(payload))
+        self.assertIn("192.168.12.5", json.dumps(payload))
+        self.assertNotIn("verySensitive", json.dumps(payload))
+        self.assertNotIn(r"Users\company", json.dumps(payload))
+
 
     def test_same_problem_across_versions_has_same_signature(self):
         payload = it.safe_payload("Commit", "Access denied", "RuntimeError: problem", "1.9.5")
