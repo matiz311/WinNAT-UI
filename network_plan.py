@@ -25,11 +25,9 @@ def preflight(plan, inventory):
 
 def apply_profile(plan, inventory):
     lan,wan,prefix,gateway=preflight(plan,inventory)
-    if network.nat_network_preflight("WinNAT-UI", str(prefix), inventory) == "expand":
-        inventory = network.expand_nat(str(prefix), inventory)
+    network.nat_add_preflight("WinNAT-UI", str(prefix), inventory)
     existing_ip=any(i.get("InterfaceAlias")==lan and i.get("IPAddress")==gateway and int(i.get("PrefixLength") or 0)==prefix.prefixlen for i in inventory.get("ips",[]))
-    # Keep WAN's IP and default route intact. Use the target interface names to avoid
-    # modifying a different adapter if an interface is renamed between steps.
+    # Keep WAN IP/default route and unrelated NAT objects intact.
     script=f"""
 $ErrorActionPreference='Stop'
 $lan={quote(lan)}
@@ -37,17 +35,21 @@ $wan={quote(wan)}
 if(-not (Get-NetAdapter -Name $lan -ErrorAction Stop)) {{throw 'LAN non disponibile'}}
 if(-not (Get-NetAdapter -Name $wan -ErrorAction Stop)) {{throw 'WAN non disponibile'}}
 if(-not (Get-NetRoute -InterfaceAlias $wan -DestinationPrefix '0.0.0.0/0' -AddressFamily IPv4 -ErrorAction SilentlyContinue)) {{throw 'WAN senza default route'}}
-$existingNat=@(Get-NetNat -ErrorAction Stop)
-if($existingNat.Count -gt 1) {{throw 'Istanze WinNAT multiple rilevate'}}
 $ip={quote(gateway)}
 if(-not (Get-NetIPAddress -InterfaceAlias $lan -IPAddress $ip -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object {{$_.PrefixLength -eq {prefix.prefixlen}}})) {{
     New-NetIPAddress -InterfaceAlias $lan -IPAddress $ip -PrefixLength {prefix.prefixlen} -ErrorAction Stop | Out-Null
 }}
 Set-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -Forwarding Enabled -ErrorAction Stop
-if($existingNat.Count -eq 0) {{ New-NetNat -Name 'WinNAT-UI' -InternalIPInterfaceAddressPrefix {quote(str(prefix))} -ErrorAction Stop | Out-Null }}
+$targetNat=@(Get-NetNat -Name 'WinNAT-UI' -ErrorAction SilentlyContinue)
+if($targetNat.Count -eq 0) {{
+    New-NetNat -Name 'WinNAT-UI' -InternalIPInterfaceAddressPrefix {quote(str(prefix))} -ErrorAction Stop | Out-Null
+}} elseif($targetNat.Count -ne 1 -or $targetNat[0].InternalIPInterfaceAddressPrefix -ne {quote(str(prefix))}) {{
+    throw 'NAT WinNAT-UI esistente con prefisso differente'
+}}
 """
     network.ps(script)
     return {"lan":lan,"wan":wan,"prefix":str(prefix),"gateway":gateway,"existing_ip":existing_ip}
+
 
 def matching_resources(inventory, scope):
     """Return an exact, selectable deletion plan; never infer ownership."""
