@@ -30,8 +30,9 @@ def scope_for(kind, args, before):
         scope["interfaces"] = involved
         scope["forwarding"] = set(involved)
         scope["router"] = True
-        scope["nats"] = {n["Name"] for n in before.get("nats", [])} | {profile["nat"]}
-        scope["nat_rebuild"] = action == "apply"
+        target_nats = {a["nat"] for a in network_guide.lan_addresses(profile)}
+        scope["nats"] = {n["Name"] for n in before.get("nats", [])} | target_nats
+        scope["nat_rebuild"] = False
         if action in ("apply", "reset"):
             scope["ips"].add(profile["lan"])
             scope["routes"].add(profile["lan"])
@@ -43,13 +44,13 @@ def scope_for(kind, args, before):
         # commit must never roll back or rebuild unrelated existing NATs.
         scope["nats"].add(args[0])
     elif kind == "setup":
-        scope["nat_rebuild"] = True
+        scope["nat_rebuild"] = False
         scope["ips"].add(args[0])
         scope["forwarding"].add(args[0])
         scope["nats"].add("WinNAT-UI")
         scope["nats"].update(n["Name"] for n in before.get("nats", []))
     elif kind == "profile":
-        scope["nat_rebuild"] = True
+        scope["nat_rebuild"] = False
         scope["ips"].add(args[0]["lan"])
         scope["forwarding"].add(args[0]["lan"])
         scope["nats"].add("WinNAT-UI")
