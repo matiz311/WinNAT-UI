@@ -20,7 +20,7 @@ KINDS = {"routine", "extraordinary", "structural"}
 EVENT_STATES = {"planned", "in_progress", "completed", "cancelled"}
 SERVICE_STATES = {"unknown", "operational", "maintenance", "degraded", "unavailable"}
 ID_PATTERN = re.compile(r"^MAINT-[0-9]{8}-[0-9]{3,}$")
-UTC_PATTERN = re.compile(r"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$")
+UTC_PATTERN = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
 RISK_PATHS = (
     ".github/workflows/",
     "services/bug-gateway/",
