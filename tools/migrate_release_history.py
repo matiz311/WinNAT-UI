@@ -55,6 +55,10 @@ def version_tuple(value):
 def audit(plan, releases, tags):
     by_tag = {r["tag_name"]: r for r in releases}
     known_tags = {r["name"]: r for r in tags}
+    if len(by_tag) != len(releases) or len(known_tags) != len(tags):
+        raise ValueError("Duplicate tag/release in GitHub inventory")
+    if not releases or not tags:
+        raise ValueError("GitHub returned an empty release or tag inventory")
     source_tags = {old for old, _, _ in plan}
     issues = []
     report = []
@@ -71,8 +75,17 @@ def audit(plan, releases, tags):
              "digest": a.get("digest"), "url": a.get("url")}
             for a in release.get("assets", [])
         ]
-        if release and not any(a["name"] == "WinNAT-UI-Windows.zip" for a in assets):
-            issues.append("Windows ZIP missing for: " + old)
+        windows = [a for a in assets if a["name"] == "WinNAT-UI-Windows.zip"]
+        if release and len(windows) != 1:
+            issues.append("Expected exactly one Windows ZIP for: " + old)
+        for asset in windows:
+            digest = asset.get("digest") or ""
+            if not re.fullmatch(r"sha256:[0-9a-fA-F]{64}", digest):
+                issues.append("SHA256 digest missing/invalid for: " + old)
+            if not isinstance(asset.get("size"), int) or asset["size"] <= 0:
+                issues.append("ZIP size missing/invalid for: " + old)
+        if old in known_tags and not (known_tags[old].get("commit") or {}).get("sha"):
+            issues.append("Source tag commit SHA missing: " + old)
         report.append({
             "old": old, "new": new, "kind": kind, "release_id": release.get("id") if release else None,
             "release_target": release.get("target_commitish") if release else None,
@@ -83,6 +96,8 @@ def audit(plan, releases, tags):
         })
     unexpected = sorted(set(by_tag) - source_tags)
     tag_only = sorted(set(known_tags) - set(by_tag))
+    if tag_only:
+        issues.append("Tags without a GitHub Release require review: " + ", ".join(tag_only))
     if unexpected:
         issues.append("Other published releases require manual classification: " + ", ".join(unexpected))
     return {"repository": REPO, "migrations": report,
