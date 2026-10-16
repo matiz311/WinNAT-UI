@@ -7,6 +7,10 @@ The repository stores two distinct JSON documents:
 
 Any client fetching the status file must treat it as **advisory**. Use short network timeouts, explicitly identify stale observations, and remain functional if it cannot be retrieved. A maintenance status cannot bypass official-asset URL checks or SHA-256 verification and cannot alone prove causality.
 
+## Audited legacy exception
+
+Before this policy was introduced, PR #67 had already changed the gateway's initial triage label at commit `ba987780caa641b84340e278d9e9fb70bf26401c` in `services/bug-gateway/src/index.js`. A prior maintenance entry cannot truthfully be backfilled. The guard explicitly exempts **only this immutable commit and this path**. All later gateway changes, even within PR #67, must have their own pre-change registration. The exception is reviewed and versioned alongside the guard; it does not declare that a maintenance event happened and does not waive tests or required checks.
+
 ## Manual operating procedure
 
 1. Before planned disruptive work, commit the planned event in history with a unique `MAINT-YYYYMMDD-NNN` identifier, precise UTC start when known, affected components, impact and rollback.
