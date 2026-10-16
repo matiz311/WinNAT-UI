@@ -27,7 +27,12 @@ def apply_profile(plan, inventory):
     lan,wan,prefix,gateway=preflight(plan,inventory)
     if network.nat_network_preflight("WinNAT-UI", str(prefix), inventory) == "expand":
         inventory = network.expand_nat(str(prefix), inventory)
-    existing_ip=any(i.get("InterfaceAlias")==lan and i.get("IPAddress")==gateway and int(i.get("PrefixLength") or 0)==prefix.prefixlen for i in inventory.get("ips",[]))
+    existing_ip=any(
+        i.get("InterfaceAlias") == lan and i.get("IPAddress") == gateway
+        and int(i.get("PrefixLength") or 0) == prefix.prefixlen
+        and str(i.get("PrefixOrigin") or "").lower() != "dhcp"
+        for i in inventory.get("ips", [])
+    )
     # Keep WAN's IP and default route intact. Use the target interface names to avoid
     # modifying a different adapter if an interface is renamed between steps.
     script=f"""
@@ -40,8 +45,20 @@ if(-not (Get-NetRoute -InterfaceAlias $wan -DestinationPrefix '0.0.0.0/0' -Addre
 $existingNat=@(Get-NetNat -ErrorAction Stop)
 if($existingNat.Count -gt 1) {{throw 'Istanze WinNAT multiple rilevate'}}
 $ip={quote(gateway)}
-if(-not (Get-NetIPAddress -InterfaceAlias $lan -IPAddress $ip -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object {{$_.PrefixLength -eq {prefix.prefixlen}}})) {{
-    New-NetIPAddress -InterfaceAlias $lan -IPAddress $ip -PrefixLength {prefix.prefixlen} -ErrorAction Stop | Out-Null
+$lanDhcp = (Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop).Dhcp
+if($lanDhcp -eq 'Enabled') {{
+    Set-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -Dhcp Disabled -ErrorAction Stop
+}}
+if((Get-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction Stop).Dhcp -ne 'Disabled') {{
+    throw 'LAN: impossibile disabilitare DHCP IPv4'
+}}
+# Only DHCP lease addresses can be removed during the conversion.
+$dhcpIPs = @(Get-NetIPAddress -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object {{ $_.PrefixOrigin -eq 'Dhcp' }})
+foreach($dhcpIP in $dhcpIPs) {{ $dhcpIP | Remove-NetIPAddress -Confirm:$false -ErrorAction Stop }}
+$staticIPs = @(Get-NetIPAddress -InterfaceAlias $lan -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object {{ $_.PrefixOrigin -ne 'Dhcp' -and $_.IPAddress -notlike '169.254.*' }})
+$skipAsSource = $staticIPs.Count -gt 0
+if(-not (Get-NetIPAddress -InterfaceAlias $lan -IPAddress $ip -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object {{ $_.PrefixLength -eq {prefix.prefixlen} -and $_.PrefixOrigin -ne 'Dhcp' }})) {{
+    New-NetIPAddress -InterfaceAlias $lan -IPAddress $ip -PrefixLength {prefix.prefixlen} -SkipAsSource $skipAsSource -ErrorAction Stop | Out-Null
 }}
 Set-NetIPInterface -InterfaceAlias $lan -AddressFamily IPv4 -Forwarding Enabled -ErrorAction Stop
 if($existingNat.Count -eq 0) {{ New-NetNat -Name 'WinNAT-UI' -InternalIPInterfaceAddressPrefix {quote(str(prefix))} -ErrorAction Stop | Out-Null }}
