@@ -769,19 +769,23 @@ class App(tk.Tk):
             return
         self.subnet_badge.grid()
         lan = self.lan.get()
-        if found["prefix"] != self.prefix.get().strip() or found["gateway"] != self.gateway.get().strip():
+        modified = (found["prefix"] != self.prefix.get().strip()
+                    or found["gateway"] != self.gateway.get().strip())
+        if found.get("origin") == "Dhcp":
+            self.subnet_badge.set("IP STATICO PERSONALIZZATO" if modified else "DHCP → STATICO", "accent")
+            text = (lan + " usa DHCP: al Commit verrà disabilitato e verrà configurato "
+                    + self.gateway.get().strip() + " su " + self.prefix.get().strip()
+                    + ". L'IP ricevuto via DHCP non viene importato; puoi modificare i valori.")
+        elif modified:
             self.subnet_badge.set("MODIFICATA A MANO", "accent")
             text = ("Valori personalizzati. Rilevati su " + lan + ": " + found["gateway"] + " in " + found["prefix"]
                     if found["source"] == "rilevata" else "Valori personalizzati al posto di quelli predefiniti.")
         elif found["source"] == "rilevata":
             self.subnet_badge.set("RILEVATA SU " + lan.upper(), "success")
-            text = ("L'indirizzo attuale di " + lan + " diventa statico e senza gateway; il NAT usa questa subnet.")
-            if found.get("origin") == "Dhcp":
-                text += (" Era assegnato via DHCP: se sulla LAN c'\u00e8 ancora un server DHCP, "
-                         "valuta una subnet diversa per evitare conflitti.")
+            text = "Indirizzamento LAN statico esistente conservato; il NAT usa la subnet selezionata."
         else:
             self.subnet_badge.set("PREDEFINITA", "neutral")
-            text = lan + " non ha un IPv4 utilizzabile: verr\u00e0 configurata la subnet predefinita."
+            text = lan + " non ha un IPv4 utilizzabile: verrà configurata la subnet predefinita."
         self.subnet_hint.configure(text=text)
 
     def reset_form(self):
