@@ -38,9 +38,9 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          GITHUB_ISSUE_TOKEN: ${{ secrets.GITHUB_ISSUE_TOKEN }}
+          WINNAT_ISSUE_TOKEN: ${{ secrets.WINNAT_ISSUE_TOKEN }}
         run: |
-          for secret in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID GITHUB_ISSUE_TOKEN; do
+          for secret in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID WINNAT_ISSUE_TOKEN; do
             if [[ -z "${!secret}" ]]; then
               echo "Missing GitHub Actions secret: $secret" >&2
               exit 1
@@ -54,9 +54,9 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           secrets: |
-            GITHUB_ISSUE_TOKEN
+            WINNAT_ISSUE_TOKEN
         env:
-          GITHUB_ISSUE_TOKEN: ${{ secrets.GITHUB_ISSUE_TOKEN }}
+          WINNAT_ISSUE_TOKEN: ${{ secrets.WINNAT_ISSUE_TOKEN }}
       - name: Verify live endpoint and stage client service configuration
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
