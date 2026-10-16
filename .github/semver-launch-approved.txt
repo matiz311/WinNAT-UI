@@ -1,3 +1,0 @@
-One-time execution of historical SemVer migration for 28 previously restored releases.
-Approval: RENUMBER_28_RELEASES
-Requested by repository owner in ChatGPT, October 16 2026.
