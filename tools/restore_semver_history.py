@@ -42,24 +42,34 @@ def main(work):
     for i, item in enumerate(entries):
         tag, sha = item["old"], item["ref_sha"]
         print("Restoring " + tag + " (" + str(i+1) + "/28)", flush=True)
+        note_file = work / "originals" / tag / "original-notes.md"
+        note_file.write_text(item["release_body"], encoding="utf-8")
         get = gh("api", f"repos/{REPO}/git/ref/tags/{tag}", check=False)
+        released_while_creating_tag = False
         if get.returncode:
-            # REST create-reference only needs Contents write; git push was
-            # rejected because its receive-pack checks workflow file changes.
-            gh("api", "-X", "POST", f"repos/{REPO}/git/refs",
-               "-f", "ref=refs/tags/" + tag, "-f", "sha=" + sha)
+            ref_result = gh("api", "-X", "POST", f"repos/{REPO}/git/refs",
+                            "-f", "ref=refs/tags/" + tag, "-f", "sha=" + sha,
+                            check=False)
+            if ref_result.returncode:
+                print("REST Git ref rejected; attempting atomic GitHub Release+tag creation", flush=True)
+                gh("release", "create", tag,
+                   str(work / "originals" / tag / NAME),
+                   "--target", sha, "--repo", REPO,
+                   "--title", "WinNAT UI " + tag,
+                   "--notes-file", str(note_file),
+                   "--latest" if i == len(entries)-1 else "--latest=false")
+                released_while_creating_tag = True
         else:
             existing = json.loads(get.stdout)["object"]["sha"]
             if existing != sha:
                 raise ValueError("Tag points at an unexpected commit: " + tag)
-        exists = gh("release", "view", tag, "--repo", REPO, check=False).returncode == 0
-        if not exists:
-            note_file = work / "originals" / tag / "original-notes.md"
-            note_file.write_text(item["release_body"], encoding="utf-8")
-            gh("release", "create", tag, str(work / "originals" / tag / NAME),
-               "--verify-tag", "--repo", REPO, "--title", "WinNAT UI " + tag,
-               "--notes-file", str(note_file),
-               "--latest" if i == len(entries)-1 else "--latest=false")
+        if not released_while_creating_tag:
+            exists = gh("release", "view", tag, "--repo", REPO, check=False).returncode == 0
+            if not exists:
+                gh("release", "create", tag, str(work / "originals" / tag / NAME),
+                   "--verify-tag", "--repo", REPO, "--title", "WinNAT UI " + tag,
+                   "--notes-file", str(note_file),
+                   "--latest" if i == len(entries)-1 else "--latest=false")
     result = json.loads(gh("api", f"repos/{REPO}/releases?per_page=100").stdout)
     found = {x["tag_name"] for x in result}
     expected = {x["old"] for x in entries}
