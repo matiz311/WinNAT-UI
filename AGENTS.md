@@ -14,8 +14,8 @@ This file governs AI contributions to this repository. It applies to **Claude**,
 ChatGPT must inspect **all pending merge requests**, including ChatGPT-authored and Claude-authored work, and record a queue before choosing the next integration. **Sorting order is strict and lexicographic:**
 
 1. **Contributor origin:** ChatGPT's changes **first**, Claude's changes **second**. Determine the actual author/origin of the work rather than assuming the PR opener is the code author.
-4. **Importance within each origin group:** Critical (security, data loss, regressions/blocking failures) → High (major functionality or dependencies) → Normal → Low (cosmetic/docs). Explain the priority based on impact, not age or personal preference.
-5. **Chronology within the same origin and importance:** oldest original PR/request creation time first (FIFO); later pushes or edits do not reset the original date. Record that timestamp so the order is auditable.
+2. **Importance within each origin group:** Critical (security, data loss, regressions/blocking failures) → High (major functionality or dependencies) → Normal → Low (cosmetic/docs). Explain the priority based on impact, not age or personal preference.
+3. **Chronology within the same origin and importance:** oldest original PR/request creation time first (FIFO); later pushes or edits do not reset the original date. Record that timestamp so the order is auditable.
 
 If two PRs overlap, are mutually dependent, or cannot safely be merged in this order, **do not force an unsafe merge**: create a coherent integration candidate, defer a blocked PR, and document the reason/order adjustment. A priority exception requires an explicit documented decision from the project owner; Claude cannot use one to self-merge. Recompute the queue after every merge or meaningful PR update.
 
