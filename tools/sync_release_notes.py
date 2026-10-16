@@ -28,7 +28,7 @@ def gh(*args, data=None):
 def kind(version):
     """Historical functional class, not a new Git tag."""
     matrix = (ROOT / "RELEASE_MATRIX.md").read_text(encoding="utf-8")
-    pattern = r"^\\| " + re.escape(version) + r" \\| ([^|]+) \\|"
+    pattern = r"^\| " + re.escape(version) + r" \| ([^|]+) \|"
     match = re.search(pattern, matrix, re.M)
     return match.group(1).strip() if match else "Storica"
 
@@ -72,7 +72,7 @@ def main(apply):
     count = 0
     for item in entries:
         tag = item.get("tag_name", "")
-        if not re.fullmatch(r"v?\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?", tag):
+        if not re.fullmatch(r"v?\d+\.\d+\.\d+(?:\.\d+)?", tag):
             print("SALTATA " + tag + ": tag non SemVer")
             continue
         version = tag.removeprefix("v")
