@@ -8,6 +8,8 @@ import json
 import os
 from pathlib import Path
 import re
+import socket
+import ssl
 from urllib.parse import urlsplit
 import urllib.error
 import urllib.request
@@ -37,25 +39,61 @@ def fingerprint(payload):
     return hashlib.sha256(json.dumps(scope, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()[:24]
 
 
+
+class RemoteIssueError(RuntimeError):
+    """Expected failure of the external issue service, not a WinNAT fault."""
+
+    def __init__(self, category, detail, status=None):
+        super().__init__(detail)
+        self.category = category
+        self.status = status
+
+
+def classify_remote_error(exc):
+    """Retain diagnostic category without leaking URLs or credentials in the UI."""
+    if isinstance(exc, urllib.error.HTTPError):
+        return RemoteIssueError("http_failure", "Servizio GitHub non disponibile (HTTP %d)." % exc.code, exc.code)
+    if isinstance(exc, (socket.gaierror,)) or (
+        isinstance(exc, urllib.error.URLError) and isinstance(exc.reason, socket.gaierror)
+    ):
+        return RemoteIssueError("dns_failure", "Risoluzione DNS del servizio GitHub non riuscita.")
+    reason = exc.reason if isinstance(exc, urllib.error.URLError) else exc
+    if isinstance(reason, (TimeoutError, socket.timeout)):
+        return RemoteIssueError("offline_or_unreachable", "Connessione al servizio GitHub scaduta.")
+    if isinstance(reason, (ssl.SSLError, ssl.CertificateError)):
+        return RemoteIssueError("tls_failure", "Verifica TLS del servizio GitHub non riuscita.")
+    if isinstance(exc, (urllib.error.URLError, OSError)):
+        return RemoteIssueError("offline_or_unreachable", "Servizio GitHub non raggiungibile.")
+    if isinstance(exc, (json.JSONDecodeError, UnicodeDecodeError)):
+        return RemoteIssueError("invalid_response", "Risposta GitHub non valida.")
+    return RemoteIssueError("invalid_response", "Risposta del servizio GitHub non valida.")
+
+
 def _read_json(url, *, timeout=10):
     request = urllib.request.Request(url, headers={"User-Agent": "WinNAT-UI-Issues",
                                                    "Accept": "application/vnd.github+json"})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        if response.status != 200:
-            raise RuntimeError("Risposta remota non valida.")
-        if int(response.headers.get("Content-Length") or 0) > 512 * 1024:
-            raise RuntimeError("Risposta remota eccessivamente grande.")
-        raw = response.read(512 * 1024 + 1)
-    if len(raw) > 512 * 1024:
-        raise RuntimeError("Risposta remota eccessivamente grande.")
-    return json.loads(raw)
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            if response.status != 200:
+                raise RemoteIssueError("http_failure", "Risposta HTTP GitHub inattesa.", response.status)
+            if int(response.headers.get("Content-Length") or 0) > 512 * 1024:
+                raise RemoteIssueError("invalid_response", "Risposta GitHub eccessivamente grande.")
+            raw = response.read(512 * 1024 + 1)
+        if len(raw) > 512 * 1024:
+            raise RemoteIssueError("invalid_response", "Risposta GitHub eccessivamente grande.")
+        return json.loads(raw)
+    except RemoteIssueError:
+        raise
+    except (urllib.error.URLError, OSError, TimeoutError, ssl.SSLError,
+            json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise classify_remote_error(exc) from exc
 
 
 def service_endpoint():
     """The official repo publishes an endpoint after the gateway is deployed."""
     try:
         config = _read_json(SERVICE_CONFIG)
-    except (OSError, ValueError, KeyError):
+    except (OSError, ValueError, KeyError, RemoteIssueError):
         return None
     endpoint = config.get("submit_url") if isinstance(config, dict) else None
     if not isinstance(endpoint, str):

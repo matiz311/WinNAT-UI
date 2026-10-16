@@ -1440,20 +1440,29 @@ class App(tk.Tk):
     def refresh_issue_tracker(self, silent=False):
         if "Stato bug" in self.tasks:
             return
+
         def check():
             try:
                 latest = updater.release_info(VERSION)["version"]
             except Exception:
                 latest = None
             try:
-                return issue_tracker.synchronize(VERSION, latest_version=latest)
-            except Exception:
-                if silent:
-                    return issue_tracker.history(), {}
-                raise
+                entries, listed = issue_tracker.synchronize(VERSION, latest_version=latest)
+                return entries, listed, None
+            except issue_tracker.RemoteIssueError as exc:
+                # Expected external-service failure: keep the local history untouched.
+                return issue_tracker.history(), {}, exc
+
         def finished(result):
-            entries, _ = result
+            entries, _, remote_error = result
             self.render_issue_tracker()
+            if remote_error is not None:
+                label = ("Sincronizzazione non disponibile: " + str(remote_error)
+                         + " I dati locali non sono stati modificati. Riprova quando la connessione è disponibile.")
+                self.issue_status.set(label)
+                if not silent:
+                    messagebox.showwarning("Verifica stato Issue non disponibile", label, parent=self)
+                return
             ready = [i for i in entries if i.get("fix_available")]
             if ready:
                 label = ("Nuova versione disponibile con correzioni per "
@@ -1465,6 +1474,7 @@ class App(tk.Tk):
                     messagebox.showinfo("Correzione disponibile", label, parent=self)
             elif not silent:
                 self.toast.show("Stato delle Issue aggiornato.", "success")
+
         self.run_task("Stato bug", check, finished)
 
     def check_updates(self, silent=False):
