@@ -8,7 +8,7 @@ const sample = {
 };
 const endpoint = "https://winnat-bug-gateway.example.workers.dev/report";
 const env = () => ({
-  GITHUB_ISSUE_TOKEN: "test-only",
+  WINNAT_ISSUE_TOKEN: "test-only",
   RATE_LIMIT_IP: {limit: async()=>({success:true})},
   RATE_LIMIT_GLOBAL: {limit: async()=>({success:true})}
 });
