@@ -1,68 +1,44 @@
 # Versioning e pubblicazione — WinNAT-UI
 
+## Stato attuale — 16 ottobre 2026
+
+La **versione stabile pubblicata è `v1.14.0`**: [GitHub Releases](https://github.com/matiz311/WinNAT-UI/releases/latest). Il catalogo comprende **29 release pubbliche**: le 28 precedenti sono state ricompilate e rinumerate il 16 ottobre 2026, seguite da `v1.14.0`. L'ultimo HOTFIX precedente è **`v1.13.0.1`**. I tag e i numeri usati nei documenti sono quelli attualmente pubblicati; gli identificativi dismessi non sono alias di download.
+
+Le informazioni complete di ogni rilascio si trovano in [CHANGELOG.md](CHANGELOG.md) e [RELEASE_NOTES.it.md](RELEASE_NOTES.it.md). La sequenza effettiva più recente è `v1.13.0` → `v1.13.0.1` → `v1.14.0`.
+
 ## Fonte della versione
-La versione funzionale è `MAJOR.MINOR.PATCH[.HOTFIX]`; il quarto componente è una **estensione del progetto**, riservata agli interventi urgenti. La fonte è `version.py`. La versione dell'eseguibile Windows in `version_info.txt`, il tag Git `vX.Y.Z[.H]`, il nome della release e i metadati dell'updater devono coincidere. Nelle proprietà Windows le versioni a tre componenti mostrano il quarto componente numerico zero.
 
-La build CI ha un identificatore indipendente `X.Y.Z[.H]+ci.<run>.<sha>` scritto in `BUILD_INFO.txt` e non genera una nuova versione funzionale.
+La versione funzionale segue `MAJOR.MINOR.PATCH[.HOTFIX]`. Il quarto componente è una **estensione specifica del progetto**, non parte del SemVer 2.0.0 puro. La fonte è `version.py`; la versione nelle risorse Windows (`version_info.txt`), il tag Git `vX.Y.Z[.H]`, la GitHub Release e i metadati dell'updater devono coincidere. Windows rappresenta una versione con tre componenti come `X.Y.Z.0`.
 
-## Classificazione
-| Classe | Incremento | Uso |
+L'identificativo di una **build CI** è distinto dalla versione funzionale: `X.Y.Z[.H]+ci.<run>.<sha>` in `BUILD_INFO.txt`. Non è un tag Git e non crea automaticamente una nuova release.
+
+## Classificazione degli incrementi
+
+| Categoria | Versione di esempio | Quando si applica |
 |---|---|---|
-| MAJOR | `2.0.0` | Incompatibilità intenzionali e migrazioni |
-| MINOR | `1.14.0` | Nuove capacità rilevanti e retrocompatibili |
-| PATCH | `1.14.1` | Correzioni ordinarie, sicurezza e stabilità |
-| HOTFIX | `1.14.0.1` | Correzione urgente della release già pubblicata |
-| BUILD | `1.14.0+ci.209.abcd1234` | Ricompilazione senza nuove funzionalità |
+| MAJOR | `2.0.0` | Cambiamenti incompatibili e migrazioni |
+| MINOR | `1.14.0` (pubblicata) | Funzionalità retrocompatibili significative |
+| PATCH | `1.14.1` (esempio futuro) | Correzioni ordinarie, manutenzione e stabilità |
+| HOTFIX | `1.14.0.1` (esempio futuro) | Correzione urgente di una release già pubblicata |
+| BUILD | `1.14.0+ci.<run>.<sha>` (formato) | Compilazione senza incremento di versione funzionale |
 
-Progressione corretta: `1.13.0` → `1.13.0.1` → `1.13.1` → `1.14.0`.
-Un HOTFIX deve incorporare il fix nell'aggiornamento PATCH o MINOR successivo; il quarto componente torna a zero. Non creare un quarto numero per una build ripetuta.
+Un HOTFIX incrementa il quarto componente della release di riferimento. La successiva PATCH o MINOR incorpora la correzione e azzera il quarto componente. Non utilizzare un HOTFIX per distinguere semplici ricompilazioni. Non attribuire numeri di esempio a release non ancora pubblicate.
 
 ## Procedura di rilascio
-1. Aggiornare `version.py` e `version_info.txt`, verificare che le due rappresentazioni coincidano.
-2. Aggiungere la sezione `## [X.Y.Z]` nel `CHANGELOG.md`. MINOR e MAJOR richiedono obbligatoriamente `### Sintesi`, `### Funzionalità` e `### Correzioni` con informazioni verificabili.
-3. Aggiornare `RELEASE_NOTES.it.md` con novità, correzioni, compatibilità, limitazioni e collegamento alle Issue aperte.
-4. Eseguire test unitari e build Windows, validare versione EXE, scansione Defender, integrità ZIP e digest GitHub.
-5. Per MINOR e MAJOR utilizzare l'approvazione esplicita in GitHub Actions. Non pubblicare automaticamente un avanzamento funzionale a ogni commit.
-6. Non sovrascrivere tag/asset già pubblicati; la migrazione dello storico è una procedura eccezionale e tracciata separatamente.
-7. Eseguire un test reale dell'updater prima di dichiarare stabilità dell'aggiornamento sul campo.
 
-## Migrazione storica approvata nel 2026
-I seguenti identificativi provengono dalle 28 release effettivamente pubblicate il 14–15 ottobre 2026. Ogni nuovo tag deve puntare a un sorgente riprodotto con versione interna aggiornata, non a un tag alias arbitrario. Le build storiche vengono prima conservate e verificate in staging.
+1. Aggiornare insieme `version.py` e `version_info.txt`.
+2. Inserire la sezione corrispondente nel `CHANGELOG.md`. MAJOR e MINOR richiedono le sezioni **Sintesi**, **Funzionalità** e **Correzioni**, con evidenze verificabili.
+3. Aggiornare `RELEASE_NOTES.it.md` e, quando serve, i README e la documentazione correlata.
+4. Eseguire test automatici, build Windows, verifica della versione nell'EXE, scansione Defender e controllo degli SHA-256.
+5. Per MAJOR e MINOR, richiedere l'approvazione esplicita tramite il workflow manuale GitHub Actions; la semplice compilazione non pubblica un nuovo numero di release.
+6. Pubblicare solo pacchetti verificati, con tag e versione interna coincidenti, senza riscrivere le release già pubblicate.
+7. Validare l'updater su Windows reale prima di considerare completamente collaudato il percorso di aggiornamento.
 
-| Tag precedente | Tag rinumerato |
-|---|---|
-| `v1.2.0` | `v1.2.0` |
-| `v1.3.0` | `v1.3.0` |
-| `v1.4.0` | `v1.4.0` |
-| `v1.6.0` | `v1.5.0` |
-| `v1.6.1` | `v1.5.1` |
-| `v1.7.0` | `v1.5.2` |
-| `v1.7.1` | `v1.6.0` |
-| `v1.7.2` | `v1.6.1` |
-| `v1.7.3` | `v1.6.2` |
-| `v1.7.4` | `v1.6.3` |
-| `v1.7.5` | `v1.6.4` |
-| `v1.8.0` | `v1.7.0` |
-| `v1.9.0` | `v1.8.0` |
-| `v1.9.2` | `v1.9.0` |
-| `v1.9.3` | `v1.10.0` |
-| `v1.9.4` | `v1.10.1` |
-| `v1.9.5` | `v1.10.2` |
-| `v1.9.6` | `v1.11.0` |
-| `v1.9.7` | `v1.11.1` |
-| `v1.9.8` | `v1.11.2` |
-| `v1.9.9` | `v1.12.0` |
-| `v1.9.10` | `v1.12.1` |
-| `v1.9.11` | `v1.12.2` |
-| `v1.9.12` | `v1.12.3` |
-| `v1.9.13` | `v1.12.4` |
-| `v1.9.14` | `v1.12.5` |
-| `v1.9.15` | `v1.13.0` |
-| `v1.9.15.1` | `v1.13.0.1` |
+## Integrità e documentazione
 
-`v1.9.1` non aveva più un tag o una release al momento dell'inventario, quindi le funzionalità allora documentate sono incorporate nel primo rilascio verificabile `v1.9.0` (precedentemente `v1.9.2`). `v1.10.0` era il numero del sorgente aggiornato, **non una release pubblicata**: la sua nuova prima release è `v1.14.0`. Il vecchio `v1.10.1` errato era già stato ritirato e non fa parte delle 28 release reali.
+Ogni ZIP ufficiale deve avere un digest SHA-256 verificabile. `BUILD_INFO.txt` identifica la compilazione e il commit; la scansione Microsoft Defender **non** sostituisce una firma digitale Authenticode. Indicare sempre lo stato effettivo della firma e le limitazioni.
 
-Le note destinate agli utenti sono in [RELEASE_NOTES.it.md](RELEASE_NOTES.it.md); il dettaglio in [CHANGELOG.md](CHANGELOG.md). Le Issue aperte sono consultabili in https://github.com/matiz311/WinNAT-UI/issues?q=is%3Aissue+is%3Aopen .
-
-## Identificazione e integrità
-`BUILD_INFO.txt` contiene versione, identificativo della build, commit e workflow. Ogni asset ZIP pubblicato deve avere un digest SHA-256 verificabile. La presenza di una scansione Defender non equivale a una firma digitale: indicare sempre lo stato effettivo della firma nelle release notes.
+- [Download e Release ufficiali](https://github.com/matiz311/WinNAT-UI/releases)
+- [Changelog tecnico](CHANGELOG.md)
+- [Note di rilascio per gli utenti](RELEASE_NOTES.it.md)
+- [Issue aperte](https://github.com/matiz311/WinNAT-UI/issues?q=is%3Aissue+is%3Aopen)

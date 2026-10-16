@@ -31,7 +31,7 @@ Il workflow verifica i test Node, distribuisce il Worker, pubblica il PAT come *
 - Rate limiting integrato in Cloudflare Workers: **6/minuto per IP sorgente** e **30/minuto per location Cloudflare** in totale, senza necessità di configurare KV. Gli IP servono a calcolare chiavi hash a runtime, non sono memorizzati nel report o nelle Issue. Più utenti sotto NAT condividono il limite per-IP.
 - I limiti rate non sono globali né strettamente atomici: Cloudflare applica contatori per location, eventualmente consistenti. Per contrastare abusi consistenti configurare protezioni aggiuntive.
 - La deduplicazione controlla al massimo 100 Issue aperte più recenti con label `bug-report`, usando un fingerprint basato su categoria, operazione, eccezione e moduli. Issue più vecchie o chiuse non sono necessariamente riutilizzate.
-- Per segnalare la correzione applica `fixed-in/vMAJOR.MINOR.PATCH` alla Issue interessata.
+- Per segnalare la correzione applica una label `fixed-in/vMAJOR.MINOR.PATCH` alla Issue interessata. **Limite attuale:** il tracciamento delle correzioni riconosce soltanto label a tre componenti; una versione HOTFIX a quattro componenti non è ancora riconosciuta da questa funzione.
 - Cloudflare può trattare l'IP pubblico della connessione per fornire il servizio e il rate limiting. Il maintainer non riceve l'IP tramite il contenuto della Issue.
 
 ## Test

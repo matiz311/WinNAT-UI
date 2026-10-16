@@ -32,6 +32,20 @@ class VersionTests(unittest.TestCase):
         workflow = (ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
         self.assertNotRegex(workflow, r"v\d+\.\d+\.\d+", "il workflow non deve contenere versioni fisse")
 
+    def test_informational_docs_reference_current_version(self):
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        documented = set(re.findall(r"(?m)^## \[([0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?)\]", changelog))
+        self.assertIn(VERSION, documented)
+        notes = (ROOT / "RELEASE_NOTES.it.md").read_text(encoding="utf-8")
+        note_versions = set(re.findall(r"(?m)^## ([0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?) —", notes))
+        self.assertTrue(note_versions.issubset(documented))
+        self.assertIn(VERSION, note_versions)
+        for name in ("README.md", "README.en.md", "VERSIONING_POLICY.md"):
+            source = (ROOT / name).read_text(encoding="utf-8")
+            self.assertIn("v" + VERSION, source, name + " does not mention the live release")
+        self.assertNotIn("## Versione 1.9.1", (ROOT / "README.md").read_text(encoding="utf-8"))
+        self.assertNotIn("## Version 1.9.1", (ROOT / "README.en.md").read_text(encoding="utf-8"))
+
     def test_no_conflict_markers(self):
         for path in ROOT.rglob("*"):
             if ".git" in path.parts or not path.is_file() or path.suffix not in {".py", ".yml", ".md", ".txt", ".ps1"}:
