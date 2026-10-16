@@ -4,12 +4,10 @@ Usage: python tools/migrate_release_history.py --inventory migration-inventory.j
 Requires gh auth and permission to view releases/tags. NEVER changes Git refs.
 """
 import argparse
-import hashlib
 import json
 from pathlib import Path
 import re
 import subprocess
-import sys
 
 REPO = "matiz311/WinNAT-UI"
 TAG_PATTERN = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?$")
@@ -56,8 +54,7 @@ def version_tuple(value):
 
 def audit(plan, releases, tags):
     by_tag = {r["tag_name"]: r for r in releases}
-    known_tags = {r["name"] for r in tags}
-    targets = {new for _, new, _ in plan}
+    known_tags = {r["name"]: r for r in tags}
     source_tags = {old for old, _, _ in plan}
     issues = []
     report = []
@@ -79,13 +76,18 @@ def audit(plan, releases, tags):
         report.append({
             "old": old, "new": new, "kind": kind, "release_id": release.get("id") if release else None,
             "release_target": release.get("target_commitish") if release else None,
+            "source_tag_sha": (known_tags[old].get("commit") or {}).get("sha") if old in known_tags else None,
+            "published_at": release.get("published_at") if release else None,
+            "release_body": release.get("body") if release else None,
             "assets": assets,
         })
     unexpected = sorted(set(by_tag) - source_tags)
+    tag_only = sorted(set(known_tags) - set(by_tag))
     if unexpected:
         issues.append("Other published releases require manual classification: " + ", ".join(unexpected))
     return {"repository": REPO, "migrations": report,
-            "unmapped_published_tags": unexpected, "blocking_issues": issues,
+            "unmapped_published_tags": unexpected, "tags_without_release": tag_only,
+            "blocking_issues": issues,
             "publish_allowed": not issues}
 
 
