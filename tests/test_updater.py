@@ -33,6 +33,25 @@ class UpdaterTests(unittest.TestCase):
                 self.assertTrue(updater.newer("v1.14.0", installed))
         self.assertFalse(updater.newer("v1.13.0.1", "1.14.0"))
 
+    def test_github_http_failures_are_actionable(self):
+        from urllib.error import HTTPError, URLError
+        cases = [(404, "Nessuna release stabile"),
+                 (403, "Accesso alle API"),
+                 (429, "Accesso alle API"),
+                 (502, "temporaneamente non disponibile"),
+                 (418, "ha rifiutato")]
+        for code, expected in cases:
+            with self.subTest(code=code):
+                problem = HTTPError(updater.API_URL, code, "remote error", None, None)
+                with patch("winnat_ui.updater.urllib.request.urlopen", side_effect=problem):
+                    with self.assertRaisesRegex(ValueError, expected):
+                        updater.release_info("1.14.0")
+        for problem in (URLError("DNS failure"), TimeoutError("connection timed out")):
+            with self.subTest(problem=type(problem).__name__):
+                with patch("winnat_ui.updater.urllib.request.urlopen", side_effect=problem):
+                    with self.assertRaisesRegex(ValueError, "connessione, DNS e proxy"):
+                        updater.release_info("1.14.0")
+
     def test_latest_release_requires_verified_official_asset(self):
         digest = "a" * 64
         data = {"tag_name": "v1.9.3", "draft": False, "prerelease": False,
