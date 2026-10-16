@@ -44,6 +44,8 @@ function configured(env) {
 function redact(text) {
   return text
     .replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/gi,"[CHIAVE PRIVATA OSCURATA]")
+    .replace(/\b(?:github_pat_|ghp_|gho_|ghu_|ghs_|ghr_)[A-Za-z0-9_]{16,}\b/g,"[TOKEN GITHUB OSCURATO]")
+    .replace(/("[^"\r\n]*(?:password|passwd|token|secret|api[_-]?key)[^"\r\n]*"\s*:\s*)(?:"[^"\r\n]*"|[^\s,}]+)/gi,'$1"[OSCURATO]"')
     .replace(/\b(bearer|basic)\s+[a-z0-9._~+/\-=]{8,}/gi,"[TOKEN DI AUTORIZZAZIONE OSCURATO]")
     .replace(/([a-z][a-z0-9+.-]*:\/\/)[^/@\s:]+:[^/@\s]+@/gi,"$1[credenziali oscurate]@")
     .replace(/\b(password|passwd|pwd|api[_-]?key|access[_-]?token|refresh[_-]?token|secret|authorization|client[_-]?secret|cookie|set-cookie)\b(\s*[:=]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;]+)/gi,"$1$2[OSCURATO]")
