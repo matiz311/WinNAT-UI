@@ -244,6 +244,49 @@
       "observed_errors": [],
       "evidence": [],
       "outcome": null
+    },
+    {
+      "id": "MAINT-20261017-004",
+      "type": "routine",
+      "status": "planned",
+      "registered_at": "2026-10-17T18:59:00Z",
+      "planned_start_at": null,
+      "planned_end_at": null,
+      "started_at": null,
+      "ended_at": null,
+      "components": [
+        "github-actions",
+        "issue-triage"
+      ],
+      "affected_endpoints": [
+        "tools/issue_triage_bot.py"
+      ],
+      "description": "Correzione classificazione automatica dopo smoke test #78: ignorare menzioni incidentali di release nella descrizione, privilegiare titolo e metadati strutturati.",
+      "planned_steps": [
+        "Registrare preventivamente modifica del bot mediante commit antecedente.",
+        "Aggiornare regole e unit test in PR #79.",
+        "Eseguire CI Windows/maintenance guard, integrare dopo esito positivo senza nuova release client."
+      ],
+      "expected_impact": "Nessun downtime pianificato per WinNAT client, gateway o release; possibile differenza di classificazione sulle future Issue.",
+      "expected_errors": [
+        "triage classifier false positive",
+        "test regression failure"
+      ],
+      "actor": "ChatGPT per proprietario repository",
+      "rollback": "Revertire esclusivamente la correzione al classificatore tramite PR; mantenere storico GitHub e fingerprint originali.",
+      "related_issues": [
+        78,
+        66
+      ],
+      "related_prs": [
+        79
+      ],
+      "related_workflows": [],
+      "executed_steps": [],
+      "commits": [],
+      "observed_errors": [],
+      "evidence": [],
+      "outcome": null
     }
   ]
 }
