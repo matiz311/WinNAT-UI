@@ -35,6 +35,15 @@ class AssessmentTests(unittest.TestCase):
         self.assertIn("endpoint", result.hypothesis)
         self.assertIsNone(result.suggested_title)
 
+    def test_real_gateway_version_is_recognized_but_placeholder_is_not(self):
+        base = ("**Versione WinNAT-UI:** {version}\\n"
+                "**Eccezione:** HTTPError\\n### Errore principale\\n"
+                + "Diagnostics with an explicit stack and context. " * 6)
+        good = assess("[Bug] Aggiornamenti", base.format(version="1.16.0"), 91)
+        missing = assess("[Bug] Aggiornamenti", base.format(version="0.0.0"), 92)
+        self.assertEqual(good.state, "triage:in-analisi")
+        self.assertEqual(missing.state, "triage:informazioni-richieste")
+
     def test_feature_has_feature_prefix(self):
         result = assess("[Feature] bug report", "aggiungere filtri per l'interfaccia", 90)
         self.assertIn("[Feature]", result.suggested_title)
