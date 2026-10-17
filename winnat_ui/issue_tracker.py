@@ -183,8 +183,16 @@ def save_entry(payload, issue):
               "state": "open", "fixed_in": None,
               "title": None, "triage": "ricevuto", "priority": None,
               "updated_at": None, "timeline": []}
-    # A linked GitHub issue and an in-app report must occupy just one row.
-    entries = [e for e in history() if e.get("number") != record["number"]]
+    # Preserve observed GitHub lifecycle and timeline when an existing tracked
+    # Issue receives additional diagnostics; avoid resetting it to "ricevuto".
+    stored = history()
+    previous = next((e for e in stored if e.get("number") == record["number"]), None)
+    if previous:
+        record = dict(previous, fingerprint=record["fingerprint"],
+                      operation=record["operation"], category=record["category"],
+                      version=record["version"],
+                      reported_at=previous.get("reported_at") or record["reported_at"])
+    entries = [e for e in stored if e.get("number") != record["number"]]
     entries.insert(0, record)
     path = store_path()
     path.parent.mkdir(parents=True, exist_ok=True)
