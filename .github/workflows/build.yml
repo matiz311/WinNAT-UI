@@ -280,6 +280,11 @@ jobs:
             $expectedFiles17 = @(
               '.github/maintenance/maintenance-history.json',
               '.github/workflows/build.yml',
+              'CHANGELOG.md',
+              'README.en.md',
+              'README.md',
+              'RELEASE_NOTES.it.md',
+              'VERSIONING_POLICY.md',
               "release-approvals/v$current.md"
             )
             $actualFiles17 = @(git diff --name-only HEAD^ HEAD)

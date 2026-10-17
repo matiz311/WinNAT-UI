@@ -8,11 +8,11 @@
 [![Latest release](https://img.shields.io/github/v/release/matiz311/WinNAT-UI)](https://github.com/matiz311/WinNAT-UI/releases/latest)
 [![Build Windows executable](https://github.com/matiz311/WinNAT-UI/actions/workflows/build.yml/badge.svg)](https://github.com/matiz311/WinNAT-UI/actions/workflows/build.yml)
 
-**[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)** — scarica lo ZIP della release pubblica, estrai completamente la cartella e avvia `WinNAT-UI.exe`. La release pubblicata è **v1.16.0**, **non firmata**; la firma tramite SignPath Foundation non è ancora approvata.
+**[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)** — scarica lo ZIP della release pubblica, estrai completamente la cartella e avvia `WinNAT-UI.exe`. La release pubblicata è **v1.17.0**, **non firmata**; la firma tramite SignPath Foundation non è ancora approvata.
 
-**Candidato in verifica:** `v1.17.0` (PR #80, non ancora pubblicato) introdurrà diagnostica e OpenIssue manuali; serve deploy e verifica separata del gateway, oltre ai gate di release.
+**Novità della v1.17.0:** diagnostica locale in sola lettura, creazione manuale di OpenIssue senza errori applicativi, aggiornamento delle Issue e importazione nel tracciamento delle segnalazioni GitHub. Il gateway è stato distribuito; collaudo Windows interattivo ancora necessario.
 
-**Novità della v1.16.0:** ricerca e triage dei bug, segnalazione degli errori di aggiornamento e diagnostica del canale GitHub. Pubblicata con test Windows, controllo Microsoft Defender e asset SHA-256 verificabile.
+**Nella precedente v1.16.0:** ricerca e triage dei bug, segnalazione degli errori di aggiornamento e diagnostica del canale GitHub. Pubblicata con test Windows, controllo Microsoft Defender e asset SHA-256 verificabile.
 
 - [Release e changelog](https://github.com/matiz311/WinNAT-UI/releases)
 - [Note di rilascio per versione (consultabili nel README)](#note-di-rilascio-per-versione)

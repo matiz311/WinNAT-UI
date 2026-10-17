@@ -2,11 +2,11 @@
 
 ## Stato attuale — 17 ottobre 2026
 
-La **release stabile pubblicata è v1.16.0**: [GitHub Releases](https://github.com/matiz311/WinNAT-UI/releases/latest). La patch ha corretto il fallback del logo Windows. Il catalogo comprende 33 release pubbliche fino alla v1.16.0. Le ultime versioni sono `v1.13.0` → `v1.13.0.1` → `v1.14.0` → `v1.14.1` → `v1.15.0` → `v1.15.1` → `v1.16.0`.
+La **release stabile pubblicata è v1.17.0**: [GitHub Releases](https://github.com/matiz311/WinNAT-UI/releases/latest). La release MINOR introduce diagnostica generica, issue manuali e tracking per numero. Il catalogo comprende 34 release pubbliche fino alla v1.17.0. Le ultime versioni sono `v1.13.0` → `v1.13.0.1` → `v1.14.0` → `v1.14.1` → `v1.15.0` → `v1.15.1` → `v1.16.0` → `v1.17.0`.
 
 **v1.16.0 è una release MINOR pubblicata il 17 ottobre 2026.** Comprende gestione avanzata delle segnalazioni bug, diagnosi dell'updater, notifiche di errori d'installazione e registro manutenzioni. La CI combinata, la scansione Defender e il gate di approvazione sono stati completati con successo nel run 39013376627. Per v1.15.0 esisteva un'autorizzazione eccezionale, limitata a quel rilascio. Il 17 ottobre 2026 il proprietario ha autorizzato espressamente ChatGPT a integrare, verificare e pubblicare la v1.16.0 in autonomia: per questa sola release il workflow riconosce la registrazione `release-approvals/v1.16.0.md` a fronte di un commit `main` e di un insieme di file modificati puntualmente predefiniti. Un primo errore di lettura del percorso PowerShell è stato corretto e verificato nella PR #73. L'autorizzazione non disabilita build, test, Defender, gate versione, verifica della release esistente o controllo dell'HEAD e non vale per versioni successive.
 
-**Candidato in preparazione:** `v1.17.0` (MINOR), PR #80, versione del ramo candidato e **non ancora** GitHub Release. L'ultimo download stabile pubblico rimane `v1.16.0`; #81/#84 non sono incluse nel candidato. La pubblicazione non è implicita con merge e richiede il workflow manuale con approvazione.
+**v1.17.0 (MINOR):** la PR #80 è stata integrata e il proprietario ha approvato espressamente il rilascio il 17 ottobre 2026. Il gate monouso della PR #85 è vincolato all'esatto HEAD precedente, al set atteso dei file e al record `release-approvals/v1.17.0.md`; nessun bypass di test, Defender, metadati o SHA. Le PR #81 e #84 restano escluse. Questa autorizzazione non è valida per release successive, che richiedono nuovamente workflow manuale e approvazione.
 
 ## Fonte della versione
 
