@@ -280,15 +280,15 @@ jobs:
             $expectedFiles17 = @(
               '.github/maintenance/maintenance-history.json',
               '.github/workflows/build.yml',
-              'release-approvals/v$current.md'
+              "release-approvals/v$current.md"
             )
             $actualFiles17 = @(git diff --name-only HEAD^ HEAD)
             if (@(Compare-Object $actualFiles17 $expectedFiles17).Count -ne 0) {
               throw 'One-time v$current approval invalid: unexpected changed files.'
             }
-            $approval17 = Get-Content 'release-approvals/v$current.md' -Raw -Encoding utf8
+            $approval17 = Get-Content "release-approvals/v$current.md" -Raw -Encoding utf8
             if (-not $approval17.Contains($approvedSource17) -or
-                -not $approval17.Contains('v$current') -or
+                -not $approval17.Contains("v$current") -or
                 -not $approval17.Contains('OWNER_APPROVED_FOR_ONE_RELEASE') -or
                 -not $approval17.Contains('MAINT-20261017-007') -or
                 -not $approval17.Contains('PR #85')) {
