@@ -203,11 +203,14 @@ jobs:
           # Bound to a frozen main parent and an exhaustive changed-file set.
           # All build, Defender, asset-integrity and versioning checks remain active.
           $approvedSource16 = 'e45cd321421049daced009345b2463c88d3db512'
+          $approvedRecoverySource16 = '8189363c1549c14cf736e7b1b0fe876a79cb37ab'
+          $parent16 = (git rev-parse HEAD^).Trim()
           if ($env:GITHUB_EVENT_NAME -eq 'push' -and
               $env:GITHUB_REF -eq 'refs/heads/main' -and
               $current -eq '1.16.0' -and
-              (git rev-parse HEAD^).Trim() -eq $approvedSource16) {
-            $expectedFiles16 = @(
+              $parent16 -in @($approvedSource16, $approvedRecoverySource16)) {
+            if ($parent16 -eq $approvedSource16) {
+              $expectedFiles16 = @(
               '.github/maintenance/README.md',
               '.github/maintenance/maintenance-history.json',
               '.github/workflows/build.yml',
@@ -235,17 +238,31 @@ jobs:
               'winnat_ui/issue_tracker.py',
               'winnat_ui/maintenance.py',
               'winnat_ui/updater.py'
-            )
+              )
+            } else {
+              # Recovery from the original main build's PowerShell quoting error.
+              # Only governance, release approval and the workflow may change.
+              $expectedFiles16 = @(
+                '.github/maintenance/maintenance-history.json',
+                '.github/workflows/build.yml',
+                "release-approvals/v$current.md"
+              )
+            }
             $actualFiles16 = @(git diff --name-only HEAD^ HEAD)
             if (@(Compare-Object $actualFiles16 $expectedFiles16).Count -ne 0) {
               throw 'One-time v$current approval invalid: unexpected changed files.'
             }
-            $approval16 = Get-Content 'release-approvals/v$current.md' -Raw -Encoding utf8
+            $approval16 = Get-Content "release-approvals/v$current.md" -Raw -Encoding utf8
             if (-not $approval16.Contains($approvedSource16) -or
                 -not $approval16.Contains("v$current") -or
                 -not $approval16.Contains('OWNER_APPROVED_FOR_ONE_RELEASE') -or
                 -not $approval16.Contains('MAINT-20261017-001')) {
               throw 'One-time v$current authorization record missing or inconsistent.'
+            }
+            if ($parent16 -eq $approvedRecoverySource16 -and
+                (-not $approval16.Contains($approvedRecoverySource16) -or
+                 -not $approval16.Contains('MAINT-20261017-002'))) {
+              throw 'Release recovery authorization is inconsistent.'
             }
             Write-Host 'One-time owner authorization recognized for v$current.'
             $options += '--manual'
