@@ -103,6 +103,7 @@ class MaintenanceRegistryTests(unittest.TestCase):
             if args[0] == "merge-base": return "base"
             if args[0] == "rev-list": return squash
             if args[0] == "diff-tree": return "services/bug-gateway/src/index.js"
+            if args[0] == "rev-parse": return "previous"
             raise AssertionError(args)
         with (patch.object(guard, "git", side_effect=fake_git),
               patch.object(guard, "at_commit", return_value={"events": []})):
