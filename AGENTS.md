@@ -55,6 +55,16 @@ Before merging **any** pull request, ChatGPT must:
 - During triage, correlate failures with maintenance by UTC time range, affected component and error signature. A temporal match alone is **not** proof of causation: report `possible maintenance correlation` until confirmed by logs, workflow events or the maintainer.
 - Do not make normal WinNAT-UI operation depend on the registry being reachable. Do not weaken updater allowlists, artifact integrity checks or security controls because of a maintenance entry.
 
+## Mandatory issue and bug-report triage
+
+Before analyzing, categorizing, changing, or closing a reported WinNAT-UI bug, **read and follow [docs/issue-triage.md](docs/issue-triage.md)**. This procedure applies to ChatGPT, Claude, and other maintainers, including re-opened issues and follow-up reports.
+
+- Carry out evidence-based initial triage, differentiate observed behavior from hypotheses, assign a distinct descriptive title, assess and justify priority, and record a structured comment with the next responsible action.
+- **Keep GitHub labels synchronized with every lifecycle decision**: exactly one applicable `triage:*` state, exactly one justified `priority:*` when determinable, and a single `fixed-in/vX.Y.Z[.H]` only after checking the first public release containing the fix commit.
+- A GitHub comment, closed issue, green CI, or merged PR does **not** automatically populate status, priority, or fix version in the desktop app. Re-read the issue labels and verify successful UI synchronization when possible.
+- Distinguish code fix, published release, actual functional validation, and documented closure. Preserve original issue/fingerprint identity, local tracking consistency, and traceable evidence. Do not claim tests, release inclusion, or user validation without proof.
+- Never bypass the review, merge, versioning, release-approval, or maintenance gates described in this file.
+
 ## Project-specific architectural caution
 
 WinNAT and network configuration paths are high impact. Check changes to `app.py`, `winnat_ui/nat_backend.py`, `winnat_ui/network*.py`, rollback, and related tests together. Never assume that allowing multiple independently configured WinNAT objects is equivalent to the project's current documented single-WinNAT architecture. An alternative design requires an explicit architectural decision and relevant host-level validation before integration.
