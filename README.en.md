@@ -2,6 +2,8 @@
 
 # WinNAT UI
 
+**Upcoming (not released):** `v1.17.0` is a release candidate on PR #80 for opt-in local diagnostics and manually reported/tracked GitHub issues. The released stable remains v1.16.0; the updated gateway deployment and release checks are pending.
+
 **English** | [Italiano](README.md)
 
 [![Download Windows ZIP](https://img.shields.io/badge/Download-Windows%20ZIP-blue?logo=windows)](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)

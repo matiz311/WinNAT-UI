@@ -10,6 +10,8 @@
 
 **[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)** — scarica lo ZIP della release pubblica, estrai completamente la cartella e avvia `WinNAT-UI.exe`. La release pubblicata è **v1.16.0**, **non firmata**; la firma tramite SignPath Foundation non è ancora approvata.
 
+**Candidato in verifica:** `v1.17.0` (PR #80, non ancora pubblicato) introdurrà diagnostica e OpenIssue manuali; serve deploy e verifica separata del gateway, oltre ai gate di release.
+
 **Novità della v1.16.0:** ricerca e triage dei bug, segnalazione degli errori di aggiornamento e diagnostica del canale GitHub. Pubblicata con test Windows, controllo Microsoft Defender e asset SHA-256 verificabile.
 
 - [Release e changelog](https://github.com/matiz311/WinNAT-UI/releases)
