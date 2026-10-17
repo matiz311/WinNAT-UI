@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "updated_at": null,
+  "services": {
+    "github-releases": {
+      "status": "unknown",
+      "event_id": null,
+      "planned_end_at": null
+    },
+    "release-assets": {
+      "status": "unknown",
+      "event_id": null,
+      "planned_end_at": null
+    },
+    "update-api": {
+      "status": "unknown",
+      "event_id": null,
+      "planned_end_at": null
+    },
+    "bug-gateway": {
+      "status": "unknown",
+      "event_id": null,
+      "planned_end_at": null
+    }
+  }
+}

@@ -1,0 +1,36 @@
+name: Maintenance guard
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  maintenance-guard:
+    name: maintenance-guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head (full history needed for ordering)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate registry schema and invariants
+        run: python tools/maintenance_guard.py validate
+      - name: Unit tests
+        run: python -m unittest tests.test_maintenance_guard -v
+      - name: Verify pre-change registration precedes risky PR commits
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: python tools/maintenance_guard.py check-pr --base "$PR_BASE" --pr "$PR_NUMBER"
