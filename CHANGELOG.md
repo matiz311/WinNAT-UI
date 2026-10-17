@@ -10,13 +10,13 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag già pubblicati nella numerazione corrente non vengono modificati; la normalizzazione dello storico è stata conclusa il 16 ottobre 2026.
 
 
-## [1.16.0] - 2026-10-17 (candidato)
+## [1.16.0] - 2026-10-17
 ### Sintesi
 Release MINOR retrocompatibile: ricerca e triage dei bug segnalati, diagnosi più precisa del canale GitHub e aggiornamenti Windows più affidabili. Comprende le correzioni integrate dopo v1.15.1 e lascia invariata l'architettura WinNAT a singola subnet interna.
 
 ### Funzionalità
 - Informazioni → Bug segnalati: titolo descrittivo della Issue, stato di triage, priorità, data di aggiornamento, release correttiva, ricerca per titolo/ID e filtri di stato (PR #67).
-- Le nuove segnalazioni del gateway includono la label iniziale `triage:ricevuto`; l'attivazione effettiva richiede deploy del Worker e verifica delle label GitHub (PR #67).
+- Le nuove segnalazioni del gateway includono la label iniziale `triage:ricevuto`; il Worker è stato distribuito con esito `ready`, ma resta da verificare operativamente la presenza delle label GitHub (PR #67).
 - Registro manutenzioni GitHub con controllo CI preventivo; lo stato non equivale a una verifica di salute live dei servizi (PR #68).
 
 ### Correzioni
@@ -28,7 +28,7 @@ Release MINOR retrocompatibile: ricerca e triage dei bug segnalati, diagnosi pi�
 
 ### Limiti
 - Serve collaudo reale su Windows per installazione, rollback e rete; la CI esegue anche test, packaging, diagnostica e Defender, ma non replica tutti gli scenari operativi.
-- Le modifiche Worker richiedono pubblicazione/verifica del gateway; la UI non dipende dalla disponibilità del registro manutenzioni.
+- La distribuzione Worker è stata completata, ma resta necessario verificare le label GitHub; la UI non dipende dalla disponibilità del registro manutenzioni.
 - Eseguibile non firmato digitalmente.
 
 ## [1.15.1] - 2026-10-16
