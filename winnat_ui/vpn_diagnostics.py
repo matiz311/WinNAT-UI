@@ -69,6 +69,21 @@ $r | ConvertTo-Json -Depth 8 -Compress
 """
 
 
+
+def suggest_phase(inventory, snapshots=None):
+    """Suggest a phase from cached state, without treating it as proof.
+
+    The UI asks for explicit confirmation. A WinNAT object may belong to
+    another component and a connected adapter need not mean an active VPN.
+    """
+    snapshots = snapshots or {}
+    nats = inventory.get("nats") if isinstance(inventory, dict) else None
+    if isinstance(nats, list) and nats:
+        return "winnat"
+    if "before" in snapshots and "winnat" in snapshots:
+        return "rollback"
+    return "before"
+
 def storage_path():
     folder = os.environ.get("LOCALAPPDATA") or str(Path.home() / ".local" / "share")
     return Path(folder) / "WinNAT-UI" / "vpn-diagnostics.json"
