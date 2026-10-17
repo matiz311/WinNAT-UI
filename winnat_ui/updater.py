@@ -16,6 +16,8 @@ import urllib.request
 import urllib.error
 import zipfile
 
+from . import maintenance
+
 REPOSITORY = "matiz311/WinNAT-UI"
 API_URL = "https://api.github.com/repos/" + REPOSITORY + "/releases/latest"
 ASSET_NAME = "WinNAT-UI-Windows.zip"
@@ -47,6 +49,16 @@ def _request(url, *, timeout=20):
     })
 
 
+class UpdateChannelError(ValueError):
+    """Stable error classification without breaking existing ValueError callers."""
+
+    def __init__(self, reason, message, *, phase="release_lookup", http_status=None):
+        super().__init__(message)
+        self.reason = reason
+        self.phase = phase
+        self.http_status = http_status
+
+
 def _latest_release_metadata():
     """Translate GitHub connectivity/status errors into actionable information.
 
@@ -54,45 +66,96 @@ def _latest_release_metadata():
     """
     try:
         with urllib.request.urlopen(_request(API_URL), timeout=20) as response:
-            return json.load(response)
+            try:
+                return json.load(response)
+            except (json.JSONDecodeError, UnicodeError) as error:
+                raise UpdateChannelError(
+                    "invalid_release_metadata",
+                    "Controllo aggiornamenti: risposta JSON di GitHub non valida."
+                ) from error
     except urllib.error.HTTPError as error:
         code = error.code
         if code == 404:
             description = "Nessuna release stabile pubblicata o endpoint temporaneamente assente."
+            hint = maintenance.maintenance_hint()
+            if hint:
+                description += " " + hint
         elif code in (403, 429):
             description = "Accesso alle API GitHub limitato o non autorizzato; riprovare più tardi."
         elif 500 <= code <= 599:
             description = "Servizio GitHub temporaneamente non disponibile; riprovare più tardi."
         else:
             description = "Il servizio GitHub ha rifiutato la richiesta."
-        raise ValueError("Controllo aggiornamenti: HTTP " + str(code) + ". " + description) from error
+        reason = ("no_published_release" if code == 404 else
+                  "rate_limited" if code in (403, 429) else
+                  "service_unavailable" if 500 <= code <= 599 else "http_failure")
+        raise UpdateChannelError(reason, "Controllo aggiornamenti: HTTP "
+                                 + str(code) + ". " + description,
+                                 http_status=code) from error
     except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
-        raise ValueError(
+        raise UpdateChannelError(
+            "network_failure",
             "Impossibile contattare GitHub per gli aggiornamenti: verificare connessione, DNS e proxy."
         ) from error
 
 
 def release_info(installed):
     data = _latest_release_metadata()
-    tag = data.get("tag_name", "")
-    version_tuple(tag)
+    if not isinstance(data, dict):
+        raise UpdateChannelError(
+            "invalid_release_metadata",
+            "Controllo aggiornamenti: struttura dei metadati GitHub non valida.")
+    tag = data.get("tag_name")
+    try:
+        version_tuple(tag)
+    except (ValueError, TypeError) as error:
+        raise UpdateChannelError(
+            "invalid_release_metadata",
+            "Controllo aggiornamenti: versione della release GitHub non valida."
+        ) from error
     if data.get("draft") or data.get("prerelease"):
-        raise ValueError("L'ultima release non è una versione stabile pubblicata.")
-    assets = [a for a in data.get("assets", []) if a.get("name") == ASSET_NAME]
+        raise UpdateChannelError(
+            "invalid_release_metadata",
+            "L'ultima release non è una versione stabile pubblicata.")
+    asset_list = data.get("assets")
+    if not isinstance(asset_list, list) or any(
+            not isinstance(item, dict) for item in asset_list):
+        raise UpdateChannelError(
+            "invalid_release_metadata",
+            "Controllo aggiornamenti: elenco degli asset GitHub non valido.",
+            phase="inspect_asset")
+    assets = [a for a in asset_list if a.get("name") == ASSET_NAME]
     if len(assets) != 1:
-        raise ValueError("Release senza archivio Windows ufficiale univoco.")
+        hint = maintenance.maintenance_hint("release-assets")
+        raise UpdateChannelError(
+            "release_without_required_asset",
+            "Release senza archivio Windows ufficiale univoco." + (" " + hint if hint else ""),
+            phase="inspect_asset")
     asset = assets[0]
     url = asset.get("browser_download_url", "")
     expected = ("https://github.com/" + REPOSITORY + "/releases/download/"
                 + tag + "/" + ASSET_NAME)
     if url != expected:
-        raise ValueError("URL dell'asset non corrispondente alla release ufficiale.")
+        raise UpdateChannelError(
+            "invalid_asset_metadata",
+            "URL dell'asset non corrispondente alla release ufficiale.",
+            phase="inspect_asset")
     digest = asset.get("digest", "")
-    if not re.fullmatch(r"sha256:[a-fA-F0-9]{64}", digest):
-        raise ValueError("GitHub non fornisce un digest SHA256 verificabile per l'archivio.")
+    if not isinstance(digest, str) or not re.fullmatch(
+            r"sha256:[a-fA-F0-9]{64}", digest):
+        raise UpdateChannelError(
+            "invalid_asset_metadata",
+            "GitHub non fornisce un digest SHA256 verificabile per l'archivio.",
+            phase="inspect_asset")
+    size = asset.get("size", 0)
+    if isinstance(size, bool) or not isinstance(size, int) or size < 0:
+        raise UpdateChannelError(
+            "invalid_asset_metadata",
+            "Dimensione dell'archivio GitHub non valida.",
+            phase="inspect_asset")
     return {"version": tag.lstrip("v"), "tag": tag, "url": url,
             "sha256": digest.split(":", 1)[1].lower(),
-            "size": int(asset.get("size") or 0),
+            "size": size,
             "available": newer(tag, installed),
             "page": data.get("html_url", "")}
 

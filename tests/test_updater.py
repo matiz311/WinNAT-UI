@@ -52,6 +52,83 @@ class UpdaterTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, "connessione, DNS e proxy"):
                         updater.release_info("1.14.0")
 
+    def test_update_errors_expose_stable_reason_phase_and_status(self):
+        from urllib.error import HTTPError, URLError
+        mapping = {404: "no_published_release", 403: "rate_limited",
+                   429: "rate_limited", 503: "service_unavailable",
+                   418: "http_failure"}
+        for status, reason in mapping.items():
+            with self.subTest(status=status):
+                error = HTTPError(updater.API_URL, status, "test", None, None)
+                with patch("winnat_ui.updater.urllib.request.urlopen",
+                           side_effect=error):
+                    with self.assertRaises(updater.UpdateChannelError) as ctx:
+                        updater.release_info("1.14.0")
+                self.assertIsInstance(ctx.exception, ValueError)
+                self.assertEqual(ctx.exception.reason, reason)
+                self.assertEqual(ctx.exception.phase, "release_lookup")
+                self.assertEqual(ctx.exception.http_status, status)
+        with patch("winnat_ui.updater.urllib.request.urlopen",
+                   side_effect=URLError("offline")):
+            with self.assertRaises(updater.UpdateChannelError) as ctx:
+                updater.release_info("1.14.0")
+        self.assertEqual(ctx.exception.reason, "network_failure")
+        self.assertIsNone(ctx.exception.http_status)
+
+    def test_missing_duplicate_and_invalid_assets_are_classified(self):
+        tag = "v1.16.0"
+        base_url = ("https://github.com/" + updater.REPOSITORY
+                    + "/releases/download/" + tag + "/" + updater.ASSET_NAME)
+        valid = {"name": updater.ASSET_NAME, "browser_download_url": base_url,
+                 "digest": "sha256:" + "a" * 64, "size": 100}
+        cases = [([], "release_without_required_asset"),
+                 ([valid, valid], "release_without_required_asset"),
+                 ([dict(valid, digest="")], "invalid_asset_metadata"),
+                 ([dict(valid, digest=None)], "invalid_asset_metadata"),
+                 ([dict(valid, size="invalid")], "invalid_asset_metadata"),
+                 ([dict(valid, size=True)], "invalid_asset_metadata"),
+                 ([dict(valid, browser_download_url="https://example.com/file.zip")],
+                  "invalid_asset_metadata")]
+        class Response(io.BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+        for assets, reason in cases:
+            with self.subTest(reason=reason, count=len(assets)):
+                payload = {"tag_name": tag, "assets": assets}
+                response = Response(json.dumps(payload).encode())
+                with patch("winnat_ui.updater.urllib.request.urlopen",
+                           return_value=response):
+                    with self.assertRaises(updater.UpdateChannelError) as ctx:
+                        updater.release_info("1.15.0")
+                self.assertEqual(ctx.exception.reason, reason)
+                self.assertEqual(ctx.exception.phase, "inspect_asset")
+                self.assertIsNone(ctx.exception.http_status)
+
+    def test_malformed_github_release_metadata_is_classified(self):
+        cases = [
+            (b"not-json", "release_lookup"),
+            (b"[]", "release_lookup"),
+            (b"null", "release_lookup"),
+            (b'{"tag_name":"not-a-version","assets":[]}', "release_lookup"),
+            (b'{"tag_name":"v1.16.0","assets":null}', "inspect_asset"),
+            (b'{"tag_name":"v1.16.0","assets":[null]}', "inspect_asset"),
+        ]
+
+        class Response(io.BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+
+        for payload, phase in cases:
+            with self.subTest(payload=payload):
+                with patch("winnat_ui.updater.urllib.request.urlopen",
+                           return_value=Response(payload)):
+                    with self.assertRaises(updater.UpdateChannelError) as ctx:
+                        updater.release_info("1.15.0")
+                self.assertEqual(ctx.exception.reason, "invalid_release_metadata")
+                self.assertEqual(ctx.exception.phase, phase)
+                self.assertIsNone(ctx.exception.http_status)
+                self.assertIsInstance(ctx.exception, ValueError)
+
     def test_latest_release_requires_verified_official_asset(self):
         digest = "a" * 64
         data = {"tag_name": "v1.9.3", "draft": False, "prerelease": False,
