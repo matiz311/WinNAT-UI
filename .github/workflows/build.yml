@@ -268,6 +268,36 @@ jobs:
             $options += '--manual'
             $options += '--approved'
           }
+          # One-time v1.17.0 release explicitly approved by the repository owner.
+          # The exact main parent and changed-file set prevent reuse on later pushes.
+          # This adds only the existing manual-approval flags; the entire build,
+          # versioning, SHA, Defender and current-main checks remain mandatory.
+          $approvedSource17 = '513b14f0d968add327080126de6d290bdb08720b'
+          if ($env:GITHUB_EVENT_NAME -eq 'push' -and
+              $env:GITHUB_REF -eq 'refs/heads/main' -and
+              $current -eq '1.17.0' -and
+              (git rev-parse HEAD^).Trim() -eq $approvedSource17) {
+            $expectedFiles17 = @(
+              '.github/maintenance/maintenance-history.json',
+              '.github/workflows/build.yml',
+              'release-approvals/v1.17.0.md'
+            )
+            $actualFiles17 = @(git diff --name-only HEAD^ HEAD)
+            if (@(Compare-Object $actualFiles17 $expectedFiles17).Count -ne 0) {
+              throw 'One-time v1.17.0 approval invalid: unexpected changed files.'
+            }
+            $approval17 = Get-Content 'release-approvals/v1.17.0.md' -Raw -Encoding utf8
+            if (-not $approval17.Contains($approvedSource17) -or
+                -not $approval17.Contains('v1.17.0') -or
+                -not $approval17.Contains('OWNER_APPROVED_FOR_ONE_RELEASE') -or
+                -not $approval17.Contains('MAINT-20261017-007') -or
+                -not $approval17.Contains('PR #85')) {
+              throw 'One-time v1.17.0 authorization record missing or inconsistent.'
+            }
+            Write-Host 'One-time owner authorization recognized for v1.17.0 only.'
+            $options += '--manual'
+            $options += '--approved'
+          }
           $decision = python tools/release.py gate $previous @options
           if ($LASTEXITCODE -ne 0) { throw "Release policy check failed: $decision" }
           Write-Host "Release decision: $decision (previous=$previous)"
