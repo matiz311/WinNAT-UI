@@ -69,6 +69,61 @@
         "2026-10-16T22:42:29Z Windows build success commit 278950a con test, Defender, metadati EXE, artefatto; publish steps skipped."
       ],
       "outcome": "Completato con correzione dei test: guard e build Windows riusciti sul commit 278950a; nessuna release o modifica live ai servizi."
+    },
+    {
+      "id": "MAINT-20261017-001",
+      "type": "routine",
+      "status": "planned",
+      "registered_at": "2026-10-17T06:59:25Z",
+      "planned_start_at": null,
+      "planned_end_at": null,
+      "started_at": null,
+      "ended_at": null,
+      "components": [
+        "github-releases",
+        "github-actions",
+        "bug-gateway"
+      ],
+      "affected_endpoints": [
+        "version.py",
+        "version_info.txt",
+        "GitHub Releases latest API",
+        "WinNAT-UI-Windows.zip",
+        "services/bug-gateway/src/index.js"
+      ],
+      "description": "Preparazione e verifica del rilascio MINOR v1.16.0; integrazione delle PR #67 #70 #62 #71 con policy #68 già integrata. Nessun deployment gateway implicito.",
+      "planned_steps": [
+        "Verificare merge congiunto, dipendenze e test pre-release su PR #72.",
+        "Registrare e validare la legacy exemption strettamente vincolata all'integrazione del commit gateway #67 anteriore alla policy.",
+        "Aggiornare numero di versione, metadati Windows, CHANGELOG, note di rilascio e README.",
+        "Validare CI Windows, gate manutenzione, scansione Defender, artefatti e SHA256.",
+        "Effettuare la pubblicazione solo mediante workflow di approvazione del progetto e verificare gli asset pubblici."
+      ],
+      "expected_impact": "Nessun disservizio atteso durante compilazione e PR; possibili errori temporanei 404 o archivio assente solo durante una futura operazione di rilascio. Nessuna modifica diretta ai network host.",
+      "expected_errors": [
+        "HTTP 404 releases/latest",
+        "release_without_required_asset",
+        "maintenance-guard failed on unregistered version metadata changes"
+      ],
+      "actor": "ChatGPT per il proprietario repository",
+      "rollback": "Non pubblicare se gate fallisce; interrompere PR di integrazione e revert dei commit non rilasciati. Dopo release, preservare i tag già pubblicati e produrre release correttiva con nuovo numero, senza sovrascrivere artefatti.",
+      "related_issues": [
+        44,
+        65,
+        66
+      ],
+      "related_prs": [
+        72,
+        67,
+        70,
+        62,
+        71
+      ],
+      "related_workflows": [],
+      "executed_steps": [],
+      "commits": [],
+      "observed_errors": [],
+      "evidence": []
     }
   ]
 }
