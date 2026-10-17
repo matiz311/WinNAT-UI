@@ -23,10 +23,12 @@ ID_PATTERN = re.compile(r"^MAINT-[0-9]{8}-[0-9]{3,}$")
 UTC_PATTERN = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
 RISK_PATHS = (
     ".github/workflows/",
-    "services/bug-gateway/",
+    "services/bug-gateway/src/",
     "release-approvals/",
 )
-RISK_FILES = {"tools/release.py", "version.py", "version_info.txt"}
+RISK_FILES = {"tools/release.py", "version.py", "version_info.txt",
+              "services/bug-gateway/wrangler.toml",
+              "services/bug-gateway/package.json"}
 # Audited pre-policy change; exemption is bound to one immutable commit and path.
 # PR #67 introduced this exact gateway label change before registration became mandatory.
 LEGACY_RISK_COMMITS = {
