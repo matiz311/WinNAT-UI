@@ -8,7 +8,7 @@ import traceback
 import time
 import tkinter as tk
 import webbrowser
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog, simpledialog
 from winnat_ui import network
 from winnat_ui import nat_backend  # Include headless NAT/IP capabilities in packaged Windows executable.
 from winnat_ui import secondary_ips
@@ -1330,6 +1330,8 @@ class App(tk.Tk):
         tk.Label(heading, text="Bug segnalati e correzioni", font=F["strong"],
                  bg=C["surface"], fg=C["text"]).pack(side="left")
         ttk.Button(heading, text="Verifica stato Issue", command=self.refresh_issue_tracker).pack(side="right")
+        ttk.Button(heading, text="Segui Issue GitHub", command=self.follow_github_issue).pack(side="right", padx=(0, S2))
+        ttk.Button(heading, text="Nuova segnalazione", command=self.create_manual_issue).pack(side="right", padx=(0, S2))
         self.issue_status = tk.StringVar(value="Archivio locale delle segnalazioni.")
         tk.Label(issues.body, textvariable=self.issue_status, bg=C["surface"],
                  fg=C["text_muted"], font=F["caption"]).pack(anchor="w", pady=(S2, 0))
@@ -1356,6 +1358,8 @@ class App(tk.Tk):
         self.issue_table.pack(fill="x", pady=(S2, 0))
         self.issue_table.bind("<Double-1>", self.open_tracked_issue)
         self.issue_table.bind("<<TreeviewSelect>>", self.show_tracked_issue_details)
+        ttk.Button(issues.body, text="Aggiungi informazioni su GitHub",
+                   command=self.add_issue_information).pack(anchor="w", pady=(S2, 0))
         self.issue_details = tk.StringVar(value="Seleziona una segnalazione per visualizzarne i dettagli.")
         tk.Label(issues.body, textvariable=self.issue_details, bg=C["surface"],
                  fg=C["text_muted"], font=F["caption"], justify="left",
@@ -1370,6 +1374,159 @@ class App(tk.Tk):
             tk.Label(keys.body, text=k, font=F["mono_s"], bg=C["surface_alt"], fg=C["text"], padx=S2, pady=2).grid(
                 row=i, column=0, sticky="w", pady=2)
             tk.Label(keys.body, text=v, font=F["body"], bg=C["surface"], fg=C["text_muted"]).grid(row=i, column=1, sticky="w", padx=S4)
+
+    def create_manual_issue(self):
+        """Report an externally observed problem without fabricating an exception."""
+        dlg = Dialog(self, "Nuova segnalazione", "Pubblica su GitHub")
+        tk.Label(dlg.body, text="Segnala un problema anche senza errori di WinNAT-UI.",
+                 bg=C["surface"], fg=C["text_muted"], font=F["body"]).pack(anchor="w")
+        tk.Label(dlg.body, text="Titolo del problema", bg=C["surface"], fg=C["text"],
+                 font=F["strong"]).pack(anchor="w", pady=(S3, S1))
+        subject = tk.StringVar()
+        title_input = ttk.Entry(dlg.body, textvariable=subject, width=73)
+        title_input.pack(fill="x")
+        tk.Label(dlg.body, text="Tipo di problema", bg=C["surface"], fg=C["text"],
+                 font=F["strong"]).pack(anchor="w", pady=(S3, S1))
+        kind = tk.StringVar(value="Problema esterno")
+        ttk.Combobox(dlg.body, textvariable=kind, state="readonly", width=34,
+                     values=("Problema esterno", "Incompatibilità",
+                             "Comportamento inatteso", "Altro problema")).pack(anchor="w")
+        tk.Label(dlg.body, text="Descrizione, condizioni, risultati osservati e risultato atteso",
+                 bg=C["surface"], fg=C["text"], font=F["strong"]).pack(anchor="w", pady=(S3, S1))
+        description = tk.Text(dlg.body, height=9, width=75, wrap="word",
+                              bg=C["surface_alt"], fg=C["text"], insertbackground=C["text"],
+                              selectbackground=C["select"], selectforeground=C["text"])
+        description.pack(fill="both", expand=True)
+        include_inventory = tk.BooleanVar(value=False)
+        ttk.Checkbutton(dlg.body, text="Allega inventario rete disponibile (IP, interfacce e topologia)",
+                        variable=include_inventory).pack(anchor="w", pady=(S3, S1))
+        tk.Label(dlg.body,
+                 text="La Issue sarà PUBBLICA. Verranno aggiunti versione e ambiente del PC. "
+                      "Nessun traceback è richiesto. Controlla i dati prima di inviare.",
+                 bg=C["surface"], fg=C["text_muted"], font=F["caption"],
+                 wraplength=590, justify="left").pack(anchor="w", pady=(S2, 0))
+
+        def build():
+            return issue_tracker.manual_payload(
+                subject.get(), description.get("1.0", "end-1c"), kind.get(), VERSION,
+                inventory=self.data if include_inventory.get() else None,
+                is_admin=self.is_admin)
+
+        def preview():
+            try:
+                payload = build()
+            except ValueError as exc:
+                messagebox.showwarning("Dati mancanti", str(exc), parent=dlg)
+                return
+            title, body = bug_report.format_report(payload)
+            viewer = Dialog(self, "Anteprima della Issue pubblica", "Chiudi")
+            viewer.cancel_btn.pack_forget()
+            content = tk.Text(viewer.body, height=21, width=94, wrap="word",
+                              font=F["mono_s"], bg=C["surface_alt"], fg=C["text"],
+                              selectbackground=C["select"], selectforeground=C["text"])
+            content.pack(fill="both", expand=True)
+            content.insert("1.0", title + "\n\n" + body)
+            content.configure(state="disabled")
+            viewer.resizable(True, True)
+            viewer.run(focus=viewer.ok)
+
+        ttk.Button(dlg.body, text="Anteprima dati da pubblicare",
+                   command=preview).pack(anchor="w", pady=(S2, 0))
+
+        def publish():
+            if "Segnala bug" in self.tasks:
+                return
+            try:
+                payload = build()
+            except ValueError as exc:
+                messagebox.showwarning("Dati mancanti", str(exc), parent=dlg)
+                return
+            if not messagebox.askyesno(
+                    "Conferma pubblicazione",
+                    "Stai per aprire o aggiornare una Issue GitHub pubblica.\n\n"
+                    "Il testo e le informazioni di sistema saranno pubblici; l'inventario rete "
+                    "sarà incluso solo se selezionato. La mascheratura dei segreti non è infallibile.\n\n"
+                    "Hai verificato l'anteprima e confermi l'invio?", parent=dlg):
+                return
+            progress = ProgressDialog(dlg, "Invio segnalazione", "Invio su GitHub in corso…")
+
+            def send():
+                result = issue_tracker.submit(payload)
+                issue_tracker.save_entry(payload, result)
+                return result
+
+            def sent(result):
+                self.render_issue_tracker()
+                self.notice.set("Issue #" + str(result["number"]) + " collegata.")
+                progress.succeed("Segnalazione inviata",
+                                 "Issue #" + str(result["number"]) +
+                                 (" aggiornata." if result["already_exists"] else " creata.") +
+                                 " Monitoraggio attivato.",
+                                 url=result["url"], on_close=dlg.destroy)
+
+            def failed(message):
+                progress.fail("Segnalazione non inviata",
+                              "Il servizio remoto non è disponibile. Nessuna nuova eccezione applicativa "
+                              "è stata generata.\n" + message,
+                              retry=publish)
+
+            self.run_task("Segnala bug", send, sent, on_error=failed)
+
+        dlg.ok.configure(command=publish)
+        dlg.resizable(True, True)
+        dlg.run(focus=title_input)
+
+    def follow_github_issue(self):
+        """Subscribe to a GitHub Issue already created outside the application."""
+        reference = simpledialog.askstring(
+            "Segui Issue GitHub", "Inserisci il numero (es. #76) o l'URL della Issue WinNAT-UI:",
+            parent=self)
+        if reference is None:
+            return
+        try:
+            number = issue_tracker.issue_number(reference)
+        except ValueError as exc:
+            messagebox.showwarning("Issue non valida", str(exc), parent=self)
+            return
+        if "Segui Issue" in self.tasks:
+            return
+        progress = ProgressDialog(self, "Collegamento Issue", "Verifica della Issue GitHub…")
+
+        def link():
+            return issue_tracker.track_issue(number)
+
+        def completed(result):
+            record, added = result
+            self.render_issue_tracker()
+            for iid in self.issue_table.get_children():
+                if self.issue_table.set(iid, "number") == "#" + str(record["number"]):
+                    self.issue_table.selection_set(iid)
+                    self.issue_table.see(iid)
+                    self.show_tracked_issue_details()
+                    break
+            progress.succeed("Issue collegata" if added else "Issue già seguita",
+                             "#" + str(record["number"]) +
+                             " è disponibile nella sezione Informazioni.",
+                             url=record["url"])
+
+        def failed(message):
+            progress.fail("Collegamento non riuscito",
+                          "Impossibile verificare la Issue GitHub.\n" + message,
+                          retry=self.follow_github_issue)
+
+        self.run_task("Segui Issue", link, completed, on_error=failed)
+
+    def add_issue_information(self):
+        """Use authenticated GitHub comments without shipping a write token."""
+        selected = self.issue_table.selection()
+        if not selected:
+            messagebox.showinfo("Seleziona una Issue",
+                                "Seleziona una segnalazione da aggiornare.", parent=self)
+            return
+        entries = issue_tracker.history()
+        index = int(selected[0])
+        if index < len(entries):
+            webbrowser.open(entries[index]["url"])
 
     def render_issue_tracker(self):
         if not hasattr(self, "issue_table"):
@@ -1421,6 +1578,9 @@ class App(tk.Tk):
                   ("Operazione", issue.get("operation")), ("Versione segnalata", issue.get("version")),
                   ("Prima segnalazione", issue.get("reported_at")),
                   ("Ultimo aggiornamento GitHub", issue.get("updated_at")),
+                  ("Commenti GitHub", issue.get("comments")),
+                  ("Origine", "Importata da GitHub" if issue.get("tracked_via") == "github"
+                   else "Segnalata da questa installazione"),
                   ("Stato triage", issue.get("triage")),
                   ("Stato GitHub", issue.get("state")),
                   ("Priorità", issue.get("priority")),

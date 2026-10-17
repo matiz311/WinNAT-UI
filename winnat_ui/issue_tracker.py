@@ -30,6 +30,36 @@ def safe_payload(operation, error, stack, version=VERSION, inventory=None, is_ad
                                     inventory=inventory, is_admin=is_admin, pending=pending)
 
 
+def manual_payload(title, description, kind="Problema esterno", version=VERSION,
+                   inventory=None, is_admin=None):
+    """Build a report with no exception, traceback or network operation required.
+
+    Reuse the existing gateway schema: older deployed Workers already support
+    the report, while the user-supplied title provides a stable distinct signature.
+    """
+    subject = str(title or "").strip()
+    details = str(description or "").strip()
+    allowed = ("Problema esterno", "Incompatibilità", "Comportamento inatteso", "Altro problema")
+    if not subject or len(subject) > 120 or "\n" in subject or "\r" in subject:
+        raise ValueError("Inserisci un titolo descrittivo di massimo 120 caratteri.")
+    if not details or len(details) > 8000:
+        raise ValueError("Inserisci una descrizione di massimo 8000 caratteri.")
+    if kind not in allowed:
+        raise ValueError("Tipologia di segnalazione non riconosciuta.")
+    message = (subject + " [" + kind + "]\n\n"
+               "Segnalazione manuale: nessuna eccezione generata da WinNAT-UI.\n"
+               "Tipo: " + kind + "\n\nDettagli e riproduzione:\n" + details)
+    payload = safe_payload("Segnalazione manuale", message, "", version,
+                           inventory=inventory, is_admin=is_admin)
+    # A broad recurring title can describe different external problems.
+    # Include the actual description in deduplication without publishing its hash input.
+    stable = json.dumps({"title": subject.casefold(), "kind": kind,
+                         "details": re.sub(r"\s+", " ", details).casefold()},
+                        ensure_ascii=False, sort_keys=True)
+    payload["signature"] = hashlib.sha256(stable.encode("utf-8")).hexdigest()[:24]
+    return payload
+
+
 def fingerprint(payload):
     # Avoid volatile values (version, exit code) to match recurring errors.
     scope = {key: payload[key] for key in ("operation", "category", "exception")}
@@ -153,8 +183,16 @@ def save_entry(payload, issue):
               "state": "open", "fixed_in": None,
               "title": None, "triage": "ricevuto", "priority": None,
               "updated_at": None, "timeline": []}
-    entries = [e for e in history() if not (
-        e.get("fingerprint") == record["fingerprint"] and e.get("number") == record["number"])]
+    # Preserve observed GitHub lifecycle and timeline when an existing tracked
+    # Issue receives additional diagnostics; avoid resetting it to "ricevuto".
+    stored = history()
+    previous = next((e for e in stored if e.get("number") == record["number"]), None)
+    if previous:
+        record = dict(previous, fingerprint=record["fingerprint"],
+                      operation=record["operation"], category=record["category"],
+                      version=record["version"],
+                      reported_at=previous.get("reported_at") or record["reported_at"])
+    entries = [e for e in stored if e.get("number") != record["number"]]
     entries.insert(0, record)
     path = store_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -162,6 +200,91 @@ def save_entry(payload, issue):
     temp.write_text(json.dumps(entries[:MAX_HISTORY], ensure_ascii=False, indent=2), encoding="utf-8")
     temp.replace(path)
     return record
+
+
+def issue_number(reference):
+    """Accept only numeric IDs or canonical issue links in this repository."""
+    value = str(reference or "").strip()
+    if re.fullmatch(r"#?\d{1,9}", value):
+        number = int(value.lstrip("#"))
+    else:
+        parts = urlsplit(value)
+        if (parts.scheme != "https" or parts.hostname != "github.com"
+                or parts.username or parts.password or parts.port
+                or parts.query or parts.fragment):
+            raise ValueError("Usa il numero o l'URL della Issue GitHub ufficiale.")
+        match = re.fullmatch(r"/" + re.escape(REPO) + r"/issues/(\d{1,9})/?", parts.path)
+        if not match:
+            raise ValueError("La Issue deve appartenere al repository WinNAT-UI.")
+        number = int(match.group(1))
+    if number <= 0:
+        raise ValueError("Il numero della Issue deve essere positivo.")
+    return number
+
+
+def issue_metadata(item):
+    """Strictly validate metadata returned by GitHub, excluding pull requests."""
+    if (not isinstance(item, dict) or "pull_request" in item
+            or type(item.get("number")) is not int or item["number"] <= 0):
+        raise RemoteIssueError("invalid_response", "L'elemento GitHub non è una Issue valida.")
+    number = item["number"]
+    url = "https://github.com/" + REPO + "/issues/" + str(number)
+    if item.get("html_url") != url or item.get("state") not in ("open", "closed"):
+        raise RemoteIssueError("invalid_response", "Identità della Issue GitHub non valida.")
+    labels = [label.get("name", "") for label in item.get("labels", [])
+              if isinstance(label, dict)]
+    fixed = next((label.split("v", 1)[1] for label in labels
+                  if re.fullmatch(r"fixed-in/v\d+\.\d+\.\d+(?:\.\d+)?", label)), None)
+    triage = next((label[len("triage:"):] for label in labels
+                   if label.startswith("triage:")), None)
+    priority = next((label[len("priority:"):] for label in labels
+                     if label.startswith("priority:")), None)
+    return {"number": number, "url": url, "state": item["state"],
+            "fixed_in": fixed, "title": str(item.get("title") or "")[:240],
+            "triage": triage, "priority": priority,
+            "comments": item.get("comments") if type(item.get("comments")) is int else None,
+            "updated_at": item.get("updated_at")}
+
+
+def read_issue(number):
+    """Read a single public GitHub issue without client credentials."""
+    number = issue_number(number)
+    item = _read_json(GITHUB_API + "/issues/" + str(number))
+    metadata = issue_metadata(item)
+    if metadata["number"] != number:
+        raise RemoteIssueError("invalid_response", "Numero Issue GitHub inatteso.")
+    return metadata
+
+
+def track_issue(reference):
+    """Add a pre-existing GitHub issue to local tracking, avoiding duplicates."""
+    number = issue_number(reference)
+    metadata = read_issue(number)
+    entries = history()
+    existing = next((r for r in entries if r.get("number") == number), None)
+    if existing is not None:
+        return existing, False
+    from datetime import datetime, timezone
+    record = {"number": number, "url": metadata["url"], "fingerprint": None,
+              "tracked_via": "github", "operation": "Issue GitHub collegata",
+              "category": "Segnalazione esterna", "version": None,
+              "reported_at": datetime.now(timezone.utc).isoformat(),
+              "state": metadata["state"], "fixed_in": metadata["fixed_in"],
+              "title": metadata["title"], "triage": metadata["triage"],
+              "priority": metadata["priority"], "updated_at": metadata["updated_at"],
+              "comments": metadata["comments"], "timeline": []}
+    entries.insert(0, record)
+    _write_history(entries)
+    return record, True
+
+
+def _write_history(entries):
+    path = store_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_suffix(".tmp")
+    temp.write_text(json.dumps(entries[:MAX_HISTORY], ensure_ascii=False, indent=2),
+                    encoding="utf-8")
+    temp.replace(path)
 
 
 def public_issues():
@@ -178,20 +301,8 @@ def public_issues():
             match = re.search(r"<!-- winnat-fingerprint:([a-f0-9]{24}) -->", body)
             if not match:
                 continue
-            labels = [label.get("name", "") for label in item.get("labels", [])
-                      if isinstance(label, dict)]
-            fixed = next((label.split("v", 1)[1] for label in labels
-                          if re.fullmatch(r"fixed-in/v\d+\.\d+\.\d+(?:\.\d+)?", label)), None)
-            triage = next((label[len("triage:"):] for label in labels
-                           if label.startswith("triage:")), None)
-            priority = next((label[len("priority:"):] for label in labels
-                             if label.startswith("priority:")), None)
-            candidate = {"number": item.get("number"), "url": item.get("html_url"),
-                         "state": item.get("state"), "fixed_in": fixed,
-                         "fingerprint": match.group(1),
-                         "title": str(item.get("title") or "")[:240],
-                         "triage": triage, "priority": priority,
-                         "updated_at": item.get("updated_at")}
+            candidate = issue_metadata(item)
+            candidate["fingerprint"] = match.group(1)
             found.setdefault(match.group(1), []).append(candidate)
         if len(issues) < 100:
             break
@@ -208,13 +319,24 @@ def comparable_release(a, b):
     return aa is not None and bb is not None and aa >= bb
 
 
-def synchronize(installed=VERSION, remote=None, latest_version=None):
-    """Update locally reported issues from public GitHub state, no personal data uploaded."""
-    listed = remote if remote is not None else public_issues()
+def synchronize(installed=VERSION, remote=None, latest_version=None, remote_by_number=None):
+    """Sync auto-reported and explicitly followed issues with GitHub metadata."""
     entries = history()
+    listed = remote if remote is not None else public_issues()
+    by_number = remote_by_number if remote_by_number is not None else {}
+    if remote is None and remote_by_number is None:
+        # Read linked issues directly: they may have neither bug-report labels
+        # nor a fingerprint. Network failures leave local history untouched.
+        for record in entries:
+            if record.get("tracked_via") == "github":
+                by_number[record["number"]] = read_issue(record["number"])
     for record in entries:
-        matches = [x for x in listed.get(record["fingerprint"], [])
-                   if x["number"] == record["number"]]
+        if record.get("tracked_via") == "github":
+            issue = by_number.get(record["number"])
+            matches = [issue] if issue is not None else []
+        else:
+            matches = [x for x in listed.get(record.get("fingerprint"), [])
+                       if x["number"] == record["number"]]
         if matches:
             issue = matches[0]
             from datetime import datetime, timezone
@@ -230,17 +352,14 @@ def synchronize(installed=VERSION, remote=None, latest_version=None):
                 timeline.append({"observed_at": datetime.now(timezone.utc).isoformat(),
                                  "changes": changes})
                 record["timeline"] = timeline[-50:]
-            for field in ("title", "triage", "priority", "updated_at", "state", "fixed_in"):
-                record[field] = issue.get(field)
+            for field in ("title", "triage", "priority", "updated_at", "state", "fixed_in", "comments"):
+                if field in issue:
+                    record[field] = issue.get(field)
             record["fix_available"] = (bool(issue["fixed_in"]) and latest_version is not None
                                        and comparable_release(latest_version, issue["fixed_in"])
                                        and not comparable_release(installed, issue["fixed_in"]))
-    path = store_path()
     if entries:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temp = path.with_suffix(".tmp")
-        temp.write_text(json.dumps(entries[:MAX_HISTORY], ensure_ascii=False, indent=2), encoding="utf-8")
-        temp.replace(path)
+        _write_history(entries)
     return entries, listed
 
 

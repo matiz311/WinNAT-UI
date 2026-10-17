@@ -172,6 +172,88 @@ class IssueTrackerTests(TestCase):
         self.assertEqual(it.find_similar(p, issues)[0]["number"], 7)
 
 
+    def test_second_occurrence_keeps_existing_triage_and_timeline(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with patch("winnat_ui.issue_tracker.store_path", return_value=Path(folder) / "issues.json"):
+                payload = it.safe_payload("Commit", "Access denied", "", "1.15.0")
+                issue = {"number": 33, "url": "https://github.com/matiz311/WinNAT-UI/issues/33"}
+                it.save_entry(payload, issue)
+                new_state = {it.fingerprint(payload): [{
+                    "number": 33, "title": "Accesso negato - LAN", "state": "open",
+                    "triage": "in-analisi", "fixed_in": None, "priority": "P2"}]}
+                it.synchronize(remote=new_state)
+                saved = it.save_entry(payload, issue)
+                self.assertEqual(saved["triage"], "in-analisi")
+                self.assertEqual(saved["title"], "Accesso negato - LAN")
+                self.assertEqual(len(saved["timeline"]), 1)
+                self.assertEqual(len(it.history()), 1)
+
+    def test_manual_report_without_application_error_or_inventory(self):
+        payload = it.manual_payload(
+            "VPN non si collega", "Il servizio VPN esterno non apre il tunnel.",
+            "Incompatibilità", "1.16.0")
+        self.assertEqual(payload["operation"], "Segnalazione manuale")
+        self.assertEqual(payload["exception"], "Non determinato")
+        self.assertEqual(payload["traceback"], "")
+        self.assertIn("VPN non si collega", payload["summary"])
+        self.assertIn("servizio VPN esterno", payload["message"])
+        self.assertNotIn("addresses", payload["inventory"])
+        other = it.manual_payload("DNS non raggiungibile", "Non risolve nomi", "Problema esterno", "1.16.0")
+        self.assertNotEqual(it.fingerprint(payload), it.fingerprint(other))
+        distinct = it.manual_payload("VPN non si collega", "Gateway VPN differente",
+                                     "Incompatibilità", "1.16.0")
+        self.assertNotEqual(it.fingerprint(payload), it.fingerprint(distinct))
+
+    def test_manual_report_rejects_empty_or_oversized_description(self):
+        with self.assertRaises(ValueError):
+            it.manual_payload("VPN", "")
+        with self.assertRaises(ValueError):
+            it.manual_payload("VPN", "X" * 8001)
+
+    def test_issue_reference_validation(self):
+        self.assertEqual(it.issue_number("#76"), 76)
+        self.assertEqual(it.issue_number("https://github.com/matiz311/WinNAT-UI/issues/76"), 76)
+        for value in ("0", "https://github.com/other/repo/issues/76",
+                      "https://github.com/matiz311/WinNAT-UI/pull/76",
+                      "https://github.com/matiz311/WinNAT-UI/issues/76?redirect=1"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                it.issue_number(value)
+
+    def test_link_existing_unlabelled_issue_and_sync_by_number(self):
+        item = {"number": 76, "html_url": "https://github.com/matiz311/WinNAT-UI/issues/76",
+                "title": "VPN esterna non si connette", "state": "open",
+                "labels": [], "comments": 2, "updated_at": "2026-10-17T10:00:00Z"}
+        with tempfile.TemporaryDirectory() as folder:
+            with patch("winnat_ui.issue_tracker.store_path", return_value=Path(folder) / "issues.json"):
+                with patch("winnat_ui.issue_tracker._read_json", return_value=item):
+                    record, added = it.track_issue("76")
+                    same, duplicate = it.track_issue("#76")
+                self.assertTrue(added)
+                self.assertFalse(duplicate)
+                self.assertEqual(same["number"], 76)
+                self.assertEqual(len(it.history()), 1)
+                changed = dict(item, state="closed", title="VPN - risolta", comments=3,
+                               labels=[{"name": "triage:risolto"}])
+                with patch("winnat_ui.issue_tracker.public_issues", return_value={}):
+                    with patch("winnat_ui.issue_tracker._read_json", return_value=changed):
+                        entries, _ = it.synchronize(latest_version=None)
+                self.assertEqual(entries[0]["state"], "closed")
+                self.assertEqual(entries[0]["triage"], "risolto")
+                self.assertEqual(entries[0]["comments"], 3)
+                self.assertEqual(len(entries[0]["timeline"]), 1)
+
+    def test_import_rejects_pull_request_and_preserves_local_history(self):
+        item = {"number": 80, "html_url": "https://github.com/matiz311/WinNAT-UI/issues/80",
+                "state": "open", "pull_request": {"url": "https://api.github.com/repos/x"}}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "issues.json"
+            with patch("winnat_ui.issue_tracker.store_path", return_value=path):
+                with patch("winnat_ui.issue_tracker._read_json", return_value=item):
+                    with self.assertRaises(it.RemoteIssueError):
+                        it.track_issue(80)
+                self.assertFalse(path.exists())
+
+
 if __name__ == "__main__":
     import unittest
     unittest.main()
