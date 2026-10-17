@@ -117,7 +117,7 @@ def assess(title: str, body: str, number: int) -> Assessment:
         next_step = "Segnalante: integrare le informazioni; manutentore: valutare componente, impatto e riproduzione."
 
     version_match = re.search(
-        r"(?:\\bversione(?:\\s+winnat-ui)?\\b|\\bversion\\b)\\*{0,2}\\s*:\\s*\\*{0,2}\\s*v?(\\d+\\.\\d+(?:\\.\\d+){0,2})",
+        r"(?:\bversione(?:\s+winnat-ui)?\b|\bversion\b)\*{0,2}\s*:\s*\*{0,2}\s*v?(\d+\.\d+(?:\.\d+){0,2})",
         body, re.I,
     )
     has_version = bool(version_match and version_match.group(1) != "0.0.0")
