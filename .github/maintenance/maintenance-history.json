@@ -356,12 +356,12 @@
     {
       "id": "MAINT-20261017-006",
       "type": "routine",
-      "status": "planned",
+      "status": "completed",
       "registered_at": "2026-10-17T20:54:17Z",
       "planned_start_at": null,
       "planned_end_at": null,
-      "started_at": null,
-      "ended_at": null,
+      "started_at": "2026-10-17T20:55:16Z",
+      "ended_at": "2026-10-17T21:03:18Z",
       "components": [
         "github-actions",
         "github-releases",
@@ -400,21 +400,37 @@
         "Build Windows executable",
         "Maintenance guard"
       ],
-      "executed_steps": [],
-      "commits": [],
-      "observed_errors": [],
-      "evidence": [],
-      "outcome": null
+      "executed_steps": [
+        "Registrazione preventiva 2026-10-17T20:54:17Z prima del commit release candidate 173c23b.",
+        "Allineamento version.py, version_info.txt, CHANGELOG, RELEASE_NOTES e README per candidata MINOR v1.17.0 in PR #80.",
+        "Correzione formato UTC registry dopo failure guard 39068754731, successiva build Windows CI #434 e guard verde su 5778e318.",
+        "Merge verificato PR #80 in main commit 513b14f0 il 2026-10-17T21:03:18Z; rilascio ufficiale non eseguito da questo evento."
+      ],
+      "commits": [
+        "173c23b1e87b622bf50631072c4d59045b0f3ebc",
+        "5778e31832665d152992c5c0848f12ffa05415b2",
+        "513b14f0d968add327080126de6d290bdb08720b"
+      ],
+      "observed_errors": [
+        "Initial maintenance-guard run 39068754731 rejected fractional UTC timestamp; corrected before final successful build and merge."
+      ],
+      "evidence": [
+        "https://github.com/matiz311/WinNAT-UI/actions/runs/39068832376",
+        "https://github.com/matiz311/WinNAT-UI/actions/runs/39068832368",
+        "https://github.com/matiz311/WinNAT-UI/pull/80",
+        "https://github.com/matiz311/WinNAT-UI/commit/513b14f0d968add327080126de6d290bdb08720b"
+      ],
+      "outcome": "Candidato v1.17.0 integrato in main con test e gate preliminari superati; la pubblicazione ufficiale è avvenuta successivamente con l'evento MAINT-20261017-007."
     },
     {
       "id": "MAINT-20261017-007",
       "type": "routine",
-      "status": "planned",
+      "status": "completed",
       "registered_at": "2026-10-17T21:04:47Z",
       "planned_start_at": null,
       "planned_end_at": null,
-      "started_at": null,
-      "ended_at": null,
+      "started_at": "2026-10-17T21:11:32Z",
+      "ended_at": "2026-10-17T21:14:11Z",
       "components": [
         "github-actions",
         "github-releases",
@@ -451,11 +467,29 @@
         "Build Windows executable",
         "Maintenance guard"
       ],
-      "executed_steps": [],
-      "commits": [],
+      "executed_steps": [
+        "Registrata in anticipo autorizzazione monouso MAINT-20261017-007 in PR #85, con commit distinti antecedenti la modifica al workflow.",
+        "Verificato merge PR #80, Windows CI main 39069308856 e deploy/health Cloudflare 39069308870 riusciti.",
+        "Preparato gate vincolato a main parent 513b14f0, versione 1.17.0, set completo di otto file e approval record; corretta espansione PowerShell prima dei test finali.",
+        "PR #85: Windows CI 39069705566 e maintenance guard 39069705526 superati; merge commit b9c39d28 con preregistrazioni preservate.",
+        "Push main: Windows CI/Defender/manifest e release gate superati nel run 39069890075; GitHub Release v1.17.0 pubblicata il 2026-10-17T21:14:05Z.",
+        "Confermata Release stabile non-prerelease con ZIP 13158819 byte e SHA-256 GitHub 6fd42008b74f9212a85c6401e60d94dac9f6aefbba2009746737cc45a5488ad8."
+      ],
+      "commits": [
+        "513b14f0d968add327080126de6d290bdb08720b",
+        "b9c39d2865ec99c48aa3b2584e9b99e1a47722cb"
+      ],
       "observed_errors": [],
-      "evidence": [],
-      "outcome": null
+      "evidence": [
+        "https://github.com/matiz311/WinNAT-UI/actions/runs/39069308856",
+        "https://github.com/matiz311/WinNAT-UI/actions/runs/39069308870",
+        "https://github.com/matiz311/WinNAT-UI/actions/runs/39069705566",
+        "https://github.com/matiz311/WinNAT-UI/actions/runs/39069705526",
+        "https://github.com/matiz311/WinNAT-UI/actions/runs/39069890075",
+        "https://github.com/matiz311/WinNAT-UI/pull/85",
+        "https://github.com/matiz311/WinNAT-UI/releases/tag/v1.17.0"
+      ],
+      "outcome": "Release MINOR v1.17.0 pubblicata, ZIP integro e download pubblico. Nessun automatismo permanente per MINOR successive; test interattivo Windows reale resta aperto."
     }
   ]
 }
