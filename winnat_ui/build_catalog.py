@@ -45,39 +45,49 @@ def _api_json(path, token=None):
 
 
 def release_catalog():
-    """Validated official releases, including previous versions for downgrades."""
-    response = _api_json("/releases?per_page=50")
-    if not isinstance(response, list):
-        raise ValueError("Catalogo release non valido.")
+    """Validated official releases, including older versions and pagination.
+
+    Experimental GitHub prereleases share this endpoint; paginate past them
+    so repeated CI previews never hide historical stable rollback versions.
+    """
     rows = []
-    for item in response:
-        if not isinstance(item, dict) or item.get("draft") or item.get("prerelease"):
-            continue
-        tag = item.get("tag_name")
-        try:
-            updater.version_tuple(tag)
-        except (ValueError, TypeError):
-            continue
-        assets = item.get("assets")
-        if not isinstance(assets, list):
-            continue
-        matches = [a for a in assets if isinstance(a, dict) and a.get("name") == updater.ASSET_NAME]
-        if len(matches) != 1:
-            continue
-        a = matches[0]
-        expected = (f"https://github.com/{updater.REPOSITORY}/releases/download/"
-                    f"{tag}/{updater.ASSET_NAME}")
-        digest = a.get("digest")
-        size = a.get("size")
-        if (a.get("browser_download_url") != expected or
-                not isinstance(digest, str) or not _SHA256.fullmatch(digest) or
-                type(size) is not int or not 0 < size <= updater.MAX_ZIP_BYTES):
-            continue
-        rows.append({"kind": "release", "id": tag, "label": tag + " · Ufficiale",
-                     "version": tag.lstrip("v"), "tag": tag, "url": expected,
-                     "sha256": digest.split(":", 1)[1].lower(), "size": size,
-                     "available": True, "page": item.get("html_url", ""),
-                     "date": item.get("published_at") or "", "commit": item.get("target_commitish") or ""})
+    for page in range(1, 6):
+        response = _api_json(f"/releases?per_page=100&page={page}")
+        if not isinstance(response, list):
+            raise ValueError("Catalogo release non valido.")
+        for item in response:
+            if not isinstance(item, dict) or item.get("draft") or item.get("prerelease"):
+                continue
+            tag = item.get("tag_name")
+            try:
+                updater.version_tuple(tag)
+            except (ValueError, TypeError):
+                continue
+            assets = item.get("assets")
+            if not isinstance(assets, list):
+                continue
+            matches = [a for a in assets if isinstance(a, dict) and a.get("name") == updater.ASSET_NAME]
+            if len(matches) != 1:
+                continue
+            a = matches[0]
+            expected = (f"https://github.com/{updater.REPOSITORY}/releases/download/"
+                        f"{tag}/{updater.ASSET_NAME}")
+            digest = a.get("digest")
+            size = a.get("size")
+            if (a.get("browser_download_url") != expected or
+                    not isinstance(digest, str) or not _SHA256.fullmatch(digest) or
+                    type(size) is not int or not 0 < size <= updater.MAX_ZIP_BYTES):
+                continue
+            rows.append({"kind": "release", "id": tag, "label": tag + " · Ufficiale",
+                         "version": tag.lstrip("v"), "tag": tag, "url": expected,
+                         "sha256": digest.split(":", 1)[1].lower(), "size": size,
+                         "available": True, "page": item.get("html_url", ""),
+                         "date": item.get("published_at") or "",
+                         "commit": item.get("target_commitish") or ""})
+            if len(rows) >= 50:
+                return rows
+        if len(response) < 100:
+            break
     return rows
 
 
