@@ -202,14 +202,14 @@ export default {
             return json({error:"issue-not-eligible"},409);
           await github(env,"/repos/"+REPO+"/issues/"+existing.number+"/comments",{
             method:"POST",headers:{"content-type":"application/json"},
-            body:JSON.stringify({body:"## Aggiornamento diagnostico da WinNAT-UI\\n\\n"+payload.body})
+            body:JSON.stringify({body:"## Aggiornamento diagnostico da WinNAT-UI\n\n"+payload.body})
           });
           return json({number:existing.number,url:existing.html_url,already_exists:true});
         }
         const sig=await manualFingerprint(payload.title);
         const title=("[Segnalazione]["+payload.category+"] "+payload.title).slice(0,240);
-        const body="## Diagnostica manuale WinNAT-UI\\n\\n"+payload.body+
-          "\\n\\n<!-- winnat-fingerprint:"+sig+" -->";
+        const body="## Diagnostica manuale WinNAT-UI\n\n"+payload.body+
+          "\n\n<!-- winnat-fingerprint:"+sig+" -->";
         const created=await github(env,"/repos/"+REPO+"/issues",{
           method:"POST",headers:{"content-type":"application/json"},
           body:JSON.stringify({title,body,labels:["bug-report","triage:ricevuto"]})
