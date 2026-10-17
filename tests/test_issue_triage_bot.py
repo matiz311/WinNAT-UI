@@ -36,8 +36,8 @@ class AssessmentTests(unittest.TestCase):
         self.assertIsNone(result.suggested_title)
 
     def test_real_gateway_version_is_recognized_but_placeholder_is_not(self):
-        base = ("**Versione WinNAT-UI:** {version}\\n"
-                "**Eccezione:** HTTPError\\n### Errore principale\\n"
+        base = ("**Versione WinNAT-UI:** {version}\n"
+                "**Eccezione:** HTTPError\n### Errore principale\n"
                 + "Diagnostics with an explicit stack and context. " * 6)
         good = assess("[Bug] Aggiornamenti", base.format(version="1.16.0"), 91)
         missing = assess("[Bug] Aggiornamenti", base.format(version="0.0.0"), 92)
@@ -46,8 +46,8 @@ class AssessmentTests(unittest.TestCase):
 
     def test_smoke_test_release_reference_does_not_become_updater_issue(self):
         body = (
-            "## Test automatico controllato\\n"
-            "Apertura Issue per verificare la PR e la futura release correttiva.\\n"
+            "## Test automatico controllato\n"
+            "Apertura Issue per verificare la PR e la futura release correttiva.\n"
             "Risultato atteso: label iniziale, nessuna priority o fixed-in e commento."
         )
         actual = assess("[Test CI] Verifica automatica triage delle nuove Issue", body, 78)
@@ -56,10 +56,10 @@ class AssessmentTests(unittest.TestCase):
 
     def test_structured_operation_identifies_real_updater_issue(self):
         body = (
-            "**Versione WinNAT-UI:** 1.16.0\\n"
-            "**Operazione:** Aggiornamenti\\n"
-            "**Moduli:** app.py, updater.py\\n"
-            "**Eccezione:** HTTPError\\n"
+            "**Versione WinNAT-UI:** 1.16.0\n"
+            "**Operazione:** Aggiornamenti\n"
+            "**Moduli:** app.py, updater.py\n"
+            "**Eccezione:** HTTPError\n"
         )
         actual = assess("[Bug] Errore operativo non classificato", body, 81)
         self.assertEqual(actual.component, "Aggiornamenti")
