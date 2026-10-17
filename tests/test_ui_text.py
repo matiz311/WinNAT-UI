@@ -16,27 +16,25 @@ class UiTextTests(unittest.TestCase):
         ]
         self.assertEqual(offenders, [], "escaped \\n in app.py at lines %s" % offenders)
 
-    def test_vpn_diagnostics_shortcut_visible_and_about_scrollable(self):
-        """The reported support button must be on the dashboard and in reachable Information."""
-        tree = ast.parse(APP.read_text(encoding="utf-8"))
-        methods = {
-            node.name: node
-            for node in ast.walk(tree)
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        }
-        self.assertIn("build_dashboard", methods)
-        self.assertIn("build_about", methods)
-        self.assertIn("capture_vpn_from_dashboard", methods)
-        dashboard_text = ast.get_source_segment(APP.read_text(encoding="utf-8"),
-                                               methods["build_dashboard"])
-        about_text = ast.get_source_segment(APP.read_text(encoding="utf-8"),
-                                           methods["build_about"])
-        self.assertIn('text="Raccogli diagnostica VPN"', dashboard_text)
-        self.assertIn("command=self.capture_vpn_from_dashboard", dashboard_text)
-        self.assertIn("ui.ScrollFrame(page)", about_text)
-        self.assertIn("capture_vpn_snapshot", ast.get_source_segment(
-            APP.read_text(encoding="utf-8"), methods["capture_vpn_from_dashboard"]))
-
+    def test_generic_diagnostics_accessible_from_dashboard_and_information(self):
+        source = APP.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        methods = {node.name: node for node in ast.walk(tree)
+                   if isinstance(node, ast.FunctionDef)}
+        for name in ("build_dashboard", "build_about", "open_diagnostics",
+                     "import_issue_dialog"):
+            self.assertIn(name, methods)
+        dashboard = ast.get_source_segment(source, methods["build_dashboard"])
+        about = ast.get_source_segment(source, methods["build_about"])
+        dialog = ast.get_source_segment(source, methods["open_diagnostics"])
+        self.assertIn('text="Diagnostica e OpenIssue"', dashboard)
+        self.assertIn("command=self.open_diagnostics", dashboard)
+        self.assertIn("ui.ScrollFrame(page)", about)
+        self.assertIn("Raccogli diagnostica", dialog)
+        self.assertIn("Prepara anteprima", dialog)
+        self.assertIn("submit_manual", dialog)
+        self.assertIn("Aggiungi aggiornamento", dialog)
+        self.assertNotIn("vpn_diagnostics", source)
 
 
 if __name__ == "__main__":
