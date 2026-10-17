@@ -1463,6 +1463,7 @@ class App(tk.Tk):
         else:
             description = ("Build NON ufficiale #" + str(info["run_number"]) +
                            " · commit " + info["commit"][:12] +
+                           " · sorgente " + str(info.get("source_commit") or "—")[:12] +
                            " · branch " + str(info.get("branch") or "—") +
                            " · scadenza artifact " + str(info.get("expires") or "non indicata") +
                            ". Richiede GitHub Actions: read per il download.")
@@ -1509,7 +1510,8 @@ class App(tk.Tk):
                 return
         old = build_catalog.installed_build_info().get("Build identifier", VERSION)
         warning = ("Release ufficiale " + info["version"] if info["kind"] == "release"
-                   else info["label"] + "\nATTENZIONE: build di test non pubblicata, potenzialmente instabile.")
+                   else info["label"] + "\nATTENZIONE: build non pubblicata e non necessariamente revisionata. "
+                        "L'eseguibile può avviarsi con privilegi amministrativi.")
         if install:
             warning += ("\n\nAttuale: " + old + "\n"
                         "L'app si chiuderà e l'installer conserverà una copia della versione attuale. "
