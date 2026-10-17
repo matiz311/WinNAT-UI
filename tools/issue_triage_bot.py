@@ -54,7 +54,7 @@ def assess(title: str, body: str, number: int) -> Assessment:
     feature = any(x in title_lower for x in ("[feature]", "[enhancement]", "[richiesta]"))
     kind = "Miglioramento" if feature else "Anomalia segnalata"
     report_fields = re.findall(
-        r"(?im)^\\s*\\*{0,2}(?:operazione|moduli|componente|categoria)\\*{0,2}\\s*:\\s*([^\\n]+)",
+        r"(?im)^\s*\*{0,2}(?:operazione|moduli|componente|categoria)\*{0,2}\s*:\s*([^\n]+)",
         body,
     )
     focus = (title + "\n" + "\n".join(report_fields)).casefold()
