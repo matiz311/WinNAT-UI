@@ -106,12 +106,28 @@ def build_catalog(limit=MAX_BUILD_ROWS):
             continue
         if not isinstance(artifacts, dict) or not isinstance(artifacts.get("artifacts"), list):
             continue
-        desired = f"WinNAT-UI-Windows-{number}-{sha}"
-        found = [a for a in artifacts["artifacts"] if isinstance(a, dict)
-                 and a.get("name") == desired and not a.get("expired")]
+        # On pull_request builds, GITHUB_SHA in the archive name is the
+        # synthetic PR merge commit, not run.head_sha (source branch HEAD).
+        # The artifact is still bound to this run by its GitHub run endpoint
+        # and by the workflow_run metadata; validate both.
+        found = []
+        for candidate in artifacts["artifacts"]:
+            if not isinstance(candidate, dict) or candidate.get("expired"):
+                continue
+            match = _ARTIFACT.fullmatch(str(candidate.get("name", "")))
+            association = candidate.get("workflow_run")
+            if (not match or int(match.group(1)) != number or
+                    not isinstance(association, dict) or
+                    association.get("id") != run_id or
+                    association.get("head_sha") != sha):
+                continue
+            build_sha = match.group(2)
+            if run["event"] != "pull_request" and build_sha != sha:
+                continue
+            found.append((candidate, build_sha))
         if len(found) != 1:
             continue
-        art = found[0]
+        art, build_sha = found[0]
         digest = art.get("digest")
         artifact_id = art.get("id")
         size = art.get("size_in_bytes")
@@ -121,9 +137,10 @@ def build_catalog(limit=MAX_BUILD_ROWS):
                 art.get("archive_download_url") != f"{API}/actions/artifacts/{artifact_id}/zip"):
             continue
         results.append({"kind": "build", "id": str(artifact_id),
-                        "label": f"Build #{number} · {sha[:8]} · Test",
+                        "label": f"Build #{number} · {build_sha[:8]} · Test",
                         "run_id": run_id, "run_number": number,
-                        "commit": sha, "branch": run.get("head_branch") or "",
+                        "commit": build_sha, "source_commit": sha,
+                        "branch": run.get("head_branch") or "",
                         "event": run.get("event"), "date": run.get("created_at") or "",
                         "expires": art.get("expires_at") or "",
                         "page": run.get("html_url") or "",
