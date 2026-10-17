@@ -478,6 +478,8 @@ class App(tk.Tk):
 
     # --------------------------------------------------------- dashboard --
     def build_dashboard(self, page):
+        ttk.Button(page.actions, text="Raccogli diagnostica VPN",
+                   style="Accent.TButton", command=self.capture_vpn_from_dashboard).pack(side="right", padx=(S2, 0))
         ttk.Button(page.actions, text="Esporta JSON", command=self.export).pack(side="right")
         ttk.Button(page.actions, text="Aggiorna  (F5)",
                    command=self.refresh).pack(side="right", padx=S2)
@@ -1303,6 +1305,11 @@ class App(tk.Tk):
 
     # ------------------------------------------------------------ about ---
     def build_about(self, page):
+        # This page includes issue history and diagnostics; all controls must
+        # remain reachable even at the minimum supported window height.
+        scroll = ui.ScrollFrame(page)
+        scroll.pack(fill="both", expand=True)
+        page = scroll.inner
         card = ui.Card(page, padding=S5)
         card.pack(fill="x")
         tk.Label(card.body, text="WinNAT UI " + VERSION, font=F["title"], bg=C["surface"], fg=C["text"]).pack(anchor="w")
@@ -1416,6 +1423,17 @@ class App(tk.Tk):
                      if phase in stored else " da eseguire")
             for phase, label in (("before", "prima"), ("winnat", "WinNAT"),
                                  ("rollback", "ripristino")))
+
+    def capture_vpn_from_dashboard(self):
+        """Prominent one-click shortcut; do not infer the actual VPN state."""
+        try:
+            saved = vpn_diagnostics.read().get("snapshots", {})
+        except (OSError, ValueError) as exc:
+            messagebox.showerror("Diagnostica VPN non disponibile", str(exc), parent=self)
+            return
+        # Candidate only: the user must explicitly confirm the phase.
+        phase = vpn_diagnostics.suggest_phase(self.data, saved)
+        self.capture_vpn_snapshot(phase)
 
     def capture_vpn_snapshot(self, phase):
         if "Diagnostica VPN" in self.tasks:
