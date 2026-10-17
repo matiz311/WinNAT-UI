@@ -130,6 +130,86 @@ def submit(payload, endpoint=None):
     return {"number": number, "url": url, "already_exists": bool(data.get("already_exists"))}
 
 
+
+MANUAL_CATEGORIES = ("Problema applicativo", "Problema esterno",
+                     "Miglioramento", "Richiesta supporto")
+
+
+def manual_fingerprint(title):
+    return hashlib.sha256(("manual-issue:" + title.strip()).encode("utf-8")).hexdigest()[:24]
+
+
+def submit_manual(title, body, category, issue_number=None, endpoint=None):
+    """Publish the edited preview exactly as approved by the user."""
+    if not isinstance(title, str) or not 5 <= len(title.strip()) <= 180 or "\n" in title:
+        raise ValueError("Titolo segnalazione non valido (5-180 caratteri).")
+    if not isinstance(body, str) or not body.strip() or len(body) > 24000:
+        raise ValueError("Report vuoto o troppo lungo (massimo 24000 caratteri).")
+    if category not in MANUAL_CATEGORIES:
+        raise ValueError("Tipo segnalazione non valido.")
+    if issue_number is not None and (not isinstance(issue_number, int) or isinstance(issue_number, bool)
+                                     or not 1 <= issue_number <= 99999999):
+        raise ValueError("Numero Issue non valido.")
+    data = {"mode": "manual", "title": title.strip(), "body": body,
+            "category": category, "version": VERSION, "issue_number": issue_number}
+    return submit(data, endpoint=endpoint)
+
+
+def save_manual_entry(title, category, issue):
+    """Create or refresh a local tracking entry after a successful submission."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    number = issue["number"]
+    if not isinstance(number, int) or number <= 0:
+        raise ValueError("Numero Issue non valido.")
+    items = history()
+    existing = next((entry for entry in items if entry.get("number") == number), None)
+    if existing:
+        existing["updated_at"] = now
+        existing["title"] = existing.get("title") or title
+        record = existing
+    else:
+        record = {"fingerprint": manual_fingerprint(title), "number": number,
+                  "url": issue["url"], "operation": "Segnalazione manuale",
+                  "category": category, "version": VERSION, "reported_at": now,
+                  "state": "open", "fixed_in": None, "title": title,
+                  "triage": None, "priority": None, "updated_at": now,
+                  "timeline": [], "manually_added": bool(issue.get("already_exists"))}
+    items = [entry for entry in items if entry.get("number") != number]
+    items.insert(0, record)
+    path = store_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_suffix(".tmp")
+    temp.write_text(json.dumps(items[:MAX_HISTORY], ensure_ascii=False, indent=2), encoding="utf-8")
+    temp.replace(path)
+    return record
+
+
+def issue_by_number(number):
+    """Read an existing GitHub issue; do not import pull requests."""
+    if not isinstance(number, int) or isinstance(number, bool) or not 1 <= number <= 99999999:
+        raise ValueError("Numero Issue non valido.")
+    obj = _read_json(GITHUB_API + "/issues/" + str(number))
+    if not isinstance(obj, dict) or obj.get("number") != number or "pull_request" in obj:
+        raise ValueError("Issue GitHub non valida.")
+    names = [lab.get("name") if isinstance(lab, dict) else lab
+             for lab in obj.get("labels", [])]
+    fixed = next((name.split("v", 1)[1] for name in names
+                  if isinstance(name, str) and re.fullmatch(r"fixed-in/v\d+\.\d+\.\d+(?:\.\d+)?", name)), None)
+    return {"number": number, "url": "https://github.com/" + REPO + "/issues/" + str(number),
+            "title": str(obj.get("title") or "")[:240], "state": obj.get("state"),
+            "triage": next((name[7:] for name in names if isinstance(name, str) and name.startswith("triage:")), None),
+            "priority": next((name[9:] for name in names if isinstance(name, str) and name.startswith("priority:")), None),
+            "fixed_in": fixed, "updated_at": obj.get("updated_at")}
+
+
+def track_issue(number):
+    """Follow a GitHub issue independently of any local error report."""
+    info = issue_by_number(number)
+    save_manual_entry(info["title"], "Richiesta supporto", {**info, "already_exists": True})
+    return info
+
+
 def store_path():
     root = os.environ.get("LOCALAPPDATA") or str(Path.home() / ".local" / "share")
     return Path(root) / "WinNAT-UI" / "reported-issues.json"
@@ -215,6 +295,11 @@ def synchronize(installed=VERSION, remote=None, latest_version=None):
     for record in entries:
         matches = [x for x in listed.get(record["fingerprint"], [])
                    if x["number"] == record["number"]]
+        if record.get("manually_added"):
+            try:
+                matches = [issue_by_number(record["number"])]
+            except (ValueError, RemoteIssueError):
+                matches = []
         if matches:
             issue = matches[0]
             from datetime import datetime, timezone
