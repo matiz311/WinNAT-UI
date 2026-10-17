@@ -4,6 +4,14 @@ Le note di questa pagina sono destinate agli utilizzatori dell'applicazione. Per
 
 > **Importante:** WinNAT-UI modifica routing, indirizzi IPv4 e Windows NAT. Prima di applicare configurazioni su computer utilizzati per l'accesso remoto, verificare di disporre di un accesso locale e di una procedura di ripristino. Le operazioni che ricreano WinNAT possono interrompere sessioni NAT attive.
 
+## 1.17.0 — 17 ottobre 2026 (candidato NON pubblicato)
+
+**Nuove OpenIssue e diagnostica senza errori applicativi.** Da **Informazioni → Diagnostica e OpenIssue** puoi raccogliere dati di rete in sola lettura, confrontare acquisizioni, creare una segnalazione manuale, aggiungere informazioni a una Issue aperta e importare nel tracciamento una Issue GitHub già esistente. L'anteprima è modificabile e la pubblicazione sul repository pubblico richiede conferma.
+
+**Dipendenza operativa:** il Cloudflare Worker aggiornato deve essere distribuito e verificato affinché creazione e aggiornamento manuali funzionino. Le informazioni di rete non vengono inviate automaticamente. La build richiede CI Windows e collaudo dell'integrazione prima della pubblicazione; resta non firmata. Le funzioni della PR #84 (catalogo build/rollback nella UI) e della PR #81 non sono comprese in questo candidato.
+
+**Stato:** candidato da validare, non ancora disponibile in GitHub Releases. La versione stabile disponibile rimane **v1.16.0**.
+
 ## 1.16.0 — 17 ottobre 2026
 
 **Gestione dei bug e maggiore affidabilità degli aggiornamenti.** In **Informazioni → Bug segnalati** si aggiungono titoli descrittivi, stati di triage, priorità, data di aggiornamento, filtri e ricerca. La cronologia locale rimane consultabile anche senza connessione a GitHub.
