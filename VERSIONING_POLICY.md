@@ -4,7 +4,7 @@
 
 La **release stabile pubblicata è v1.15.1**: [GitHub Releases](https://github.com/matiz311/WinNAT-UI/releases/latest). La patch ha corretto il fallback del logo Windows. Il catalogo comprende 32 release pubbliche fino alla v1.15.1. Le ultime versioni sono `v1.13.0` → `v1.13.0.1` → `v1.14.0` → `v1.14.1` → `v1.15.0` → `v1.15.1`.
 
-**v1.16.0 è una release MINOR candidata, non ancora pubblicata.** Comprende gestione avanzata delle segnalazioni bug, diagnosi dell'updater, notifiche di errori d'installazione e registro manutenzioni. Si applicano la convalida combinata del ramo di integrazione, l'esame della sicurezza e il gate di approvazione della release. Per v1.15.0 esisteva un'autorizzazione eccezionale, limitata a quel rilascio; non conferisce autorizzazioni alle versioni successive.
+**v1.16.0 è una release MINOR candidata, non ancora pubblicata.** Comprende gestione avanzata delle segnalazioni bug, diagnosi dell'updater, notifiche di errori d'installazione e registro manutenzioni. Si applicano la convalida combinata del ramo di integrazione, l'esame della sicurezza e il gate di approvazione della release. Per v1.15.0 esisteva un'autorizzazione eccezionale, limitata a quel rilascio. Il 17 ottobre 2026 il proprietario ha autorizzato espressamente ChatGPT a integrare, verificare e pubblicare la v1.16.0 in autonomia: per questa sola release il workflow riconosce la registrazione `release-approvals/v1.16.0.md` se il commit precedente su `main` e l'elenco completo dei file modificati coincidono con i valori prestabiliti. L'autorizzazione non disabilita build, test, Defender, gate versione, verifica della release esistente o controllo dell'HEAD e non vale per versioni successive.
 
 ## Fonte della versione
 
@@ -38,7 +38,7 @@ Un merge ordinario non rappresenta di per sé una nuova release. Rimangono obbli
 2. Inserire la sezione corrispondente nel `CHANGELOG.md`. MAJOR e MINOR richiedono le sezioni **Sintesi**, **Funzionalità** e **Correzioni**, con evidenze verificabili.
 3. Aggiornare `RELEASE_NOTES.it.md` e, quando serve, i README e la documentazione correlata.
 4. Eseguire test automatici, build Windows, verifica della versione nell'EXE, scansione Defender e controllo degli SHA-256.
-5. Per MAJOR e MINOR, richiedere l'approvazione esplicita tramite il workflow manuale GitHub Actions; la semplice compilazione non pubblica un nuovo numero di release. È ammessa soltanto l'eccezione tracciata e vincolata a v1.15.0 descritta sopra, su richiesta esplicita del proprietario.
+5. Per MAJOR e MINOR, richiedere l'approvazione esplicita tramite il workflow manuale GitHub Actions; la semplice compilazione non pubblica un nuovo numero di release. Sono ammesse soltanto le eccezioni strettamente delimitate e tracciate per v1.15.0 e v1.16.0 sopra descritte, entrambe su richiesta esplicita del proprietario.
 6. Pubblicare solo pacchetti verificati, con tag e versione interna coincidenti, senza riscrivere le release già pubblicate.
 7. Validare l'updater su Windows reale prima di considerare completamente collaudato il percorso di aggiornamento.
 
