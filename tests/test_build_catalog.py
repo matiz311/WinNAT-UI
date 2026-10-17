@@ -40,7 +40,7 @@ def artifact(run_id=100, number=55):
             "size_in_bytes": 123, "digest": "sha256:" + DIGEST,
             "archive_download_url":
                 "https://api.github.com/repos/matiz311/WinNAT-UI/actions/artifacts/999/zip",
-            "expired": False, "workflow_run": {"id": run_id}}
+            "expired": False, "workflow_run": {"id": run_id, "head_sha": SHA}}
 
 
 class CatalogTests(unittest.TestCase):
@@ -67,6 +67,24 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["commit"], SHA)
         self.assertEqual(rows[0]["label"], "Build #55 · aaaaaaaa · Test")
+
+    def test_pr_build_uses_merge_sha_not_source_sha(self):
+        merge = "c" * 40
+        run = successful_run()
+        art = dict(artifact(), name=f"WinNAT-UI-Windows-55-{merge}")
+        with patch.object(build_catalog, "_api_json", side_effect=[
+                {"workflow_runs": [run]}, {"artifacts": [art]}]):
+            rows = build_catalog.build_catalog()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["commit"], merge)
+        self.assertEqual(rows[0]["source_commit"], SHA)
+
+    def test_push_rejects_unrelated_artifact_commit(self):
+        run = dict(successful_run(), event="push")
+        art = dict(artifact(), name="WinNAT-UI-Windows-55-" + "c" * 40)
+        with patch.object(build_catalog, "_api_json", side_effect=[
+                {"workflow_runs": [run]}, {"artifacts": [art]}]):
+            self.assertEqual(build_catalog.build_catalog(), [])
 
     def test_expired_missing_digest_or_incomplete_build_omitted(self):
         run = successful_run()
