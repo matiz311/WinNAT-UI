@@ -66,9 +66,9 @@ class GithubInteractionTests(unittest.TestCase):
                         {"name": "bug-report"}, {"name": "triage:ricevuto"}]}
         updated = dict(original, labels=[
             {"name": "bug-report"}, {"name": "triage:informazioni-richieste"}])
-        api.api.side_effect = [original, [], [], {}, {}, updated]
+        api.api.side_effect = [original, [], {}, {}, updated]
         self.assertEqual(triage(api, 90), "Triage completed.")
-        patch = api.api.call_args_list[3]
+        patch = api.api.call_args_list[2]
         self.assertEqual(patch.args[1], "PATCH")
         self.assertIn("bug-report", patch.args[2]["labels"])
         self.assertNotIn("triage:ricevuto", patch.args[2]["labels"])
