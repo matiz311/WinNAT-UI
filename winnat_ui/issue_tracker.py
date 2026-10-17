@@ -121,6 +121,12 @@ def submit(payload, endpoint=None):
     except urllib.error.HTTPError as exc:
         if exc.code == 429:
             raise RuntimeError("Limite di segnalazioni raggiunto. Riprova più tardi.") from exc
+        if exc.code == 409:
+            raise RuntimeError("Issue non aggiornabile: deve essere aperta, non una PR e "
+                               "classificata con label bug-report o triage:.") from exc
+        if exc.code == 400:
+            raise RuntimeError("Il report non supera la validazione del gateway. "
+                               "Verificare titolo, dimensione e numero Issue.") from exc
         raise RuntimeError("Servizio di segnalazione non disponibile (HTTP " + str(exc.code) + ").") from exc
     number = data.get("number") if isinstance(data, dict) else None
     url = data.get("url") if isinstance(data, dict) else None
@@ -207,6 +213,16 @@ def track_issue(number):
     """Follow a GitHub issue independently of any local error report."""
     info = issue_by_number(number)
     save_manual_entry(info["title"], "Richiesta supporto", {**info, "already_exists": True})
+    entries = history()
+    for entry in entries:
+        if entry.get("number") == number:
+            entry.update({field: info.get(field) for field in
+                          ("title", "state", "triage", "priority", "fixed_in", "updated_at")})
+            path = store_path()
+            temp = path.with_suffix(".tmp")
+            temp.write_text(json.dumps(entries[:MAX_HISTORY], ensure_ascii=False, indent=2), encoding="utf-8")
+            temp.replace(path)
+            break
     return info
 
 
