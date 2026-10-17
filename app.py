@@ -1389,7 +1389,7 @@ class App(tk.Tk):
                  font=F["strong"]).pack(anchor="w", pady=(S3, S1))
         kind = tk.StringVar(value="Problema esterno")
         ttk.Combobox(dlg.body, textvariable=kind, state="readonly", width=34,
-                     values=("Problema esterno", "Incompatibilita",
+                     values=("Problema esterno", "Incompatibilità",
                              "Comportamento inatteso", "Altro problema")).pack(anchor="w")
         tk.Label(dlg.body, text="Descrizione, condizioni, risultati osservati e risultato atteso",
                  bg=C["surface"], fg=C["text"], font=F["strong"]).pack(anchor="w", pady=(S3, S1))
