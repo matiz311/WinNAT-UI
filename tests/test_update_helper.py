@@ -36,6 +36,27 @@ class LaunchTests(unittest.TestCase):
             # BOM keeps accented text readable for Windows PowerShell 5.1.
             self.assertTrue((stage / "apply-update.ps1").read_bytes().startswith(b"\xef\xbb\xbf"))
 
+    def test_stale_ready_marker_is_cleared_before_launch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stage = Path(tmp) / "stage"
+            (stage / "new").mkdir(parents=True)
+            (stage / "new" / "WinNAT-UI.exe").write_bytes(b"new")
+            (stage / updater.READY_MARKER).write_text("")
+            with patch.object(updater.sys, "platform", "win32"), \
+                    patch.object(updater.sys, "frozen", True, create=True), \
+                    patch("winnat_ui.updater.subprocess.Popen") as popen:
+                helper = updater.launch(stage, install_dir=tmp, parent_pid=1234)
+            self.assertIs(helper, popen.return_value)
+            self.assertFalse(updater.helper_ready(stage))
+            (stage / updater.READY_MARKER).write_text("")
+            self.assertTrue(updater.helper_ready(stage))
+
+    def test_script_signals_window_before_waiting_for_app(self):
+        script = updater.HELPER_PS
+        marker = script.index("'" + updater.READY_MARKER + "'")
+        self.assertLess(script.index("$script:ui = New-UpdateWindow"), marker)
+        self.assertLess(marker, script.index("while (Get-Process -Id $ParentPid"))
+
     def test_script_has_progress_window_and_rollback(self):
         script = updater.HELPER_PS
         for needed in ("System.Windows.Forms", "Copia di sicurezza", "Ripristino",
@@ -145,6 +166,7 @@ class HelperOnWindowsTests(unittest.TestCase):
             self.assertEqual((inst / "user.cfg").read_text(), "keep")
             self.assertEqual((stage / "previous" / "WinNAT-UI.exe").read_text(), "old")
             self.assertIn("Aggiornamento completato", log)
+            self.assertTrue((stage / updater.READY_MARKER).exists())
             # The window may be unavailable on a headless runner, but if it was
             # created no UI call may have failed during the update.
             self.assertNotIn("UI disattivata", log)

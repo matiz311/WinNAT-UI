@@ -555,6 +555,9 @@ if (-not $NoUi) {
     try { $script:ui = New-UpdateWindow }
     catch { $script:ui = $null; Write-Log ('Finestra di avanzamento non disponibile: ' + $_.Exception.Message) }
 }
+# Tell WinNAT UI the progress window is on screen (or that there will be none),
+# so the app closes only now and the user never sees a gap without windows.
+try { New-Item -ItemType File -Path (Join-Path $StageRoot 'ui-ready') -Force | Out-Null } catch { }
 Write-Log ('Aggiornamento WinNAT UI ' + $FromVersion + ' -> ' + $ToVersion)
 $installStarted = $false
 $installCommitted = $false
@@ -649,8 +652,19 @@ def helper_command(script, install_dir, staging, parent_pid, from_version="", to
     return command
 
 
+READY_MARKER = "ui-ready"
+
+
+def helper_ready(staging):
+    """True once the helper's progress window is shown (or the helper runs without UI)."""
+    return (Path(staging) / READY_MARKER).exists()
+
+
 def launch(staging, install_dir=None, parent_pid=None, from_version="", to_version=""):
-    """Schedule update after process exit; only for a packaged Windows EXE."""
+    """Schedule update after process exit; only for a packaged Windows EXE.
+
+    Returns the helper process: the caller should close the app once
+    helper_ready(staging) is true, so the progress window is already visible."""
     if sys.platform != "win32" or not getattr(sys, "frozen", False):
         raise RuntimeError("Aggiornamento automatico disponibile solo nell'EXE Windows installato.")
     install_dir = Path(install_dir or sys.executable).resolve()
@@ -663,11 +677,15 @@ def launch(staging, install_dir=None, parent_pid=None, from_version="", to_versi
     # BOM: Windows PowerShell 5.1 reads BOM-less scripts as ANSI, which would
     # garble the accented Italian text and symbols shown in the progress window.
     script.write_text(HELPER_PS, encoding="utf-8-sig")
+    try:
+        (staging / READY_MARKER).unlink()
+    except FileNotFoundError:
+        pass
     # Windows PowerShell 5.1 must load its own modules, not PowerShell 7 ones
     # inherited when the app was started from a pwsh terminal.
     env = {k: v for k, v in os.environ.items() if k.upper() != "PSMODULEPATH"}
     # No console window: the script shows its own progress window instead.
-    subprocess.Popen(helper_command(script, install_dir, staging, parent_pid or os.getpid(),
+    return subprocess.Popen(helper_command(script, install_dir, staging, parent_pid or os.getpid(),
                                     from_version, to_version),
                      env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, close_fds=True,
