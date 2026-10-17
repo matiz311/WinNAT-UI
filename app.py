@@ -1461,8 +1461,8 @@ class App(tk.Tk):
         ttk.Button(row, text="Raccogli diagnostica", command=lambda: collect()).pack(side="left")
         status = tk.StringVar(value=self.diagnostic_status_text())
         ttk.Label(row, textvariable=status, style="Muted.TLabel").pack(side="left", padx=S2)
-        ttk.Label(frame, text="Anteprima modificabile: viene inviato ESATTAMENTE il testo qui sotto. "
-                  "Rigenera l'anteprima dopo avere modificato i campi o raccolto nuovi dati.",
+        ttk.Label(frame, text="Anteprima modificabile: il testo viene pubblicato salvo oscuramento "
+                  "di segreti riconoscibili dal gateway. Rigenera dopo le modifiche o nuove acquisizioni.",
                   style="Muted.TLabel").pack(anchor="w")
         report_frame = ttk.Frame(frame)
         report_frame.pack(fill="both", expand=True, pady=(S1, S2))
