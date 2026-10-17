@@ -25,6 +25,19 @@ Il workflow verifica i test Node, distribuisce il Worker, pubblica il PAT come *
 - Invia di nuovo lo stesso report per controllare la deduplicazione e verificare che appaia un nuovo commento con le evidenze.
 - L'health check da solo **non** garantisce che il token GitHub abbia permessi di creazione Issue: serve un invio reale.
 
+## Diagnostica manuale e aggiornamento di Issue esistenti (PR #80)
+
+Il client aggiornato espone **Panoramica → Diagnostica e OpenIssue** e **Informazioni → Apri centro diagnostico**. L'utente può avviare una raccolta generica in sola lettura (adattatori, routing, indirizzi, WinNAT, DNS, servizi pertinenti), scrivere una descrizione senza necessità di un errore Python, revisionare e modificare l'intero Markdown, ed esportarlo o copiarlo **senza inviarlo**.
+
+Dopo conferma esplicita il client invia `POST /report` con payload `mode: "manual"`, `title`, `category`, `body`, `version` e `issue_number` (null per una nuova Issue). Il Worker conserva il vecchio contratto per gli errori automatici, che continuano a essere deduplicati.
+
+- **Nuova Issue:** crea una segnalazione distinta etichettata `bug-report` e `triage:ricevuto`, con un fingerprint per la sincronizzazione del client. Le nuove segnalazioni manuali **non sono deduplicate automaticamente**: la scelta di creare un nuovo caso è intenzionale.
+- **Aggiornamento:** cerca esclusivamente nel repository ufficiale il numero di Issue indicato. Consente un commento solo se la Issue è **aperta**, non è una PR e ha già una label `bug-report` o `triage:*`. Per Issue chiuse, PR o discussioni prive di classificazione restituisce HTTP 409. Non permette modifiche al titolo, alle label, allo stato o ad altri repository.
+- **Segui Issue:** permette di importare una Issue GitHub già esistente nell'elenco locale, anche senza fingerprint originato dall'app, e ne legge i metadati tramite API pubblica. L'importazione non pubblica dati.
+- **Sicurezza:** dimensione massima del corpo manuale 24000 caratteri (oltre al limite JSON di 65536 byte), validazione stretta e sanitizzazione di segreti riconoscibili, rate limiting esistente e preview modificabile **prima** dell'invio. Il client può contenere IP/route ed è responsabilità dell'utente revisionare il report destinato a una Issue pubblica.
+
+**Compatibilità/deployment:** la nuova operazione manuale richiede sia un client compilato con la PR sia il Worker aggiornato e distribuito. Una build di PR, da sola, **non** modifica il servizio Worker attualmente attivo. Fino al deploy l'utente può comunque raccogliere, copiare ed esportare il report e pubblicarlo manualmente da GitHub.
+
 ## Protezioni e limiti
 
 - Payload JSON al massimo 65536 byte. I campi diagnostici includono categoria, operazione, eccezione, moduli, versione, exit code, firma dell'errore, sintesi, messaggio, traceback, ambiente e inventario. Lunghezze massime controllate per campo, rigetto dei campi inattesi e sanitizzazione di segreti riconoscibili sul client e sul gateway. La topologia e gli indirizzi IP vengono mantenuti.
