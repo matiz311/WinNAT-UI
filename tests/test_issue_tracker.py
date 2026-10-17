@@ -184,6 +184,9 @@ class IssueTrackerTests(TestCase):
         self.assertNotIn("addresses", payload["inventory"])
         other = it.manual_payload("DNS non raggiungibile", "Non risolve nomi", "Problema esterno", "1.16.0")
         self.assertNotEqual(it.fingerprint(payload), it.fingerprint(other))
+        distinct = it.manual_payload("VPN non si collega", "Gateway VPN differente",
+                                     "Incompatibilità", "1.16.0")
+        self.assertNotEqual(it.fingerprint(payload), it.fingerprint(distinct))
 
     def test_manual_report_rejects_empty_or_oversized_description(self):
         with self.assertRaises(ValueError):
