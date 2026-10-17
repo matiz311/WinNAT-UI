@@ -111,7 +111,9 @@ def submit(payload, endpoint=None):
     endpoint = endpoint or service_endpoint()
     if endpoint is None:
         raise RuntimeError("Servizio di segnalazione anonima non ancora configurato.")
-    body = json.dumps(payload, separators=(",", ":")).encode()
+    body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    if len(body) > 65536:
+        raise ValueError("Report troppo grande per il servizio GitHub: ridurre i dettagli dell'anteprima.")
     request = urllib.request.Request(endpoint, data=body, method="POST",
                                      headers={"Content-Type": "application/json",
                                               "User-Agent": "WinNAT-UI-Issues"})
