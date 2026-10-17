@@ -17,3 +17,8 @@ Questo primo livello è un triage **deterministico**, non un agente AI che verif
 
 ## Governance
 Segue `docs/issue-triage.md`, `AGENTS.md` e `VERSIONING_POLICY.md`. Cambiamenti al workflow richiedono registrazione preventiva nel registro manutenzioni in commit antecedente, associata alla PR. **Classificazione versione:** BUILD-only / infrastruttura, nessun bump di versione applicativa.
+
+## Regole di classificazione conservativa
+- Dare precedenza al **titolo** e ai campi di report esplicitamente strutturati (operazione/modulo); non classificare un'anomalia solo perché il corpo menziona una release, una VPN o un componente in una spiegazione secondaria.
+- Riconoscere le Issue di smoke test `[Test CI]` e trattarle come prove del workflow, senza ipotizzare malfunzionamenti reali.
+- Trattare parole come "release" o "aggiornamento" citate soltanto come aspettativa o riferimento alla pubblicazione come contesto, non come prova di errore updater.
