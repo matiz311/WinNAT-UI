@@ -49,8 +49,15 @@ def manual_payload(title, description, kind="Problema esterno", version=VERSION,
     message = (subject + " [" + kind + "]\n\n"
                "Segnalazione manuale: nessuna eccezione generata da WinNAT-UI.\n"
                "Tipo: " + kind + "\n\nDettagli e riproduzione:\n" + details)
-    return safe_payload("Segnalazione manuale", message, "", version,
-                        inventory=inventory, is_admin=is_admin)
+    payload = safe_payload("Segnalazione manuale", message, "", version,
+                           inventory=inventory, is_admin=is_admin)
+    # A broad recurring title can describe different external problems.
+    # Include the actual description in deduplication without publishing its hash input.
+    stable = json.dumps({"title": subject.casefold(), "kind": kind,
+                         "details": re.sub(r"\\s+", " ", details).casefold()},
+                        ensure_ascii=False, sort_keys=True)
+    payload["signature"] = hashlib.sha256(stable.encode("utf-8")).hexdigest()[:24]
+    return payload
 
 
 def fingerprint(payload):
