@@ -1,0 +1,262 @@
+"""Read-only GitHub build catalogue and verified staging of CI artifacts.
+
+An Actions artifact is not a release: it requires GitHub authentication to
+download, has a retention deadline and is executable code from the selected
+commit. No credentials are bundled, logged or persisted by this module.
+"""
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
+import zipfile
+
+from . import updater
+
+API = "https://api.github.com/repos/" + updater.REPOSITORY
+MAX_JSON_BYTES = 3 * 1024 * 1024
+MAX_BUILD_ROWS = 12
+_SHA256 = re.compile(r"^sha256:([0-9a-fA-F]{64})$")
+_SHA = re.compile(r"^[0-9a-f]{40}$")
+_ARTIFACT = re.compile(r"^WinNAT-UI-Windows-(\d+)-([0-9a-f]{40})$")
+_BUILD_ID = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?\+ci\.[0-9]+\.[0-9a-f]{8}$")
+
+
+def _api_json(path, token=None):
+    """Fixed GitHub API origin; bounded response and no untrusted arbitrary URLs."""
+    if not path.startswith("/") or path.startswith("//"):
+        raise ValueError("Percorso API non valido.")
+    headers = {"User-Agent": "WinNAT-UI-Catalog", "Accept": "application/vnd.github+json"}
+    if token:
+        headers["Authorization"] = "Bearer " + token
+    request = urllib.request.Request(API + path, headers=headers)
+    with urllib.request.urlopen(request, timeout=20) as response:
+        raw = response.read(MAX_JSON_BYTES + 1)
+    if len(raw) > MAX_JSON_BYTES:
+        raise ValueError("Risposta GitHub troppo grande.")
+    return json.loads(raw)
+
+
+def release_catalog():
+    """Validated official releases, including previous versions for downgrades."""
+    response = _api_json("/releases?per_page=50")
+    if not isinstance(response, list):
+        raise ValueError("Catalogo release non valido.")
+    rows = []
+    for item in response:
+        if not isinstance(item, dict) or item.get("draft") or item.get("prerelease"):
+            continue
+        tag = item.get("tag_name")
+        try:
+            updater.version_tuple(tag)
+        except (ValueError, TypeError):
+            continue
+        assets = item.get("assets")
+        if not isinstance(assets, list):
+            continue
+        matches = [a for a in assets if isinstance(a, dict) and a.get("name") == updater.ASSET_NAME]
+        if len(matches) != 1:
+            continue
+        a = matches[0]
+        expected = (f"https://github.com/{updater.REPOSITORY}/releases/download/"
+                    f"{tag}/{updater.ASSET_NAME}")
+        digest = a.get("digest")
+        size = a.get("size")
+        if (a.get("browser_download_url") != expected or
+                not isinstance(digest, str) or not _SHA256.fullmatch(digest) or
+                type(size) is not int or not 0 < size <= updater.MAX_ZIP_BYTES):
+            continue
+        rows.append({"kind": "release", "id": tag, "label": tag + " · Ufficiale",
+                     "version": tag.lstrip("v"), "tag": tag, "url": expected,
+                     "sha256": digest.split(":", 1)[1].lower(), "size": size,
+                     "available": True, "page": item.get("html_url", ""),
+                     "date": item.get("published_at") or "", "commit": item.get("target_commitish") or ""})
+    return rows
+
+
+def build_catalog(limit=MAX_BUILD_ROWS):
+    """List successful, still downloadable artifacts from this exact workflow."""
+    data = _api_json("/actions/runs?status=success&per_page=75")
+    if not isinstance(data, dict) or not isinstance(data.get("workflow_runs"), list):
+        raise ValueError("Elenco workflow GitHub non valido.")
+    results = []
+    for run in data["workflow_runs"]:
+        if len(results) >= limit:
+            break
+        if (not isinstance(run, dict) or run.get("path") != ".github/workflows/build.yml" or
+                run.get("status") != "completed" or run.get("conclusion") != "success" or
+                run.get("event") not in ("push", "pull_request", "workflow_dispatch")):
+            continue
+        sha, run_id, number = run.get("head_sha"), run.get("id"), run.get("run_number")
+        repo = run.get("head_repository")
+        if (not isinstance(sha, str) or not _SHA.fullmatch(sha) or
+                type(run_id) is not int or type(number) is not int or
+                not isinstance(repo, dict) or repo.get("full_name") != updater.REPOSITORY):
+            continue
+        try:
+            artifacts = _api_json(f"/actions/runs/{run_id}/artifacts?per_page=30")
+        except (OSError, ValueError, urllib.error.URLError):
+            continue
+        if not isinstance(artifacts, dict) or not isinstance(artifacts.get("artifacts"), list):
+            continue
+        desired = f"WinNAT-UI-Windows-{number}-{sha}"
+        found = [a for a in artifacts["artifacts"] if isinstance(a, dict)
+                 and a.get("name") == desired and not a.get("expired")]
+        if len(found) != 1:
+            continue
+        art = found[0]
+        digest = art.get("digest")
+        artifact_id = art.get("id")
+        size = art.get("size_in_bytes")
+        if (type(artifact_id) is not int or type(size) is not int or
+                not 0 < size <= updater.MAX_ZIP_BYTES or
+                not isinstance(digest, str) or not _SHA256.fullmatch(digest) or
+                art.get("archive_download_url") != f"{API}/actions/artifacts/{artifact_id}/zip"):
+            continue
+        results.append({"kind": "build", "id": str(artifact_id),
+                        "label": f"Build #{number} · {sha[:8]} · Test",
+                        "run_id": run_id, "run_number": number,
+                        "commit": sha, "branch": run.get("head_branch") or "",
+                        "event": run.get("event"), "date": run.get("created_at") or "",
+                        "expires": art.get("expires_at") or "",
+                        "page": run.get("html_url") or "",
+                        "url": f"{API}/actions/artifacts/{artifact_id}/zip",
+                        "sha256": digest.split(":", 1)[1].lower(), "size": size})
+    return results
+
+
+def gh_cli_token():
+    """Optional existing GitHub CLI login; never stores or logs the token."""
+    try:
+        options = {"capture_output": True, "text": True, "timeout": 5, "check": True}
+        if sys.platform == "win32":
+            options["creationflags"] = subprocess.CREATE_NO_WINDOW
+        response = subprocess.run(["gh", "auth", "token"], **options)
+        return response.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, fp, code, msg, headers, newurl):
+        return None
+
+
+def _trusted_artifact_location(location):
+    parsed = urllib.parse.urlsplit(location)
+    host = (parsed.hostname or "").lower()
+    return (parsed.scheme == "https" and not parsed.username and not parsed.password
+            and parsed.port in (None, 443) and
+            (host == "objects.githubusercontent.com" or
+             host.endswith(".blob.core.windows.net") or
+             host.endswith(".actions.githubusercontent.com")))
+
+
+def _download_build(info, output, token):
+    if not token or not isinstance(token, str) or "\n" in token or "\r" in token:
+        raise ValueError("Per scaricare una build di test serve l'accesso GitHub (Actions: read).")
+    artifact_id = info.get("id")
+    expected = f"{API}/actions/artifacts/{artifact_id}/zip"
+    if not str(artifact_id).isdigit() or info.get("url") != expected:
+        raise ValueError("Artifact GitHub non autorizzato.")
+    req = urllib.request.Request(expected, headers={
+        "User-Agent": "WinNAT-UI-Catalog", "Accept": "application/vnd.github+json",
+        "Authorization": "Bearer " + token})
+    opener = urllib.request.build_opener(_NoRedirect)
+    try:
+        with opener.open(req, timeout=30):
+            raise ValueError("GitHub non ha restituito il collegamento di download.")
+    except urllib.error.HTTPError as error:
+        if error.code in (401, 403):
+            raise ValueError("Accesso GitHub non autorizzato: occorre un token con permesso Actions: read.") from error
+        if error.code == 410:
+            raise ValueError("Artifact scaduto o non più disponibile.") from error
+        if error.code != 302:
+            raise ValueError(f"Impossibile scaricare la build: GitHub HTTP {error.code}.") from error
+        location = error.headers.get("Location", "")
+    if not _trusted_artifact_location(location):
+        raise ValueError("Redirect dell'artifact non attendibile.")
+    # Never forward an access token to GitHub's temporary artifact-storage URL.
+    req_storage = urllib.request.Request(location, headers={"User-Agent": "WinNAT-UI-Catalog"})
+    hash_value = hashlib.sha256()
+    total = 0
+    with urllib.request.urlopen(req_storage, timeout=60) as source, open(output, "wb") as target:
+        while True:
+            chunk = source.read(1024 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > updater.MAX_ZIP_BYTES:
+                raise ValueError("Artifact eccessivamente grande.")
+            hash_value.update(chunk)
+            target.write(chunk)
+    if total != info["size"] or hash_value.hexdigest() != info["sha256"]:
+        raise ValueError("Integrità della build non verificata: dimensione o SHA256 differente.")
+    return total
+
+
+def prepare_build(info, token):
+    """Stage a successful Windows artifact without touching the installation."""
+    if info.get("kind") != "build" or not _SHA.fullmatch(str(info.get("commit", ""))):
+        raise ValueError("Build non valida.")
+    stage = Path(tempfile.mkdtemp(prefix="WinNAT-TestBuild-"))
+    try:
+        file = stage / "artifact.zip"
+        _download_build(info, file, token)
+        target = stage / "new"
+        target.mkdir()
+        with zipfile.ZipFile(file) as archive:
+            for entry, relative in updater._safe_members(archive):
+                dest = target.joinpath(*relative.parts)
+                if entry.is_dir():
+                    dest.mkdir(parents=True, exist_ok=True)
+                else:
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    with archive.open(entry) as source, open(dest, "wb") as output:
+                        shutil.copyfileobj(source, output)
+        exe = target / "WinNAT-UI.exe"
+        build_file = target / "BUILD_INFO.txt"
+        manifest = target / "SHA256.txt"
+        scan = target / "DEFENDER_SCAN.txt"
+        if not all(f.is_file() for f in (exe, build_file, manifest, scan)):
+            raise ValueError("Build incompleta: EXE o manifest di verifica assenti.")
+        build_text = build_file.read_text(encoding="utf-8-sig")
+        meta = dict(line.split(": ", 1) for line in build_text.splitlines() if ": " in line)
+        build_id = meta.get("Build identifier", "")
+        if (not _BUILD_ID.fullmatch(build_id) or
+                meta.get("Git commit") != info["commit"] or
+                meta.get("Workflow") != str(info["run_id"]) or
+                not build_id.endswith(f".{info['run_number']}.{info['commit'][:8]}")):
+            raise ValueError("Metadati della build incoerenti con GitHub Actions.")
+        version = meta.get("Functional version", "")
+        if updater.version_tuple(version) != updater.version_tuple(build_id.split("+", 1)[0]):
+            raise ValueError("Versione della build non coerente.")
+        sha256 = hashlib.sha256(exe.read_bytes()).hexdigest()
+        if sha256.lower() not in manifest.read_text(encoding="utf-8-sig").lower():
+            raise ValueError("SHA256 dell'eseguibile non corrispondente al manifest.")
+        if not scan.read_text(encoding="utf-8-sig").strip():
+            raise ValueError("Rapporto Defender della build vuoto.")
+        return stage, build_id
+    except Exception:
+        shutil.rmtree(stage, ignore_errors=True)
+        raise
+
+
+def installed_build_info(executable=None):
+    """Metadata for packaged installs; source checkouts have no CI marker."""
+    path = Path(executable or sys.executable)
+    build = path.parent / "BUILD_INFO.txt"
+    try:
+        if build.stat().st_size > 4096:
+            return {}
+        text = build.read_text(encoding="utf-8-sig")
+        return dict(line.split(": ", 1) for line in text.splitlines() if ": " in line)
+    except OSError:
+        return {}
