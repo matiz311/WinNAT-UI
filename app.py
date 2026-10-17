@@ -17,6 +17,7 @@ from winnat_ui import network_guide
 from winnat_ui import network_rollback
 from winnat_ui import bug_report
 from winnat_ui import issue_tracker
+from winnat_ui import vpn_diagnostics
 from winnat_ui import updater
 from winnat_ui import ui_theme as ui
 from version import VERSION
@@ -1361,6 +1362,40 @@ class App(tk.Tk):
                  fg=C["text_muted"], font=F["caption"], justify="left",
                  anchor="w", wraplength=750).pack(fill="x", pady=(S2, 0))
         self.render_issue_tracker()
+        vpn = ui.Card(page, padding=S4)
+        vpn.pack(fill="x", pady=(S3, 0))
+        tk.Label(vpn.body, text="Diagnostica VPN / WinNAT — Issue #76",
+                 font=F["strong"], bg=C["surface"], fg=C["text"]).pack(anchor="w")
+        tk.Label(vpn.body,
+                 text="Acquisisci tre istantanee in sola lettura: prima del setup, dopo il setup e "
+                      "dopo il ripristino. Nessuna modifica a NAT, interfacce o client VPN.",
+                 font=F["body"], bg=C["surface"], fg=C["text_muted"],
+                 wraplength=840, justify="left").pack(anchor="w", pady=(S1, S2))
+        controls = tk.Frame(vpn.body, bg=C["surface"])
+        controls.pack(fill="x")
+        for label, stage in (("1 · Prima del setup", "before"),
+                             ("2 · WinNAT attivo", "winnat"),
+                             ("3 · Dopo il ripristino", "rollback")):
+            ttk.Button(controls, text=label,
+                       command=lambda s=stage: self.capture_vpn_snapshot(s)).pack(side="left", padx=(0, S2))
+        self.vpn_diag_status = tk.StringVar(value=self.vpn_status_text())
+        tk.Label(vpn.body, textvariable=self.vpn_diag_status, font=F["caption"],
+                 bg=C["surface"], fg=C["text_muted"], justify="left",
+                 anchor="w", wraplength=840).pack(fill="x", pady=(S2, 0))
+        actions = tk.Frame(vpn.body, bg=C["surface"])
+        actions.pack(fill="x", pady=(S2, 0))
+        ttk.Button(actions, text="Copia report per Issue #76",
+                   command=self.copy_vpn_report).pack(side="left", padx=(0, S2))
+        ttk.Button(actions, text="Esporta report .md",
+                   command=self.export_vpn_report).pack(side="left", padx=(0, S2))
+        ttk.Button(actions, text="Apri Issue #76",
+                   command=lambda: webbrowser.open(vpn_diagnostics.ISSUE_URL)).pack(side="left")
+        tk.Label(vpn.body,
+                 text="Il report include dati di rete (anche IP e nomi interfaccia). "
+                      "Verificalo prima di incollarlo in una Issue pubblica. "
+                      "I log interni Malwarebytes non vengono letti automaticamente.",
+                 font=F["caption"], bg=C["surface"], fg=C["text_muted"],
+                 wraplength=840, justify="left").pack(anchor="w", pady=(S2, 0))
         self.section(page, "Scorciatoie da tastiera")
         keys = ui.Card(page, padding=S4)
         keys.pack(fill="x")
@@ -1370,6 +1405,77 @@ class App(tk.Tk):
             tk.Label(keys.body, text=k, font=F["mono_s"], bg=C["surface_alt"], fg=C["text"], padx=S2, pady=2).grid(
                 row=i, column=0, sticky="w", pady=2)
             tk.Label(keys.body, text=v, font=F["body"], bg=C["surface"], fg=C["text_muted"]).grid(row=i, column=1, sticky="w", padx=S4)
+
+    def vpn_status_text(self):
+        try:
+            stored = vpn_diagnostics.read().get("snapshots", {})
+        except (OSError, ValueError) as exc:
+            return "Archivio diagnostico non leggibile: " + str(exc)
+        return "Acquisizioni: " + " · ".join(
+            label + (" OK (" + stored[phase].get("collected_at", "?") + ")"
+                     if phase in stored else " da eseguire")
+            for phase, label in (("before", "prima"), ("winnat", "WinNAT"),
+                                 ("rollback", "ripristino")))
+
+    def capture_vpn_snapshot(self, phase):
+        if "Diagnostica VPN" in self.tasks:
+            return
+        label = vpn_diagnostics.PHASE_LABELS[phase]
+        if not messagebox.askyesno(
+                "Conferma fase VPN",
+                label + "\n\nVerifica che Windows e Malwarebytes siano nello stato indicato. "
+                "La raccolta è di sola lettura e salva i dati solo sul PC.",
+                parent=self):
+            return
+
+        def success(snapshot):
+            self.vpn_diag_status.set(self.vpn_status_text())
+            failed = [name for name, section in snapshot["sections"].items() if not section.get("ok")]
+            if failed:
+                messagebox.showwarning(
+                    "Acquisizione VPN parziale",
+                    "Snapshot salvato. Alcune sezioni non sono leggibili: "
+                    + ", ".join(failed) + ". Il report conserva gli errori.", parent=self)
+            else:
+                self.toast.show("Snapshot VPN acquisito: " + phase, "success")
+
+        self.run_task("Diagnostica VPN",
+                      lambda: vpn_diagnostics.capture(phase), success,
+                      on_error=lambda error: messagebox.showerror(
+                          "Diagnostica VPN non riuscita", error, parent=self))
+
+    def copy_vpn_report(self):
+        try:
+            report = vpn_diagnostics.report()
+        except (OSError, ValueError) as exc:
+            messagebox.showerror("Report VPN non disponibile", str(exc), parent=self)
+            return
+        if not messagebox.askyesno(
+                "Copia report di rete",
+                "Il report può contenere IP, DNS, nomi di schede e altri dettagli di rete. "
+                "Controlla il testo prima di pubblicarlo nella Issue #76.\n\n"
+                "Copiare il report negli appunti?",
+                parent=self):
+            return
+        self.clipboard_clear()
+        self.clipboard_append(report)
+        self.update_idletasks()
+        self.toast.show("Report VPN copiato negli appunti.", "success")
+
+    def export_vpn_report(self):
+        try:
+            report = vpn_diagnostics.report()
+        except (OSError, ValueError) as exc:
+            messagebox.showerror("Report VPN non disponibile", str(exc), parent=self)
+            return
+        dest = filedialog.asksaveasfilename(
+            parent=self, defaultextension=".md",
+            filetypes=[("Markdown", "*.md"), ("Testo", "*.txt")],
+            initialfile="winnat-vpn-issue-76-" + time.strftime("%Y%m%d-%H%M") + ".md")
+        if dest:
+            with open(dest, "w", encoding="utf-8") as stream:
+                stream.write(report)
+            self.toast.show("Report VPN esportato; verifica prima di condividerlo.", "success")
 
     def render_issue_tracker(self):
         if not hasattr(self, "issue_table"):
