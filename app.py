@@ -1465,26 +1465,14 @@ class App(tk.Tk):
                            " · commit " + info["commit"][:12] +
                            " · sorgente " + str(info.get("source_commit") or "—")[:12] +
                            " · branch " + str(info.get("branch") or "—") +
-                           " · scadenza artifact " + str(info.get("expires") or "non indicata") +
-                           ". Richiede GitHub Actions: read per il download.")
+                           " · pacchetto pubblico verificato SHA256. " +
+                           "NON ufficiale: può contenere modifiche non revisionate.")
         self.update_details.set(description)
 
     def open_catalog_selection(self):
         info = self.catalog_selection()
         if info and info.get("page", "").startswith("https://github.com/matiz311/WinNAT-UI/"):
             webbrowser.open(info["page"])
-
-    def _catalog_token(self, info):
-        if info["kind"] != "build":
-            return ""
-        token = build_catalog.gh_cli_token()
-        if not token:
-            token = simpledialog.askstring(
-                "Autenticazione GitHub per build di test",
-                "Per scaricare un artifact GitHub Actions serve un token con permesso Actions: read.\n"
-                "Inseriscilo per questa singola operazione (non viene salvato):",
-                show="*", parent=self) or ""
-        return token.strip()
 
     def _catalog_download_start(self, install):
         info = self.catalog_selection()
@@ -1519,14 +1507,11 @@ class App(tk.Tk):
         if not messagebox.askyesno("Conferma " + ("installazione" if install else "download"),
                                    warning + "\n\nProcedere?", parent=self):
             return
-        token = self._catalog_token(info)
-        if info["kind"] == "build" and not token:
-            return
         def work():
             if info["kind"] == "build":
                 if install:
-                    return build_catalog.prepare_build(info, token)
-                build_catalog._download_build(info, target, token)
+                    return build_catalog.prepare_build(info)
+                build_catalog.download_build(info, target)
                 return None
             if install:
                 return updater.prepare(info), info["version"]
