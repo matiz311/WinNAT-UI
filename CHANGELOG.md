@@ -12,7 +12,7 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 
 ## [1.17.0] - 2026-10-17
 ### Sintesi
-Candidato MINOR retrocompatibile: diagnostica locale utilizzabile anche senza errori dell'applicazione, segnalazioni manuali verso GitHub e possibilità di seguire o aggiornare Issue esistenti. Nessuna modifica automatica alle configurazioni WinNAT, LAN/WAN, routing o firewall.
+Release MINOR retrocompatibile: diagnostica locale utilizzabile anche senza errori dell'applicazione, segnalazioni manuali verso GitHub e possibilità di seguire o aggiornare Issue esistenti. Nessuna modifica automatica alle configurazioni WinNAT, LAN/WAN, routing o firewall.
 
 ### Funzionalità
 - Informazioni → Diagnostica e OpenIssue: raccolta esplicita e in sola lettura dello stato di adattatori, IPv4, route, WinNAT e servizi; conservazione locale di sei acquisizioni e confronto tra campioni (PR #80).
@@ -24,7 +24,7 @@ Candidato MINOR retrocompatibile: diagnostica locale utilizzabile anche senza er
 - Validazione lato gateway dell'identificativo Issue, repository di destinazione e stato aperto prima di permettere nuovi commenti; controlli di dimensione e sanitizzazione best-effort (PR #80).
 
 ### Limiti
-- **Candidato, non ancora pubblicato:** la creazione manuale e l'aggiornamento remoto richiedono il deploy verificato della nuova versione del Cloudflare Worker; senza di esso restano disponibili raccolta, copia ed esportazione locale.
+- Il gateway Cloudflare è stato distribuito e il controllo `/health` ha restituito `ready` nel workflow di deploy; resta da collaudare l'intero percorso manuale in un host Windows reale.
 - La CI Windows valida test, packaging e Defender ma non sostituisce test interattivi Windows, verifica end-to-end Worker e rollback.
 - La PR #81 e la PR #84 non sono incluse; le sovrapposizioni di app.py e del registro manutenzioni vanno risolte separatamente.
 - Eseguibile non firmato digitalmente.

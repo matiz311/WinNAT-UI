@@ -1,16 +1,16 @@
 # WinNAT-UI — Note di rilascio
 
-Le note di questa pagina sono destinate agli utilizzatori dell'applicazione. Per i dettagli delle singole modifiche, i limiti tecnici e la cronologia completa consultare [CHANGELOG.md](CHANGELOG.md). I numeri riportati corrispondono alle **33 GitHub Releases**, fino alla versione pubblicata **v1.16.0**. Il 16 ottobre 2026 la cronologia delle 28 release precedenti è stata rinumerata e i relativi eseguibili ricompilati; non utilizzare riferimenti della numerazione precedente.
+Le note di questa pagina sono destinate agli utilizzatori dell'applicazione. Per i dettagli delle singole modifiche, i limiti tecnici e la cronologia completa consultare [CHANGELOG.md](CHANGELOG.md). Il catalogo comprende **34 GitHub Releases**, fino alla **v1.17.0**. Il 16 ottobre 2026 la cronologia delle 28 release precedenti è stata rinumerata e i relativi eseguibili ricompilati; non utilizzare riferimenti della numerazione precedente.
 
 > **Importante:** WinNAT-UI modifica routing, indirizzi IPv4 e Windows NAT. Prima di applicare configurazioni su computer utilizzati per l'accesso remoto, verificare di disporre di un accesso locale e di una procedura di ripristino. Le operazioni che ricreano WinNAT possono interrompere sessioni NAT attive.
 
-## 1.17.0 — 17 ottobre 2026 (candidato NON pubblicato)
+## 1.17.0 — 17 ottobre 2026
 
 **Nuove OpenIssue e diagnostica senza errori applicativi.** Da **Informazioni → Diagnostica e OpenIssue** puoi raccogliere dati di rete in sola lettura, confrontare acquisizioni, creare una segnalazione manuale, aggiungere informazioni a una Issue aperta e importare nel tracciamento una Issue GitHub già esistente. L'anteprima è modificabile e la pubblicazione sul repository pubblico richiede conferma.
 
-**Dipendenza operativa:** il Cloudflare Worker aggiornato deve essere distribuito e verificato affinché creazione e aggiornamento manuali funzionino. Le informazioni di rete non vengono inviate automaticamente. La build richiede CI Windows e collaudo dell'integrazione prima della pubblicazione; resta non firmata. Le funzioni della PR #84 (catalogo build/rollback nella UI) e della PR #81 non sono comprese in questo candidato.
+**Stato gateway:** il Cloudflare Worker è stato aggiornato con esito positivo (test automatici e controllo `/health`). Le informazioni di rete non vengono inviate automaticamente e il testo deve essere verificato prima della pubblicazione. Rimane necessario il collaudo interattivo su Windows reale; l'eseguibile non è firmato. Le funzioni della PR #84 (catalogo build/rollback nella UI) e della PR #81 non sono comprese in questa release.
 
-**Stato:** candidato da validare, non ancora disponibile in GitHub Releases. La versione stabile disponibile rimane **v1.16.0**.
+**Distribuzione:** [GitHub Release v1.17.0](https://github.com/matiz311/WinNAT-UI/releases/tag/v1.17.0), archivio Windows con manifest SHA-256. La v1.16.0 resta disponibile nello storico.
 
 ## 1.16.0 — 17 ottobre 2026
 

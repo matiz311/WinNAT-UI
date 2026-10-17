@@ -2,7 +2,7 @@
 
 # WinNAT UI
 
-**Upcoming (not released):** `v1.17.0` is a release candidate on PR #80 for opt-in local diagnostics and manually reported/tracked GitHub issues. The released stable remains v1.16.0; the updated gateway deployment and release checks are pending.
+**v1.17.0:** on-demand, read-only diagnostics, manual GitHub issue reporting and follow-up, and tracking of existing issues. The gateway deploy and automated checks passed; interactive Windows validation remains outstanding.
 
 **English** | [Italiano](README.md)
 
@@ -10,9 +10,9 @@
 [![Latest release](https://img.shields.io/github/v/release/matiz311/WinNAT-UI)](https://github.com/matiz311/WinNAT-UI/releases/latest)
 [![Windows build](https://github.com/matiz311/WinNAT-UI/actions/workflows/build.yml/badge.svg)](https://github.com/matiz311/WinNAT-UI/actions/workflows/build.yml)
 
-**[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)**. Extract the entire ZIP, then run `WinNAT-UI.exe`. The current published release is **v1.16.0** and **unsigned**; SignPath Foundation signing has not yet been approved.
+**[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)**. Extract the entire ZIP, then run `WinNAT-UI.exe`. The current published release is **v1.17.0** and **unsigned**; SignPath Foundation signing has not yet been approved.
 
-**What's new in v1.16.0:** issue triage and search, failed-update reporting, and structured GitHub update channel diagnostics. Published after Windows tests and Microsoft Defender checks, with a verifiable SHA-256 asset digest.
+**Previous v1.16.0:** issue triage and search, failed-update reporting, and structured GitHub update channel diagnostics. Published after Windows tests and Microsoft Defender checks, with a verifiable SHA-256 asset digest.
 
 [Releases](https://github.com/matiz311/WinNAT-UI/releases) · [Privacy policy](PRIVACY.md) ([Italiano](PRIVACY.it.md)) · [Code signing policy](CODE_SIGNING_POLICY.md) ([Italiano](CODE_SIGNING_POLICY.it.md)) · [Changelog (IT)](CHANGELOG.md) · [MIT License](LICENSE)
 
