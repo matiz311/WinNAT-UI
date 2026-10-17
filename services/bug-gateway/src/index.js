@@ -76,6 +76,27 @@ function normalize(raw) {
   }
   return result;
 }
+
+const MANUAL_CATEGORIES = new Set(["Problema applicativo", "Problema esterno",
+  "Miglioramento", "Richiesta supporto"]);
+function normalizeManual(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw Error("invalid manual report");
+  const allowed = new Set(["mode", "title", "body", "category", "version", "issue_number"]);
+  if (Object.keys(raw).some(k => !allowed.has(k))) throw Error("unexpected manual fields");
+  if (raw.mode !== "manual" || typeof raw.title !== "string" ||
+      raw.title.trim().length < 5 || raw.title.trim().length > 180 ||
+      /[\u0000-\u001f\u007f]/.test(raw.title) ||
+      typeof raw.body !== "string" || !raw.body.trim() ||
+      raw.body.length > 24000 || /[\u0000-\u0008\u000b\u000e-\u001f]/.test(raw.body) ||
+      !MANUAL_CATEGORIES.has(raw.category) ||
+      typeof raw.version !== "string" ||
+      !/^\d{1,3}\.\d{1,3}\.\d{1,3}(?:\.\d{1,3})?$/.test(raw.version) ||
+      (raw.issue_number !== null &&
+       (!Number.isInteger(raw.issue_number) || raw.issue_number < 1 || raw.issue_number > 99999999)))
+    throw Error("invalid manual fields");
+  return {mode:"manual",title:redact(raw.title.trim()),body:redact(raw.body),
+          category:raw.category,version:raw.version,issue_number:raw.issue_number};
+}
 function literal(text) {
   return (text || "(non disponibile)").split(/\r?\n/).map(line=>"    "+line).join("\n");
 }
@@ -107,6 +128,11 @@ function section(p, duplicate=false) {
 async function fingerprint(p) {
   const stable = JSON.stringify({category:p.category,exception:p.exception,modules:p.modules,operation:p.operation,...(p.signature?{signature:p.signature}:{})});
   const bytes = await crypto.subtle.digest("SHA-256",new TextEncoder().encode(stable));
+  return Array.from(new Uint8Array(bytes)).map(x=>x.toString(16).padStart(2,"0")).join("").slice(0,24);
+}
+async function manualFingerprint(title) {
+  const bytes=await crypto.subtle.digest("SHA-256",
+    new TextEncoder().encode("manual-issue:"+title));
   return Array.from(new Uint8Array(bytes)).map(x=>x.toString(16).padStart(2,"0")).join("").slice(0,24);
 }
 async function github(env, endpoint, init={}) {
@@ -157,10 +183,41 @@ export default {
     if (limits.some(x=>!x.success)) return json({error:"too-many-requests"},429);
     let payload;
     try {
-      payload=normalize(JSON.parse(await boundedText(request)));
+      const raw=JSON.parse(await boundedText(request));
+      payload=raw && raw.mode==="manual" ? normalizeManual(raw) : normalize(raw);
     } catch(error) {
       if (error.message==="payload-too-large") return json({error:"payload-too-large"},413);
       return json({error:"invalid-payload"},400);
+    }
+    if (payload.mode === "manual") {
+      try {
+        if (payload.issue_number !== null) {
+          const existing=await github(env,"/repos/"+REPO+"/issues/"+payload.issue_number);
+          const labels=Array.isArray(existing.labels) ?
+            existing.labels.map(x=>typeof x==="string"?x:x.name) : [];
+          // An anonymous caller must not comment on arbitrary PRs or unrelated
+          // discussions. Only active issues already classified for triage.
+          if (existing.pull_request || existing.state!=="open" ||
+              !labels.some(x=>x==="bug-report" || x.startsWith("triage:")))
+            return json({error:"issue-not-eligible"},409);
+          await github(env,"/repos/"+REPO+"/issues/"+existing.number+"/comments",{
+            method:"POST",headers:{"content-type":"application/json"},
+            body:JSON.stringify({body:"## Aggiornamento diagnostico da WinNAT-UI\\n\\n"+payload.body})
+          });
+          return json({number:existing.number,url:existing.html_url,already_exists:true});
+        }
+        const sig=await manualFingerprint(payload.title);
+        const title=("[Segnalazione]["+payload.category+"] "+payload.title).slice(0,240);
+        const body="## Diagnostica manuale WinNAT-UI\\n\\n"+payload.body+
+          "\\n\\n<!-- winnat-fingerprint:"+sig+" -->";
+        const created=await github(env,"/repos/"+REPO+"/issues",{
+          method:"POST",headers:{"content-type":"application/json"},
+          body:JSON.stringify({title,body,labels:["bug-report","triage:ricevuto"]})
+        });
+        return json({number:created.number,url:created.html_url,already_exists:false},201);
+      } catch (error) {
+        return json({error:"github-unavailable"},502);
+      }
     }
     const sig=await fingerprint(payload);
     try {
@@ -189,4 +246,4 @@ export default {
   }
 };
 
-export { normalize, fingerprint, redact, section };
+export { normalize, normalizeManual, fingerprint, manualFingerprint, redact, section };
