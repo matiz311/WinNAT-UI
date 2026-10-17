@@ -161,7 +161,9 @@
       "related_issues": [
         44
       ],
-      "related_prs": [],
+      "related_prs": [
+        73
+      ],
       "related_workflows": [
         "https://github.com/matiz311/WinNAT-UI/actions/runs/39012868510"
       ],
