@@ -16,6 +16,28 @@ class UiTextTests(unittest.TestCase):
         ]
         self.assertEqual(offenders, [], "escaped \\n in app.py at lines %s" % offenders)
 
+    def test_vpn_diagnostics_shortcut_visible_and_about_scrollable(self):
+        """The reported support button must be on the dashboard and in reachable Information."""
+        tree = ast.parse(APP.read_text(encoding="utf-8"))
+        methods = {
+            node.name: node
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        self.assertIn("build_dashboard", methods)
+        self.assertIn("build_about", methods)
+        self.assertIn("capture_vpn_from_dashboard", methods)
+        dashboard_text = ast.get_source_segment(APP.read_text(encoding="utf-8"),
+                                               methods["build_dashboard"])
+        about_text = ast.get_source_segment(APP.read_text(encoding="utf-8"),
+                                           methods["build_about"])
+        self.assertIn('text="Raccogli diagnostica VPN"', dashboard_text)
+        self.assertIn("command=self.capture_vpn_from_dashboard", dashboard_text)
+        self.assertIn("ui.ScrollFrame(page)", about_text)
+        self.assertIn("capture_vpn_snapshot", ast.get_source_segment(
+            APP.read_text(encoding="utf-8"), methods["capture_vpn_from_dashboard"]))
+
+
 
 if __name__ == "__main__":
     unittest.main()
