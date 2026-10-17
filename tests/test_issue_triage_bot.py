@@ -44,6 +44,31 @@ class AssessmentTests(unittest.TestCase):
         self.assertEqual(good.state, "triage:in-analisi")
         self.assertEqual(missing.state, "triage:informazioni-richieste")
 
+    def test_smoke_test_release_reference_does_not_become_updater_issue(self):
+        body = (
+            "## Test automatico controllato\\n"
+            "Apertura Issue per verificare la PR e la futura release correttiva.\\n"
+            "Risultato atteso: label iniziale, nessuna priority o fixed-in e commento."
+        )
+        actual = assess("[Test CI] Verifica automatica triage delle nuove Issue", body, 78)
+        self.assertEqual(actual.component, "Generale")
+        self.assertEqual(actual.state, "triage:informazioni-richieste")
+
+    def test_structured_operation_identifies_real_updater_issue(self):
+        body = (
+            "**Versione WinNAT-UI:** 1.16.0\\n"
+            "**Operazione:** Aggiornamenti\\n"
+            "**Moduli:** app.py, updater.py\\n"
+            "**Eccezione:** HTTPError\\n"
+        )
+        actual = assess("[Bug] Errore operativo non classificato", body, 81)
+        self.assertEqual(actual.component, "Aggiornamenti")
+
+    def test_generic_issue_uses_opening_description_for_vpn(self):
+        body = "Il client Malwarebytes VPN non si connette con WinNAT attivo."
+        actual = assess("[Bug] Errore operativo non classificato", body, 82)
+        self.assertEqual(actual.component, "VPN Full Tunnel")
+
     def test_feature_has_feature_prefix(self):
         result = assess("[Feature] bug report", "aggiungere filtri per l'interfaccia", 90)
         self.assertIn("[Feature]", result.suggested_title)
