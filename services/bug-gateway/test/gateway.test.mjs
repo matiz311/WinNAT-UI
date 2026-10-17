@@ -60,7 +60,7 @@ test("creates a sanitized labeled issue", async()=>{
     const response=await worker.fetch(post(),env());
     assert.equal(response.status,201);
     assert.deepEqual((await response.json()).already_exists,false);
-    assert.deepEqual(issue.labels,["bug-report"]);
+    assert.deepEqual(issue.labels,["bug-report","triage:ricevuto"]);
     assert.match(issue.body,/winnat-fingerprint:[a-f0-9]{24}/);
     assert.doesNotMatch(issue.body,/203\.0\.113\.4|test-only/);
   } finally {globalThis.fetch=original;}

@@ -93,6 +93,79 @@ class IssueTrackerTests(TestCase):
                         it.public_issues()
                 self.assertEqual(caught.exception.category, category)
 
+    def test_public_issues_reads_renamed_title_triage_and_pagination(self):
+        signature = "a" * 24
+        item = {"number": 65, "html_url": "https://github.com/matiz311/WinNAT-UI/issues/65",
+                "state": "open", "title": "Errore DNS durante verifica stato",
+                "body": "<!-- winnat-fingerprint:" + signature + " -->",
+                "updated_at": "2026-10-16T20:00:00Z",
+                "labels": [{"name": "bug-report"}, {"name": "triage:in-analisi"},
+                           {"name": "priority:high"}, {"name": "fixed-in/v1.16.0"}]}
+        with patch("winnat_ui.issue_tracker._read_json", return_value=[item]) as get:
+            issues = it.public_issues()
+        self.assertEqual(get.call_count, 1)
+        self.assertEqual(issues[signature][0]["title"], item["title"])
+        self.assertEqual(issues[signature][0]["triage"], "in-analisi")
+        self.assertEqual(issues[signature][0]["priority"], "high")
+        self.assertEqual(issues[signature][0]["fixed_in"], "1.16.0")
+
+    def test_fixed_in_hotfix_label_is_recognized(self):
+        signature = "b" * 24
+        item = {"number": 44, "html_url": "https://github.com/matiz311/WinNAT-UI/issues/44",
+                "state": "closed", "title": "Updater - release assente",
+                "body": "<!-- winnat-fingerprint:" + signature + " -->",
+                "labels": [{"name": "bug-report"},
+                           {"name": "fixed-in/v1.15.0.1"}]}
+        with patch("winnat_ui.issue_tracker._read_json", return_value=[item]):
+            issue = it.public_issues()[signature][0]
+        self.assertEqual(issue["fixed_in"], "1.15.0.1")
+
+    def test_sync_updates_title_but_preserves_original_issue_number(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "issues.json"
+            payload = it.safe_payload("Commit", "Access denied", "", "1.9.5")
+            issue = {"number": 42, "url": "https://github.com/matiz311/WinNAT-UI/issues/42"}
+            with patch("winnat_ui.issue_tracker.store_path", return_value=path):
+                original = it.save_entry(payload, issue)
+                matched = dict(number=42, state="open", fixed_in=None,
+                               title="LAN — Indirizzo IPv4 non applicato",
+                               triage="confermato", priority="high",
+                               updated_at="2026-10-16T20:00:00Z")
+                entries, _ = it.synchronize(remote={original["fingerprint"]: [matched]})
+                self.assertEqual(entries[0]["number"], 42)
+                self.assertEqual(entries[0]["title"], matched["title"])
+                self.assertEqual(entries[0]["triage"], "confermato")
+                self.assertEqual(entries[0]["priority"], "high")
+                self.assertEqual(entries[0]["updated_at"], matched["updated_at"])
+
+    def test_sync_records_transitions_once_and_limits_history(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "issues.json"
+            payload = it.safe_payload("Commit", "Access denied", "", "1.9.5")
+            issue = {"number": 42, "url": "https://github.com/matiz311/WinNAT-UI/issues/42"}
+            with patch("winnat_ui.issue_tracker.store_path", return_value=path):
+                original = it.save_entry(payload, issue)
+                remote = {original["fingerprint"]: [{
+                    "number": 42, "state": "closed", "fixed_in": "1.9.8",
+                    "title": "LAN - configurazione", "triage": "risolto",
+                    "priority": "high", "updated_at": "2026-10-17T00:00:00Z"}]}
+                entries, _ = it.synchronize(remote=remote)
+                self.assertEqual(len(entries[0]["timeline"]), 1)
+                changes = entries[0]["timeline"][0]["changes"]
+                self.assertEqual(changes["state"], {"from": "open", "to": "closed"})
+                self.assertEqual(changes["fixed_in"]["to"], "1.9.8")
+                entries, _ = it.synchronize(remote=remote)
+                self.assertEqual(len(entries[0]["timeline"]), 1)
+                self.assertIn("observed_at", entries[0]["timeline"][0])
+
+    def test_hotfix_release_comparison(self):
+        self.assertTrue(it.comparable_release("1.15.0.1", "1.15.0"))
+        self.assertTrue(it.comparable_release("1.15.1", "1.15.0.9"))
+        self.assertFalse(it.comparable_release("1.15.0", "1.15.0.1"))
+        self.assertTrue(it.comparable_release("1.15.0.0", "1.15.0"))
+        self.assertFalse(it.comparable_release("unknown", "1.15.0"))
+
+
     def test_similar_issue_by_signature(self):
         p = it.safe_payload("Commit", "Access denied", "", "1.9.5")
         issues = {it.fingerprint(p): [{"number": 7, "state": "open", "url": "https://github.com/matiz311/WinNAT-UI/issues/7"}]}

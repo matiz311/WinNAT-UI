@@ -90,6 +90,13 @@ class MaintenanceRegistryTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "PREVIOUS-COMMIT"):
                 guard.check_pr("base", 67)
 
+    def test_gateway_unit_tests_do_not_require_disruptive_maintenance(self):
+        self.assertFalse(guard.risky("services/bug-gateway/test/gateway.test.mjs"))
+        self.assertFalse(guard.risky("services/bug-gateway/README.md"))
+        self.assertTrue(guard.risky("services/bug-gateway/src/index.js"))
+        self.assertTrue(guard.risky("services/bug-gateway/wrangler.toml"))
+        self.assertTrue(guard.risky("services/bug-gateway/package.json"))
+
     def test_missing_prior_registration_fails_pr(self):
         def fake_git(*args):
             if args[0] == "merge-base":

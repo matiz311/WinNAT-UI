@@ -180,7 +180,7 @@ export default {
         "Per indicare la correzione, aggiungere alla Issue la label `fixed-in/vMAJOR.MINOR.PATCH`.";
       const created=await github(env,"/repos/"+REPO+"/issues",{
         method:"POST",headers:{"content-type":"application/json"},
-        body:JSON.stringify({title,body,labels:["bug-report"]})
+        body:JSON.stringify({title,body,labels:["bug-report","triage:ricevuto"]})
       });
       return json({number:created.number,url:created.html_url,already_exists:false},201);
     }catch(error){
