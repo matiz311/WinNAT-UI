@@ -172,6 +172,22 @@ class IssueTrackerTests(TestCase):
         self.assertEqual(it.find_similar(p, issues)[0]["number"], 7)
 
 
+    def test_second_occurrence_keeps_existing_triage_and_timeline(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with patch("winnat_ui.issue_tracker.store_path", return_value=Path(folder) / "issues.json"):
+                payload = it.safe_payload("Commit", "Access denied", "", "1.15.0")
+                issue = {"number": 33, "url": "https://github.com/matiz311/WinNAT-UI/issues/33"}
+                it.save_entry(payload, issue)
+                new_state = {it.fingerprint(payload): [{
+                    "number": 33, "title": "Accesso negato - LAN", "state": "open",
+                    "triage": "in-analisi", "fixed_in": None, "priority": "P2"}]}
+                it.synchronize(remote=new_state)
+                saved = it.save_entry(payload, issue)
+                self.assertEqual(saved["triage"], "in-analisi")
+                self.assertEqual(saved["title"], "Accesso negato - LAN")
+                self.assertEqual(len(saved["timeline"]), 1)
+                self.assertEqual(len(it.history()), 1)
+
     def test_manual_report_without_application_error_or_inventory(self):
         payload = it.manual_payload(
             "VPN non si collega", "Il servizio VPN esterno non apre il tunnel.",
