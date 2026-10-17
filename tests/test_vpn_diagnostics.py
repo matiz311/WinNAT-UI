@@ -1,5 +1,6 @@
 """Tests for VPN evidence collection, comparison and local-only export."""
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -65,6 +66,14 @@ class VpnDiagnosticsTests(unittest.TestCase):
         output = Path(self.tmp.name) / "issue-76.md"
         vpn.export(output, data)
         self.assertEqual(output.read_text(encoding="utf-8"), markdown)
+
+    @unittest.skipUnless(sys.platform == "win32", "Richiede PowerShell su Windows")
+    def test_windows_powershell_read_only_capture(self):
+        """Exercise the actual PowerShell collector on a Windows CI host."""
+        snap = vpn.capture("before", path=self.path)
+        self.assertTrue(snap["sections"]["interfaces"]["ok"])
+        self.assertTrue(snap["sections"]["routes"]["ok"])
+        self.assertTrue(self.path.exists())
 
     def test_invalid_phase_does_not_execute(self):
         with self.assertRaises(ValueError):
