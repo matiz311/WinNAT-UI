@@ -47,11 +47,25 @@ def assess(title: str, body: str, number: int) -> Assessment:
     """Rule-based hints only; no causal or severity assertion is automated."""
     title = _normal(title)
     body = body or ""
+    # Explicit title and structured diagnostic fields carry more weight than
+    # incidental mentions of modules, releases or unrelated features in prose.
     data = (title + "\n" + body).casefold()
-    feature = any(x in title.casefold() for x in ("[feature]", "[enhancement]", "[richiesta]"))
+    title_lower = title.casefold()
+    feature = any(x in title_lower for x in ("[feature]", "[enhancement]", "[richiesta]"))
     kind = "Miglioramento" if feature else "Anomalia segnalata"
+    report_fields = re.findall(
+        r"(?im)^\\s*\\*{0,2}(?:operazione|moduli|componente|categoria)\\*{0,2}\\s*:\\s*([^\\n]+)",
+        body,
+    )
+    focus = (title + "\n" + "\n".join(report_fields)).casefold()
+    generic_title = (not title or any(term in title_lower for term in GENERIC))
+    if generic_title:
+        # Legacy/generic titles may lack structured fields. The opening
+        # description is relevant, but later remediation/release notes are not.
+        focus += "\n" + body[:400].casefold()
+    vpn_context = any(word in focus for word in ("vpn", "full tunnel", "fulltunnel"))
 
-    if "malwarebytes" in data and "vpn" in data:
+    if vpn_context and "malwarebytes" in data:
         component = "VPN Full Tunnel"
         observation = ("Segnalata difficoltà nel collegamento Malwarebytes VPN con "
                        "configurazione WinNAT presente; riportato ripristino dopo rimozione.")
@@ -64,7 +78,7 @@ def assess(title: str, body: str, number: int) -> Assessment:
             "Confrontare route, interfacce, forwarding, Get-NetNat e log VPN, condividendo solo differenze pertinenti e filtrate.",
         )
         next_step = "Segnalante: fornire esiti e dati minimi; manutentore: isolare la modifica di rete che altera la connessione."
-    elif "vpn" in data or "full tunnel" in data or "fulltunnel" in data:
+    elif vpn_context:
         component = "VPN e rete"
         observation = "Segnalata anomalia nel comportamento di una connessione VPN."
         hypothesis = "Da verificare se il problema riguardi tunnel, instradamento o un errore indipendente da WinNAT."
@@ -74,7 +88,7 @@ def assess(title: str, body: str, number: int) -> Assessment:
             "Fornire confronto prima/dopo WinNAT, route e metriche filtrate e test di ripristino.",
         )
         next_step = "Segnalante: riprodurre e condividere le evidenze minime; manutentore: confrontare percorsi di rete."
-    elif any(x in data for x in ("aggiornament", "updater", "release", "httperror")):
+    elif any(x in focus for x in ("aggiornament", "updater", "httperror", "controllo release")):
         component = "Aggiornamenti"
         observation = "Segnalato errore nel flusso di controllo o installazione degli aggiornamenti."
         hypothesis = ("Da distinguere endpoint/release assente, asset non disponibile, errore HTTP, "
@@ -85,7 +99,7 @@ def assess(title: str, body: str, number: int) -> Assessment:
             "Verificare separatamente disponibilità della release ufficiale e asset Windows, senza aggirare i controlli di integrità.",
         )
         next_step = "Segnalante: confermare fase e codice errore; manutentore: confrontare codice della versione segnalata."
-    elif any(x in data for x in ("dhcp", "interfaccia lan", "indirizzo statico", "new-netnat", "forwarding")):
+    elif any(x in focus for x in ("dhcp", "interfaccia lan", "indirizzo statico", "new-netnat", "forwarding")):
         component = "Configurazione di rete"
         observation = "Segnalata anomalia durante la configurazione delle interfacce o di WinNAT."
         hypothesis = "Da confrontare stato iniziale, piano applicato, errore PowerShell e rollback; nessuna causa automatica."
@@ -95,7 +109,7 @@ def assess(title: str, body: str, number: int) -> Assessment:
             "Confrontare piano prima/dopo e indicare se il rollback ha ripristinato lo stato precedente.",
         )
         next_step = "Segnalante: fornire piano e step fallito; manutentore: controllare validazioni e modifica mirata."
-    elif any(x in data for x in ("stato bug", "issue_tracker", "github issue", "getaddrinfo", "dns")):
+    elif any(x in focus for x in ("stato bug", "issue_tracker", "github issue", "getaddrinfo", "dns")):
         component = "Stato bug e connettività"
         observation = "Segnalata anomalia nel collegamento al servizio Issue o nella risoluzione nomi."
         hypothesis = "Problema remoto/offline e gestione applicativa dell'errore da distinguere; non provato un difetto WinNAT."
@@ -124,7 +138,6 @@ def assess(title: str, body: str, number: int) -> Assessment:
     has_evidence = bool(re.search(r"traceback|eccezione|exception|exit code|errore principale|passaggi|riprod", body, re.I))
     enough = has_version and has_evidence and len(body.strip()) >= 160
     state = "triage:in-analisi" if enough else "triage:informazioni-richieste"
-    generic_title = (not title or any(term in title.casefold() for term in GENERIC))
     replacement = None
     if generic_title:
         prefix = "[Feature]" if feature else "[Bug]"
