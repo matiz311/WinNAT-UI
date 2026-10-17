@@ -1448,6 +1448,7 @@ class App(tk.Tk):
         title = tk.StringVar(value=selected_title[:180])
         category = tk.StringVar(value=issue_tracker.MANUAL_CATEGORIES[0])
         capture_label = tk.StringVar(value="Stato attuale")
+        include_snapshot = tk.BooleanVar(value=True)
         target = tk.StringVar(value=selected_number)
         row = ttk.Frame(frame)
         row.pack(fill="x", pady=(0, S2))
@@ -1463,6 +1464,7 @@ class App(tk.Tk):
         ttk.Label(row, text="Nome acquisizione").pack(side="left")
         ttk.Entry(row, textvariable=capture_label, width=22).pack(side="left", padx=S2)
         ttk.Button(row, text="Raccogli diagnostica", command=lambda: collect()).pack(side="left")
+        ttk.Checkbutton(row, text="Includi dati raccolti", variable=include_snapshot).pack(side="left", padx=S2)
         status = tk.StringVar(value=self.diagnostic_status_text())
         ttk.Label(row, textvariable=status, style="Muted.TLabel").pack(side="left", padx=S2)
         ttk.Label(frame, text="Anteprima modificabile: il testo viene pubblicato salvo oscuramento "
@@ -1497,7 +1499,8 @@ class App(tk.Tk):
             try:
                 body = diagnostics.build_report(
                     title.get(), description.get("1.0", "end-1c"),
-                    category.get(), version=VERSION)
+                    category.get(),
+                    data=None if include_snapshot.get() else {"snapshots": []}, version=VERSION)
             except (OSError, ValueError) as exc:
                 messagebox.showerror("Anteprima non disponibile", str(exc), parent=win)
                 return
