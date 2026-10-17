@@ -199,6 +199,58 @@ jobs:
             $options += '--manual'
             $options += '--approved'
           }
+          # One-time, owner-requested autonomous MINOR release v1.16.0.
+          # Bound to a frozen main parent and an exhaustive changed-file set.
+          # All build, Defender, asset-integrity and versioning checks remain active.
+          $approvedSource16 = 'e45cd321421049daced009345b2463c88d3db512'
+          if ($env:GITHUB_EVENT_NAME -eq 'push' -and
+              $env:GITHUB_REF -eq 'refs/heads/main' -and
+              $current -eq '1.16.0' -and
+              (git rev-parse HEAD^).Trim() -eq $approvedSource16) {
+            $expectedFiles16 = @(
+              '.github/maintenance/README.md',
+              '.github/maintenance/maintenance-history.json',
+              '.github/workflows/build.yml',
+              'CHANGELOG.md',
+              'PRIVACY.it.md',
+              'PRIVACY.md',
+              'README.en.md',
+              'README.md',
+              'RELEASE_NOTES.it.md',
+              'VERSIONING_POLICY.md',
+              'app.py',
+              'docs/updater-maintenance.md',
+              'release-approvals/v1.16.0.md',
+              'services/bug-gateway/src/index.js',
+              'services/bug-gateway/test/gateway.test.mjs',
+              'tests/test_issue_tracker.py',
+              'tests/test_maintenance.py',
+              'tests/test_maintenance_guard.py',
+              'tests/test_ui_helpers.py',
+              'tests/test_update_helper.py',
+              'tests/test_updater.py',
+              'tools/maintenance_guard.py',
+              'version.py',
+              'version_info.txt',
+              'winnat_ui/issue_tracker.py',
+              'winnat_ui/maintenance.py',
+              'winnat_ui/updater.py'
+            )
+            $actualFiles16 = @(git diff --name-only HEAD^ HEAD)
+            if (@(Compare-Object $actualFiles16 $expectedFiles16).Count -ne 0) {
+              throw 'One-time v1.16.0 approval invalid: unexpected changed files.'
+            }
+            $approval16 = Get-Content 'release-approvals/v1.16.0.md' -Raw -Encoding utf8
+            if (-not $approval16.Contains($approvedSource16) -or
+                -not $approval16.Contains('v1.16.0') -or
+                -not $approval16.Contains('OWNER_APPROVED_FOR_ONE_RELEASE') -or
+                -not $approval16.Contains('MAINT-20261017-001')) {
+              throw 'One-time v1.16.0 authorization record missing or inconsistent.'
+            }
+            Write-Host 'One-time owner authorization recognized for v1.16.0.'
+            $options += '--manual'
+            $options += '--approved'
+          }
           $decision = python tools/release.py gate $previous @options
           if ($LASTEXITCODE -ne 0) { throw "Release policy check failed: $decision" }
           Write-Host "Release decision: $decision (previous=$previous)"
