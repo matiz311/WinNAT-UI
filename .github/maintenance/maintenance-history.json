@@ -199,6 +199,51 @@
         "Release v1.16.0: https://github.com/matiz311/WinNAT-UI/releases/tag/v1.16.0"
       ],
       "outcome": "Ripristino del gate di autorizzazione riuscito, successiva pubblicazione v1.16.0 completata senza disattivare test o scansioni."
+    },
+    {
+      "id": "MAINT-20261017-003",
+      "type": "routine",
+      "status": "planned",
+      "registered_at": "2026-10-17T18:41:39.754Z",
+      "planned_start_at": null,
+      "planned_end_at": null,
+      "started_at": null,
+      "ended_at": null,
+      "components": [
+        "github-actions",
+        "issue-triage"
+      ],
+      "affected_endpoints": [
+        ".github/workflows/issue-triage.yml",
+        "tools/issue_triage_bot.py"
+      ],
+      "description": "Aggiunta di GitHub Action non distruttiva per triage iniziale delle nuove Issue, collegata a #66; nessuna modifica ai servizi live o a configurazioni di rete.",
+      "planned_steps": [
+        "Aggiungere script, test unitari e workflow per issues.opened/workflow_dispatch soltanto dopo questo commit preventivo.",
+        "Verificare maintenance-guard e CI Windows prima di qualsiasi merge.",
+        "Validare una Issue di prova dopo integrazione, controllando nome, commento, label e assenza di effetti su release e servizi."
+      ],
+      "expected_impact": "Nessun downtime previsto. Possibili commenti/label non corretti, eccesso di notifiche o esecuzioni fallite; la Action non modifica codice, release o rete.",
+      "expected_errors": [
+        "initial triage workflow failed",
+        "GitHub API rate limit/permissions",
+        "misclassified initial issue"
+      ],
+      "actor": "ChatGPT per proprietario repository",
+      "rollback": "Disabilitare o revertire soltanto issue-triage.yml e, se necessario, rimuovere manualmente commenti/label automatici errati, lasciando intatti issue originali, gateway, release e build.",
+      "related_issues": [
+        66,
+        76
+      ],
+      "related_prs": [
+        77
+      ],
+      "related_workflows": [],
+      "executed_steps": [],
+      "commits": [],
+      "observed_errors": [],
+      "evidence": [],
+      "outcome": null
     }
   ]
 }
