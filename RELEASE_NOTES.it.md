@@ -1,8 +1,18 @@
 # WinNAT-UI — Note di rilascio
 
-Le note di questa pagina sono destinate agli utilizzatori dell'applicazione. Per i dettagli delle singole modifiche, i limiti tecnici e la cronologia completa consultare [CHANGELOG.md](CHANGELOG.md). I numeri riportati corrispondono alle **31 GitHub Releases**, inclusa la versione **v1.15.0**. Il 16 ottobre 2026 la cronologia delle 28 release precedenti è stata rinumerata e i relativi eseguibili ricompilati; non utilizzare riferimenti della numerazione precedente.
+Le note di questa pagina sono destinate agli utilizzatori dell'applicazione. Per i dettagli delle singole modifiche, i limiti tecnici e la cronologia completa consultare [CHANGELOG.md](CHANGELOG.md). I numeri riportati corrispondono alle **32 GitHub Releases**, fino alla versione pubblicata **v1.15.1**. Il 16 ottobre 2026 la cronologia delle 28 release precedenti è stata rinumerata e i relativi eseguibili ricompilati; non utilizzare riferimenti della numerazione precedente.
 
 > **Importante:** WinNAT-UI modifica routing, indirizzi IPv4 e Windows NAT. Prima di applicare configurazioni su computer utilizzati per l'accesso remoto, verificare di disporre di un accesso locale e di una procedura di ripristino. Le operazioni che ricreano WinNAT possono interrompere sessioni NAT attive.
+
+## 1.16.0 — candidata (17 ottobre 2026)
+
+**Gestione dei bug e maggiore affidabilità degli aggiornamenti.** In **Informazioni → Bug segnalati** si aggiungono titoli descrittivi, stati di triage, priorità, data di aggiornamento, filtri e ricerca. La cronologia locale rimane consultabile anche senza connessione a GitHub.
+
+L'updater distingue problemi del servizio remoto e metadati invalidi, permette di segnalare al riavvio un aggiornamento fallito e predispone la finestra di avanzamento prima della chiusura della UI. È stato introdotto un registro delle manutenzioni con controllo CI dedicato.
+
+**Limiti:** il gateway aggiornato richiede il deployment del Worker e la verifica delle label GitHub. I percorsi di installazione, rollback e rete devono ancora essere collaudati su Windows reale. L'eseguibile resta non firmato.
+
+La **v1.16.0 non è ancora pubblicata** finché non sarà disponibile nella pagina ufficiale GitHub Releases.
 
 ## 1.15.1 — 16 ottobre 2026
 
