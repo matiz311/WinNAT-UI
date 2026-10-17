@@ -39,8 +39,8 @@ def manual_payload(title, description, kind="Problema esterno", version=VERSION,
     """
     subject = str(title or "").strip()
     details = str(description or "").strip()
-    allowed = ("Problema esterno", "Incompatibilita", "Comportamento inatteso", "Altro problema")
-    if not subject or len(subject) > 120 or "\n" in subject or "\\r" in subject:
+    allowed = ("Problema esterno", "Incompatibilità", "Comportamento inatteso", "Altro problema")
+    if not subject or len(subject) > 120 or "\n" in subject or "\r" in subject:
         raise ValueError("Inserisci un titolo descrittivo di massimo 120 caratteri.")
     if not details or len(details) > 8000:
         raise ValueError("Inserisci una descrizione di massimo 8000 caratteri.")
@@ -211,11 +211,11 @@ def issue_metadata(item):
     """Strictly validate metadata returned by GitHub, excluding pull requests."""
     if (not isinstance(item, dict) or "pull_request" in item
             or type(item.get("number")) is not int or item["number"] <= 0):
-        raise RemoteIssueError("invalid_response", "L'elemento GitHub non e una Issue valida.")
+        raise RemoteIssueError("invalid_response", "L'elemento GitHub non è una Issue valida.")
     number = item["number"]
     url = "https://github.com/" + REPO + "/issues/" + str(number)
     if item.get("html_url") != url or item.get("state") not in ("open", "closed"):
-        raise RemoteIssueError("invalid_response", "Identita della Issue GitHub non valida.")
+        raise RemoteIssueError("invalid_response", "Identità della Issue GitHub non valida.")
     labels = [label.get("name", "") for label in item.get("labels", [])
               if isinstance(label, dict)]
     fixed = next((label.split("v", 1)[1] for label in labels
