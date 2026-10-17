@@ -405,6 +405,55 @@
       "observed_errors": [],
       "evidence": [],
       "outcome": null
+    },
+    {
+      "id": "MAINT-20261017-007",
+      "type": "routine",
+      "status": "planned",
+      "registered_at": "2026-10-17T21:04:47Z",
+      "planned_start_at": null,
+      "planned_end_at": null,
+      "started_at": null,
+      "ended_at": null,
+      "components": [
+        "github-actions",
+        "github-releases",
+        "release-authorization"
+      ],
+      "affected_endpoints": [
+        ".github/workflows/build.yml",
+        "release-approvals/v1.17.0.md",
+        "GitHub Releases/v1.17.0"
+      ],
+      "description": "Pubblicazione MINOR v1.17.0 autorizzata espressamente dal proprietario dopo integrazione PR #80 e verifiche Windows e deploy Cloudflare Worker. Abilitazione monouso limitata a commit di origine e file attesi.",
+      "planned_steps": [
+        "Registrare preventivamente questa operazione in un commit autonomo prima dei cambi al workflow.",
+        "Preparare un'approvazione monouso con main HEAD congelato, PR dedicata, allowlist completa dei file e riferimenti dell'autorizzazione.",
+        "Verificare CI Windows e maintenance guard sulla PR e su main prima di permettere GitHub Release.",
+        "Pubblicare soltanto se test, Defender, asset manifest, versione, ultimo HEAD e gate di approvazione hanno tutti esito positivo.",
+        "Verificare release/tag/ZIP e collegare le evidenze nel registro; nessuna policy futura di pubblicazione automatica."
+      ],
+      "expected_impact": "Finestra di disponibilità dei download del nuovo ZIP e metadati latest; nessuna modifica diretta a LAN/WAN, WinNAT o firewall. Release v1.16.0 preservata.",
+      "expected_errors": [
+        "manual release gate blocked",
+        "GitHub release endpoint temporarily unavailable",
+        "Defender scanning failure",
+        "GitHub Actions build failure",
+        "stale HEAD or missing ZIP"
+      ],
+      "actor": "ChatGPT su richiesta del proprietario repository",
+      "rollback": "Sospendere il rilascio se qualunque gate non passa e revertire tramite PR il solo blocco di autorizzazione; conservare tag e asset delle release precedenti, non usare force push o sovrascritture.",
+      "related_prs": [],
+      "related_issues": [],
+      "related_workflows": [
+        "Build Windows executable",
+        "Maintenance guard"
+      ],
+      "executed_steps": [],
+      "commits": [],
+      "observed_errors": [],
+      "evidence": [],
+      "outcome": null
     }
   ]
 }
