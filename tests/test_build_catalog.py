@@ -63,7 +63,7 @@ class CatalogTests(unittest.TestCase):
                 return {"artifacts": [artifact()]}
             raise AssertionError("Unexpected API request: " + path)
         with patch.object(build_catalog, "_api_json", side_effect=fake_api):
-            rows = build_catalog.build_catalog()
+            rows = build_catalog.actions_build_catalog()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["commit"], SHA)
         self.assertEqual(rows[0]["label"], "Build #55 · aaaaaaaa · Test")
@@ -74,7 +74,7 @@ class CatalogTests(unittest.TestCase):
         art = dict(artifact(), name=f"WinNAT-UI-Windows-55-{merge}")
         with patch.object(build_catalog, "_api_json", side_effect=[
                 {"workflow_runs": [run]}, {"artifacts": [art]}]):
-            rows = build_catalog.build_catalog()
+            rows = build_catalog.actions_build_catalog()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["commit"], merge)
         self.assertEqual(rows[0]["source_commit"], SHA)
@@ -84,14 +84,14 @@ class CatalogTests(unittest.TestCase):
         art = dict(artifact(), name="WinNAT-UI-Windows-55-" + "c" * 40)
         with patch.object(build_catalog, "_api_json", side_effect=[
                 {"workflow_runs": [run]}, {"artifacts": [art]}]):
-            self.assertEqual(build_catalog.build_catalog(), [])
+            self.assertEqual(build_catalog.actions_build_catalog(), [])
 
     def test_expired_missing_digest_or_incomplete_build_omitted(self):
         run = successful_run()
         bad = [dict(artifact(), expired=True)]
         with patch.object(build_catalog, "_api_json", side_effect=[
                 {"workflow_runs": [run]}, {"artifacts": bad}]):
-            self.assertEqual(build_catalog.build_catalog(), [])
+            self.assertEqual(build_catalog.actions_build_catalog(), [])
 
     def test_untrusted_redirect_rejected(self):
         for url in ("http://objects.githubusercontent.com/x",
@@ -99,6 +99,66 @@ class CatalogTests(unittest.TestCase):
                     "https://user:pass@objects.githubusercontent.com/x"):
             with self.subTest(url=url):
                 self.assertFalse(build_catalog._trusted_artifact_location(url))
+
+    def test_public_previews_require_matching_official_release_asset(self):
+        good = {"tag": "ci-run-100", "run_id": 100, "run_number": 55,
+                "commit": SHA, "source_commit": SHA, "event": "push",
+                "branch": "main", "date": "2026-10-17T20:00:00Z",
+                "version": "1.16.0", "size": 123, "sha256": DIGEST}
+        preview = {"tag_name": "ci-run-100", "draft": False, "prerelease": True,
+                   "target_commitish": SHA,
+                   "assets": [{"name": "WinNAT-UI-Windows.zip", "size": 123,
+                               "digest": "sha256:" + DIGEST,
+                               "browser_download_url": "https://github.com/matiz311/WinNAT-UI/releases/download/ci-run-100/WinNAT-UI-Windows.zip"}]}
+        index = {"schema_version": 1, "repository": "matiz311/WinNAT-UI",
+                 "builds": [good]}
+        with patch.object(build_catalog, "_index_json", return_value=index), \
+                patch.object(build_catalog, "_api_json", return_value=[preview]):
+            rows = build_catalog.build_catalog()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["delivery"], "preview")
+        self.assertEqual(rows[0]["run_number"], 55)
+        self.assertEqual(rows[0]["commit"], SHA)
+        self.assertIn("/releases/download/ci-run-100/", rows[0]["url"])
+
+    def test_forged_or_stable_preview_not_available(self):
+        entry = {"tag": "ci-run-100", "run_id": 100, "run_number": 55,
+                 "commit": SHA, "source_commit": SHA, "event": "push",
+                 "version": "1.16.0", "size": 123, "sha256": DIGEST}
+        raw = {"schema_version": 1, "repository": "matiz311/WinNAT-UI",
+               "builds": [entry]}
+        for releases in ([{"tag_name": "ci-run-100", "prerelease": False}],
+                         [{"tag_name": "ci-run-100", "prerelease": True,
+                           "target_commitish": SHA, "assets": [{
+                               "name": "WinNAT-UI-Windows.zip", "digest": "sha256:" + "c" * 64,
+                               "size": 123, "browser_download_url":
+                               "https://github.com/matiz311/WinNAT-UI/releases/download/ci-run-100/WinNAT-UI-Windows.zip"}]}]):
+            with self.subTest(releases=releases), \
+                    patch.object(build_catalog, "_index_json", return_value=raw), \
+                    patch.object(build_catalog, "_api_json", return_value=releases):
+                self.assertEqual(build_catalog.build_catalog(), [])
+
+    def test_missing_preview_branch_yields_empty_catalog(self):
+        from urllib.error import HTTPError
+        with patch("urllib.request.urlopen", side_effect=HTTPError(
+                build_catalog._PREVIEW_INDEX, 404, "Not Found", None, None)):
+            self.assertEqual(build_catalog._index_json()["builds"], [])
+
+    def test_public_preview_download_is_atomic_and_verified(self):
+        info = {"delivery": "preview", "id": "ci-run-100",
+                "url": "https://github.com/matiz311/WinNAT-UI/releases/download/ci-run-100/WinNAT-UI-Windows.zip",
+                "sha256": DIGEST, "size": 6}
+        with tempfile.TemporaryDirectory() as directory:
+            dest = Path(directory) / "payload.zip"
+            def fake_download(url, temporary, expected):
+                self.assertEqual(url, info["url"])
+                self.assertEqual(expected, DIGEST)
+                Path(temporary).write_bytes(b"ABCDEF")
+                return 6
+            with patch.object(build_catalog.updater, "_download", side_effect=fake_download):
+                self.assertEqual(build_catalog.download_build(info, dest), 6)
+            self.assertEqual(dest.read_bytes(), b"ABCDEF")
+            self.assertFalse(Path(str(dest) + ".partial").exists())
 
     def test_token_missing_rejected_before_network(self):
         with tempfile.TemporaryDirectory() as directory:
