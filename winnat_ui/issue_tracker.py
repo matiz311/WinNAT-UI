@@ -190,7 +190,7 @@ def save_entry(payload, issue):
 def issue_number(reference):
     """Accept only numeric IDs or canonical issue links in this repository."""
     value = str(reference or "").strip()
-    if re.fullmatch(r"#?\\d{1,9}", value):
+    if re.fullmatch(r"#?\d{1,9}", value):
         number = int(value.lstrip("#"))
     else:
         parts = urlsplit(value)
@@ -198,7 +198,7 @@ def issue_number(reference):
                 or parts.username or parts.password or parts.port
                 or parts.query or parts.fragment):
             raise ValueError("Usa il numero o l'URL della Issue GitHub ufficiale.")
-        match = re.fullmatch(r"/" + re.escape(REPO) + r"/issues/(\\d{1,9})/?", parts.path)
+        match = re.fullmatch(r"/" + re.escape(REPO) + r"/issues/(\d{1,9})/?", parts.path)
         if not match:
             raise ValueError("La Issue deve appartenere al repository WinNAT-UI.")
         number = int(match.group(1))
@@ -219,7 +219,7 @@ def issue_metadata(item):
     labels = [label.get("name", "") for label in item.get("labels", [])
               if isinstance(label, dict)]
     fixed = next((label.split("v", 1)[1] for label in labels
-                  if re.fullmatch(r"fixed-in/v\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?", label)), None)
+                  if re.fullmatch(r"fixed-in/v\d+\.\d+\.\d+(?:\.\d+)?", label)), None)
     triage = next((label[len("triage:"):] for label in labels
                    if label.startswith("triage:")), None)
     priority = next((label[len("priority:"):] for label in labels
