@@ -8,9 +8,9 @@
 [![Latest release](https://img.shields.io/github/v/release/matiz311/WinNAT-UI)](https://github.com/matiz311/WinNAT-UI/releases/latest)
 [![Build Windows executable](https://github.com/matiz311/WinNAT-UI/actions/workflows/build.yml/badge.svg)](https://github.com/matiz311/WinNAT-UI/actions/workflows/build.yml)
 
-**[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)** — scarica lo ZIP della release pubblica, estrai completamente la cartella e avvia `WinNAT-UI.exe`. La release corrente è **v1.15.0**, **non firmata**; la firma tramite SignPath Foundation non è ancora approvata.
+**[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)** — scarica lo ZIP della release pubblica, estrai completamente la cartella e avvia `WinNAT-UI.exe`. La release pubblicata è **v1.15.1**, **non firmata**; la firma tramite SignPath Foundation non è ancora approvata.
 
-**Patch in preparazione:** v1.15.1 corregge il fallback delle icone Windows; la release pubblica corrente rimane v1.15.0. **Novità della 1.15.0:** v1.15.0 include il nuovo logo vettoriale, la gestione degli IPv4 secondari LAN, la configurazione DHCP→statico e migliorie di diagnostica e interfaccia. Verificare sempre il numero della release dalla [pagina GitHub Releases](https://github.com/matiz311/WinNAT-UI/releases).
+**Prossima release candidata:** v1.16.0 introduce ricerca e triage dei bug, segnalazione degli errori di aggiornamento e diagnostica del canale GitHub. La release pubblica rimane v1.15.1 fino al completamento della pipeline autorizzata.
 
 - [Release e changelog](https://github.com/matiz311/WinNAT-UI/releases)
 - [Note di rilascio per versione (consultabili nel README)](#note-di-rilascio-per-versione)
@@ -71,7 +71,7 @@ WinNAT Microsoft è progettato per un singolo prefisso interno: più istanze con
 - [Microsoft: Get-NetNat](https://learn.microsoft.com/en-us/powershell/module/netnat/get-netnat)
 
 ## Stato
-**Versione pubblicata: v1.14.0 (16 ottobre 2026).** Build Windows e test CI superati; restano necessari test operativi su un computer Windows reale, soprattutto per configurazioni di rete e updater. Prima prova consigliata: diagnostica in sola lettura in ambiente di test.
+**Versione pubblicata: v1.15.1 (16 ottobre 2026).** Build Windows e test CI superati; restano necessari test operativi su un computer Windows reale, soprattutto per configurazioni di rete e updater. Prima prova consigliata: diagnostica in sola lettura in ambiente di test.
 
 ## Identità e attendibilità dell'eseguibile
 Windows mostra ProductName **WinNAT UI**, CompanyName **Matteo Cannizzo**, FileDescription e FileVersion (uguale alla versione in `version.py`) nelle proprietà dell'eseguibile. Questi campi sono dichiarazioni testuali del progetto, **non** attestano l'identità dell'editore. Un programma compilato da GitHub Actions senza certificato resta **non firmato** e Windows SmartScreen potrebbe avvisare l'utente. Per apparire come editore verificato serve un certificato di firma codice appropriato, mantenuto nei secret della CI o tramite servizio di signing, e una firma Authenticode verificabile con `Get-AuthenticodeSignature`. Nessun certificato o approvazione Microsoft è implicito.

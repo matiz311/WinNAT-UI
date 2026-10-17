@@ -1,15 +1,10 @@
 # Versioning e pubblicazione — WinNAT-UI
 
-## Stato attuale — 16 ottobre 2026
+## Stato attuale — 17 ottobre 2026
 
-**Patch v1.15.1 in preparazione (non ancora pubblicata):** correzione del fallback dell'icona PNG quando il caricamento ICO su Windows fallisce. La versione stabile pubblicata rimane v1.15.0 fino al completamento dei test e della GitHub Release.
+La **release stabile pubblicata è v1.15.1**: [GitHub Releases](https://github.com/matiz311/WinNAT-UI/releases/latest). La patch ha corretto il fallback del logo Windows. Il catalogo comprende 32 release pubbliche fino alla v1.15.1. Le ultime versioni sono `v1.13.0` → `v1.13.0.1` → `v1.14.0` → `v1.14.1` → `v1.15.0` → `v1.15.1`.
 
-
-La **versione stabile pubblicata è `v1.15.0`**: [GitHub Releases](https://github.com/matiz311/WinNAT-UI/releases/latest). Il catalogo comprende **31 release pubbliche**: le 28 precedenti sono state ricompilate e rinumerate il 16 ottobre 2026, seguite da `v1.14.0`, dalla PATCH `v1.14.1` e dalla MINOR `v1.15.0`. L'ultimo HOTFIX precedente è **`v1.13.0.1`**. I tag e i numeri usati nei documenti sono quelli attualmente pubblicati; gli identificativi dismessi non sono alias di download.
-
-Le informazioni complete di ogni rilascio si trovano in [CHANGELOG.md](CHANGELOG.md) e [RELEASE_NOTES.it.md](RELEASE_NOTES.it.md). La sequenza effettiva più recente è `v1.13.0` → `v1.13.0.1` → `v1.14.0` → `v1.14.1` → `v1.15.0`.
-
-**Rilascio MINOR 1.15.0:** incorpora le correzioni della v1.14.1 e le funzionalità e integrazioni delle PR #54, #55/#60, #56, #57, #59 e #58. Per questo solo rilascio, il proprietario del repository ha autorizzato espressamente ChatGPT ad avviare la pubblicazione in autonomia il 16 ottobre 2026. L'autorizzazione è tracciata in `release-approvals/v1.15.0.md`; il workflow la riconosce una sola volta, soltanto se la versione, il commit di base e i file modificati coincidono con quelli previsti, senza disattivare build/test, scansione Defender, controlli di sicurezza né il gate di versione. Dalle release successive rimane obbligatorio il normale `workflow_dispatch` approvato.
+**v1.16.0 è una release MINOR candidata, non ancora pubblicata.** Comprende gestione avanzata delle segnalazioni bug, diagnosi dell'updater, notifiche di errori d'installazione e registro manutenzioni. Si applicano la convalida combinata del ramo di integrazione, l'esame della sicurezza e il gate di approvazione della release. Per v1.15.0 esisteva un'autorizzazione eccezionale, limitata a quel rilascio. Il 17 ottobre 2026 il proprietario ha autorizzato espressamente ChatGPT a integrare, verificare e pubblicare la v1.16.0 in autonomia: per questa sola release il workflow riconosce la registrazione `release-approvals/v1.16.0.md` se il commit precedente su `main` e l'elenco completo dei file modificati coincidono con i valori prestabiliti. L'autorizzazione non disabilita build, test, Defender, gate versione, verifica della release esistente o controllo dell'HEAD e non vale per versioni successive.
 
 ## Fonte della versione
 
@@ -43,7 +38,7 @@ Un merge ordinario non rappresenta di per sé una nuova release. Rimangono obbli
 2. Inserire la sezione corrispondente nel `CHANGELOG.md`. MAJOR e MINOR richiedono le sezioni **Sintesi**, **Funzionalità** e **Correzioni**, con evidenze verificabili.
 3. Aggiornare `RELEASE_NOTES.it.md` e, quando serve, i README e la documentazione correlata.
 4. Eseguire test automatici, build Windows, verifica della versione nell'EXE, scansione Defender e controllo degli SHA-256.
-5. Per MAJOR e MINOR, richiedere l'approvazione esplicita tramite il workflow manuale GitHub Actions; la semplice compilazione non pubblica un nuovo numero di release. È ammessa soltanto l'eccezione tracciata e vincolata a v1.15.0 descritta sopra, su richiesta esplicita del proprietario.
+5. Per MAJOR e MINOR, richiedere l'approvazione esplicita tramite il workflow manuale GitHub Actions; la semplice compilazione non pubblica un nuovo numero di release. Sono ammesse soltanto le eccezioni strettamente delimitate e tracciate per v1.15.0 e v1.16.0 sopra descritte, entrambe su richiesta esplicita del proprietario.
 6. Pubblicare solo pacchetti verificati, con tag e versione interna coincidenti, senza riscrivere le release già pubblicate.
 7. Validare l'updater su Windows reale prima di considerare completamente collaudato il percorso di aggiornamento.
 

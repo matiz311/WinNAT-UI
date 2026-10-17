@@ -23,6 +23,8 @@ from version import VERSION
 from winnat_ui.ui_theme import C, F, S1, S2, S3, S4, S5
 
 REPO_URL = "https://github.com/matiz311/WinNAT-UI"
+# Max wait for the update window before closing anyway (PowerShell + WinForms startup).
+UPDATE_WINDOW_WAIT_MS = 15000
 
 PAGES = [  # key, label, icon, subtitle
     ("dashboard", "Panoramica", "dashboard", "Stato reale della rete Windows, in sola lettura."),
@@ -339,7 +341,13 @@ class App(tk.Tk):
         self.show_page("dashboard")
         self.after(100, self.drain)
         self.after(60000, self.periodic_sessions)
-        self.after(2500, lambda: self.check_updates(silent=True))
+        # A failed update saved by the helper is offered for reporting once; in
+        # that session the automatic update prompt is skipped to avoid a loop.
+        self.update_failure = updater.pending_failure()
+        if self.update_failure:
+            self.after(1200, self.report_update_failure)
+        else:
+            self.after(2500, lambda: self.check_updates(silent=True))
         self.after(7000, lambda: self.refresh_issue_tracker(silent=True))
         self.refresh()
 
@@ -1325,14 +1333,33 @@ class App(tk.Tk):
         self.issue_status = tk.StringVar(value="Archivio locale delle segnalazioni.")
         tk.Label(issues.body, textvariable=self.issue_status, bg=C["surface"],
                  fg=C["text_muted"], font=F["caption"]).pack(anchor="w", pady=(S2, 0))
-        self.issue_table = ttk.Treeview(issues.body, columns=("number","category","state","fix"),
-                                        show="headings", height=5)
-        for field, label, width in (("number","Issue",70), ("category","Problema",330),
-                                    ("state","Stato",100), ("fix","Correzione",150)):
+        self.issue_query = tk.StringVar()
+        controls = tk.Frame(issues.body, bg=C["surface"])
+        controls.pack(fill="x", pady=(S2, 0))
+        tk.Label(controls, text="Cerca per titolo o ID:", bg=C["surface"],
+                 fg=C["text"]).pack(side="left")
+        ttk.Entry(controls, textvariable=self.issue_query, width=28).pack(side="left", padx=S2)
+        self.issue_query.trace_add("write", lambda *_: self.render_issue_tracker())
+        self.issue_filter = tk.StringVar(value="Tutti")
+        filters = ttk.Combobox(controls, textvariable=self.issue_filter, state="readonly",
+                               values=("Tutti", "Aperti", "Chiusi", "Correzione disponibile"), width=23)
+        filters.pack(side="left", padx=S2)
+        filters.bind("<<ComboboxSelected>>", lambda _e: self.render_issue_tracker())
+        self.issue_table = ttk.Treeview(issues.body,
+                                        columns=("number","title","state","priority","fix"),
+                                        show="headings", height=6)
+        for field, label, width in (("number","Issue",65), ("title","Problema",360),
+                                    ("state","Stato",145), ("priority","Priorità",85),
+                                    ("fix","Correzione",150)):
             self.issue_table.heading(field, text=label)
             self.issue_table.column(field, width=width)
         self.issue_table.pack(fill="x", pady=(S2, 0))
         self.issue_table.bind("<Double-1>", self.open_tracked_issue)
+        self.issue_table.bind("<<TreeviewSelect>>", self.show_tracked_issue_details)
+        self.issue_details = tk.StringVar(value="Seleziona una segnalazione per visualizzarne i dettagli.")
+        tk.Label(issues.body, textvariable=self.issue_details, bg=C["surface"],
+                 fg=C["text_muted"], font=F["caption"], justify="left",
+                 anchor="w", wraplength=750).pack(fill="x", pady=(S2, 0))
         self.render_issue_tracker()
         self.section(page, "Scorciatoie da tastiera")
         keys = ui.Card(page, padding=S4)
@@ -1349,14 +1376,66 @@ class App(tk.Tk):
             return
         self.issue_table.delete(*self.issue_table.get_children())
         entries = issue_tracker.history()
+        query = self.issue_query.get().strip().casefold() if hasattr(self, "issue_query") else ""
+        issue_filter = self.issue_filter.get() if hasattr(self, "issue_filter") else "Tutti"
+        status_names = {"ricevuto": "Ricevuto", "in-analisi": "In analisi",
+                        "informazioni-richieste": "Informazioni richieste",
+                        "confermato": "Confermato", "in-correzione": "In correzione",
+                        "correzione-disponibile": "Correzione disponibile",
+                        "risolto": "Risolto", "duplicato": "Duplicato",
+                        "non-riproducibile": "Non riproducibile"}
+        visible = 0
         for i, issue in enumerate(entries):
+            title = issue.get("title") or (issue.get("operation", "") + " — " +
+                                             issue.get("category", "Problema"))
+            if query and query not in (str(issue.get("number", "")) + " " + title).casefold():
+                continue
+            if issue_filter == "Aperti" and issue.get("state") == "closed":
+                continue
+            if issue_filter == "Chiusi" and issue.get("state") != "closed":
+                continue
+            if issue_filter == "Correzione disponibile" and not issue.get("fix_available"):
+                continue
             fixed = issue.get("fixed_in")
-            state = "Chiuso" if issue.get("state") == "closed" else "Aperto"
+            state = status_names.get(issue.get("triage")) or (
+                "Chiuso" if issue.get("state") == "closed" else "Aperto")
             self.issue_table.insert("", "end", iid=str(i),
-                values=("#" + str(issue["number"]), issue["category"],
-                        state, ("Disponibile: " if issue.get("fix_available") else "") +
+                values=("#" + str(issue["number"]), title, state,
+                        issue.get("priority") or "Da valutare",
+                        ("Disponibile: " if issue.get("fix_available") else "") +
                         (fixed or "Da definire")))
-        self.issue_status.set(str(len(entries)) + " segnalazioni. Doppio clic per aprire GitHub.")
+            visible += 1
+        self.issue_status.set(str(visible) + " di " + str(len(entries)) +
+                              " segnalazioni. Doppio clic per aprire GitHub.")
+
+    def show_tracked_issue_details(self, _event=None):
+        """Show locally cached issue metadata without exposing raw diagnostics."""
+        chosen = self.issue_table.selection()
+        entries = issue_tracker.history()
+        if not chosen or not chosen[0].isdigit() or int(chosen[0]) >= len(entries):
+            self.issue_details.set("Seleziona una segnalazione per visualizzarne i dettagli.")
+            return
+        issue = entries[int(chosen[0])]
+        title = issue.get("title") or issue.get("category") or "Problema non classificato"
+        fields = [("Problema", title), ("Issue", "#" + str(issue.get("number", "?"))),
+                  ("Operazione", issue.get("operation")), ("Versione segnalata", issue.get("version")),
+                  ("Prima segnalazione", issue.get("reported_at")),
+                  ("Ultimo aggiornamento GitHub", issue.get("updated_at")),
+                  ("Stato triage", issue.get("triage")),
+                  ("Stato GitHub", issue.get("state")),
+                  ("Priorità", issue.get("priority")),
+                  ("Correzione prevista", issue.get("fixed_in")),
+                  ("Aggiornamento disponibile", "Sì" if issue.get("fix_available") else "No")]
+        timeline = issue.get("timeline") or []
+        if timeline:
+            fields.append(("Cronologia osservata", str(len(timeline)) + " variazioni"))
+            for event in timeline[-5:]:
+                changes = event.get("changes") or {}
+                details = ", ".join(str(k) + ": " + str(v.get("from") or "—") + " → " +
+                                    str(v.get("to") or "—") for k, v in changes.items())
+                fields.append((str(event.get("observed_at") or "Data sconosciuta"), details))
+        self.issue_details.set("\n".join(label + ": " + str(value if value not in (None, "") else "Non disponibile")
+                                         for label, value in fields))
 
     def open_tracked_issue(self, _event=None):
         chosen = self.issue_table.selection()
@@ -1405,6 +1484,18 @@ class App(tk.Tk):
                 self.toast.show("Stato delle Issue aggiornato.", "success")
 
         self.run_task("Stato bug", check, finished)
+
+    def report_update_failure(self):
+        failure, self.update_failure = self.update_failure, None
+        updater.clear_failure()
+        if not failure:
+            return
+        # Opt-in as every report: the standard dialog shows the full report and
+        # asks for confirmation before publishing. No network inventory: it is
+        # not relevant to the updater and would only add personal data.
+        self.show_error_dialog("Aggiornamento non riuscito", "Aggiornamento",
+                               updater.failure_message(failure), "",
+                               include_inventory=False)
 
     def check_updates(self, silent=False):
         if "Aggiornamenti" in self.tasks or "Download aggiornamento" in self.tasks:
@@ -1464,13 +1555,31 @@ class App(tk.Tk):
             messagebox.showwarning("Aggiornamento rinviato",
                                    "Completa le modifiche prima di riavviare.", parent=self)
             return
+        if getattr(self, "_update_launching", False):
+            return
         try:
-            updater.launch(staging, from_version=VERSION, to_version=version)
+            helper = updater.launch(staging, from_version=VERSION, to_version=version)
         except Exception as error:
             self.show_error_dialog("Aggiornamento non avviato", "Update", str(error),
                                    traceback.format_exc())
             return
-        self.destroy()
+        # Close only once the update window is on screen, so there is no gap
+        # without any window; the deadline keeps the old behavior as a fallback.
+        self._update_launching = True
+        self.toast.show("Apertura della finestra di aggiornamento\u2026", "info", ms=UPDATE_WINDOW_WAIT_MS)
+        try:
+            self.configure(cursor="watch")
+        except tk.TclError:
+            pass
+        self._close_when_update_window_ready(helper, staging,
+                                             time.monotonic() + UPDATE_WINDOW_WAIT_MS / 1000)
+
+    def _close_when_update_window_ready(self, helper, staging, deadline):
+        exited = helper is not None and helper.poll() is not None
+        if updater.helper_ready(staging) or exited or time.monotonic() >= deadline:
+            self.destroy()
+            return
+        self.after(100, lambda: self._close_when_update_window_ready(helper, staging, deadline))
 
     # ------------------------------------------------------- navigation ---
     def show_page(self, key):
@@ -1497,7 +1606,8 @@ class App(tk.Tk):
             self.bind("<Control-Key-%d>" % (i + 1), lambda e, k=key: self.show_page(k))
 
     # ------------------------------------------------------------ tasks ---
-    def show_error_dialog(self, title, operation, message, traceback_text="", commit=False):
+    def show_error_dialog(self, title, operation, message, traceback_text="", commit=False,
+                          include_inventory=True):
         """Readable summary first; complete, copyable debug details on demand."""
         dlg = Dialog(self, title, "Chiudi", cancel="Copia errore")
         dlg.ok.configure(command=dlg.destroy)
@@ -1505,7 +1615,8 @@ class App(tk.Tk):
         # Build once: the same report shown here is sent to the gateway.
         payload = issue_tracker.safe_payload(
             operation, message, traceback_text, VERSION,
-            inventory=self.data, is_admin=self.is_admin, pending=self.pending)
+            inventory=self.data if include_inventory else None, is_admin=self.is_admin,
+            pending=self.pending if include_inventory else None)
         report_title, report_body = bug_report.format_report(payload)
         report_text = report_title + "\n\n" + report_body
 

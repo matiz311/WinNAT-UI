@@ -90,6 +90,27 @@ class MaintenanceRegistryTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "PREVIOUS-COMMIT"):
                 guard.check_pr("base", 67)
 
+    def test_gateway_unit_tests_do_not_require_disruptive_maintenance(self):
+        self.assertFalse(guard.risky("services/bug-gateway/test/gateway.test.mjs"))
+        self.assertFalse(guard.risky("services/bug-gateway/README.md"))
+        self.assertTrue(guard.risky("services/bug-gateway/src/index.js"))
+        self.assertTrue(guard.risky("services/bug-gateway/wrangler.toml"))
+        self.assertTrue(guard.risky("services/bug-gateway/package.json"))
+
+    def test_release_integration_allows_only_exact_pre_policy_gateway_squash(self):
+        squash = "ad1a51924b0736c0f3de1c32b01e9148786d34e3"
+        def fake_git(*args):
+            if args[0] == "merge-base": return "base"
+            if args[0] == "rev-list": return squash
+            if args[0] == "diff-tree": return "services/bug-gateway/src/index.js"
+            if args[0] == "rev-parse": return "previous"
+            raise AssertionError(args)
+        with (patch.object(guard, "git", side_effect=fake_git),
+              patch.object(guard, "at_commit", return_value={"events": []})):
+            guard.check_pr("base", 72)
+            with self.assertRaisesRegex(ValueError, "PREVIOUS-COMMIT"):
+                guard.check_pr("base", 73)
+
     def test_missing_prior_registration_fails_pr(self):
         def fake_git(*args):
             if args[0] == "merge-base":

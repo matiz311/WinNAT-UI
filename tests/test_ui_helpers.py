@@ -105,6 +105,18 @@ class HelperTests(unittest.TestCase):
         self.assertIn('if not silent:', segment)
         self.assertIn('return updater.release_info(VERSION)', segment)
 
+    def test_app_closes_only_after_update_window_is_ready(self):
+        from pathlib import Path
+        source = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")
+        start = source.index("    def _install_update(self, staging")
+        end = source.index("    # ------------------------------------------------------- navigation ---", start)
+        segment = source[start:end]
+        launch = segment.index("updater.launch(")
+        # destroy() must not follow launch() directly: it waits for the ready marker.
+        self.assertNotIn("self.destroy()", segment[launch:segment.index("def _close_when_update_window_ready")])
+        self.assertIn("updater.helper_ready(staging)", segment)
+        self.assertIn("time.monotonic() >= deadline", segment)
+
     def test_commit_failure_keeps_candidate_for_diff_retry(self):
         from pathlib import Path
         source = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")

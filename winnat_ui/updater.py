@@ -16,6 +16,8 @@ import urllib.request
 import urllib.error
 import zipfile
 
+from . import maintenance
+
 REPOSITORY = "matiz311/WinNAT-UI"
 API_URL = "https://api.github.com/repos/" + REPOSITORY + "/releases/latest"
 ASSET_NAME = "WinNAT-UI-Windows.zip"
@@ -47,6 +49,16 @@ def _request(url, *, timeout=20):
     })
 
 
+class UpdateChannelError(ValueError):
+    """Stable error classification without breaking existing ValueError callers."""
+
+    def __init__(self, reason, message, *, phase="release_lookup", http_status=None):
+        super().__init__(message)
+        self.reason = reason
+        self.phase = phase
+        self.http_status = http_status
+
+
 def _latest_release_metadata():
     """Translate GitHub connectivity/status errors into actionable information.
 
@@ -54,45 +66,96 @@ def _latest_release_metadata():
     """
     try:
         with urllib.request.urlopen(_request(API_URL), timeout=20) as response:
-            return json.load(response)
+            try:
+                return json.load(response)
+            except (json.JSONDecodeError, UnicodeError) as error:
+                raise UpdateChannelError(
+                    "invalid_release_metadata",
+                    "Controllo aggiornamenti: risposta JSON di GitHub non valida."
+                ) from error
     except urllib.error.HTTPError as error:
         code = error.code
         if code == 404:
             description = "Nessuna release stabile pubblicata o endpoint temporaneamente assente."
+            hint = maintenance.maintenance_hint()
+            if hint:
+                description += " " + hint
         elif code in (403, 429):
             description = "Accesso alle API GitHub limitato o non autorizzato; riprovare più tardi."
         elif 500 <= code <= 599:
             description = "Servizio GitHub temporaneamente non disponibile; riprovare più tardi."
         else:
             description = "Il servizio GitHub ha rifiutato la richiesta."
-        raise ValueError("Controllo aggiornamenti: HTTP " + str(code) + ". " + description) from error
+        reason = ("no_published_release" if code == 404 else
+                  "rate_limited" if code in (403, 429) else
+                  "service_unavailable" if 500 <= code <= 599 else "http_failure")
+        raise UpdateChannelError(reason, "Controllo aggiornamenti: HTTP "
+                                 + str(code) + ". " + description,
+                                 http_status=code) from error
     except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
-        raise ValueError(
+        raise UpdateChannelError(
+            "network_failure",
             "Impossibile contattare GitHub per gli aggiornamenti: verificare connessione, DNS e proxy."
         ) from error
 
 
 def release_info(installed):
     data = _latest_release_metadata()
-    tag = data.get("tag_name", "")
-    version_tuple(tag)
+    if not isinstance(data, dict):
+        raise UpdateChannelError(
+            "invalid_release_metadata",
+            "Controllo aggiornamenti: struttura dei metadati GitHub non valida.")
+    tag = data.get("tag_name")
+    try:
+        version_tuple(tag)
+    except (ValueError, TypeError) as error:
+        raise UpdateChannelError(
+            "invalid_release_metadata",
+            "Controllo aggiornamenti: versione della release GitHub non valida."
+        ) from error
     if data.get("draft") or data.get("prerelease"):
-        raise ValueError("L'ultima release non è una versione stabile pubblicata.")
-    assets = [a for a in data.get("assets", []) if a.get("name") == ASSET_NAME]
+        raise UpdateChannelError(
+            "invalid_release_metadata",
+            "L'ultima release non è una versione stabile pubblicata.")
+    asset_list = data.get("assets")
+    if not isinstance(asset_list, list) or any(
+            not isinstance(item, dict) for item in asset_list):
+        raise UpdateChannelError(
+            "invalid_release_metadata",
+            "Controllo aggiornamenti: elenco degli asset GitHub non valido.",
+            phase="inspect_asset")
+    assets = [a for a in asset_list if a.get("name") == ASSET_NAME]
     if len(assets) != 1:
-        raise ValueError("Release senza archivio Windows ufficiale univoco.")
+        hint = maintenance.maintenance_hint("release-assets")
+        raise UpdateChannelError(
+            "release_without_required_asset",
+            "Release senza archivio Windows ufficiale univoco." + (" " + hint if hint else ""),
+            phase="inspect_asset")
     asset = assets[0]
     url = asset.get("browser_download_url", "")
     expected = ("https://github.com/" + REPOSITORY + "/releases/download/"
                 + tag + "/" + ASSET_NAME)
     if url != expected:
-        raise ValueError("URL dell'asset non corrispondente alla release ufficiale.")
+        raise UpdateChannelError(
+            "invalid_asset_metadata",
+            "URL dell'asset non corrispondente alla release ufficiale.",
+            phase="inspect_asset")
     digest = asset.get("digest", "")
-    if not re.fullmatch(r"sha256:[a-fA-F0-9]{64}", digest):
-        raise ValueError("GitHub non fornisce un digest SHA256 verificabile per l'archivio.")
+    if not isinstance(digest, str) or not re.fullmatch(
+            r"sha256:[a-fA-F0-9]{64}", digest):
+        raise UpdateChannelError(
+            "invalid_asset_metadata",
+            "GitHub non fornisce un digest SHA256 verificabile per l'archivio.",
+            phase="inspect_asset")
+    size = asset.get("size", 0)
+    if isinstance(size, bool) or not isinstance(size, int) or size < 0:
+        raise UpdateChannelError(
+            "invalid_asset_metadata",
+            "Dimensione dell'archivio GitHub non valida.",
+            phase="inspect_asset")
     return {"version": tag.lstrip("v"), "tag": tag, "url": url,
             "sha256": digest.split(":", 1)[1].lower(),
-            "size": int(asset.get("size") or 0),
+            "size": size,
             "available": newer(tag, installed),
             "page": data.get("html_url", "")}
 
@@ -186,13 +249,18 @@ param(
     [switch]$NoUi,
     [switch]$NoLaunch,
     # Tests only: close the error window after N seconds instead of waiting.
-    [int]$AutoCloseSeconds = 0
+    [int]$AutoCloseSeconds = 0,
+    # Where the failure details for the next app start are saved (tests override it).
+    [string]$ReportDir = ''
 )
 $ErrorActionPreference = 'Stop'
 $backup = Join-Path $StageRoot 'previous'
 $source = Join-Path $StageRoot 'new'
 $log = Join-Path $StageRoot 'update-log.txt'
 $installed = Join-Path $InstallDir 'WinNAT-UI.exe'
+if (-not $ReportDir) { $ReportDir = Join-Path $env:LOCALAPPDATA 'WinNAT-UI' }
+$issuesUrl = 'https://github.com/matiz311/WinNAT-UI/issues'
+$script:reopenMode = 'reopen'
 $stepNames = @('Chiusura di WinNAT UI', 'Copia di sicurezza della versione installata',
                'Installazione della nuova versione', 'Verifica dei file installati',
                'Avvio di WinNAT UI')
@@ -318,7 +386,7 @@ function New-UpdateWindow {
     $detail = Add-Label 'Preparazione…' 24 234 432 22 $fSmall $c.muted
 
     $buttons = @()
-    foreach ($spec in @(@('Chiudi', 368, 88), @('Apri registro', 252, 108), @('Riapri WinNAT UI', 24, 140))) {
+    foreach ($spec in @(@('Chiudi', 368, 88), @('Apri registro', 252, 108), @('Riapri e segnala', 24, 150))) {
         $b = New-Object System.Windows.Forms.Button
         $b.Text = $spec[0]
         $b.Location = New-Object System.Drawing.Point($spec[1], 300)
@@ -331,7 +399,10 @@ function New-UpdateWindow {
     $buttons[0].Add_Click({ $script:ui.form.Close() })
     $buttons[1].Add_Click({ try { Start-Process -FilePath 'notepad.exe' -ArgumentList ('"' + $log + '"') } catch { } })
     $buttons[2].Add_Click({
-        try { Start-Process -FilePath $installed -WorkingDirectory $InstallDir } catch { }
+        try {
+            if ($script:reopenMode -eq 'issues') { Start-Process -FilePath $issuesUrl }
+            else { Start-Process -FilePath $installed -WorkingDirectory $InstallDir }
+        } catch { }
         $script:ui.form.Close()
     })
     $form.AcceptButton = $buttons[0]
@@ -416,6 +487,30 @@ function Copy-Tree([string]$from, [string]$to, [int]$pctFrom, [int]$pctTo, [stri
     return $n
 }
 
+# Saved for the next WinNAT UI start, which offers the usual (opt-in) GitHub
+# bug report: publishing is never automatic and the app is closed right now.
+function Save-FailureReport([string]$errorText, [string]$outcome, [int]$exitCode) {
+    try {
+        $logText = ''
+        if (Test-Path -LiteralPath $log) { $logText = [System.IO.File]::ReadAllText($log) }
+        if ($logText.Length -gt 12000) { $logText = $logText.Substring($logText.Length - 12000) }
+        $stepIndex = [Math]::Min($script:current, $stepNames.Count - 1)
+        $data = [ordered]@{
+            schema = 1; from_version = $FromVersion; to_version = $ToVersion
+            step = $stepNames[$stepIndex]; error = $errorText; outcome = $outcome
+            exit_code = $exitCode; time = (Get-Date).ToUniversalTime().ToString('o'); log = $logText
+        }
+        if (-not (Test-Path -LiteralPath $ReportDir)) { New-Item -ItemType Directory -Path $ReportDir -Force | Out-Null }
+        $target = Join-Path $ReportDir 'update-failure.json'
+        [System.IO.File]::WriteAllText($target, ($data | ConvertTo-Json -Depth 3), (New-Object System.Text.UTF8Encoding($false)))
+        Write-Log ('Dettagli per la segnalazione salvati in ' + $target)
+        return $true
+    } catch {
+        Write-Log ('Salvataggio dei dettagli per la segnalazione non riuscito: ' + $_.Exception.Message)
+        return $false
+    }
+}
+
 function Show-Result([bool]$ok, [string]$message, [bool]$canReopen) {
     $script:busy = $false
     if (-not $script:ui) { return }
@@ -443,7 +538,10 @@ function Show-Result([bool]$ok, [string]$message, [bool]$canReopen) {
         $u.form.ClientSize = New-Object System.Drawing.Size($u.form.ClientSize.Width, ($u.buttons[0].Bottom + 18))
         $u.buttons[0].Visible = $true
         $u.buttons[1].Visible = $true
-        $u.buttons[2].Visible = $canReopen
+        # Reopening shows the report dialog; if the app cannot start, the
+        # button opens GitHub Issues instead.
+        if (-not $canReopen) { $script:reopenMode = 'issues'; $u.buttons[2].Text = 'Apri GitHub Issues' }
+        $u.buttons[2].Visible = $true
         $u.form.ControlBox = $true
         $u.form.TopMost = $false
         $u.form.Activate()
@@ -457,6 +555,9 @@ if (-not $NoUi) {
     try { $script:ui = New-UpdateWindow }
     catch { $script:ui = $null; Write-Log ('Finestra di avanzamento non disponibile: ' + $_.Exception.Message) }
 }
+# Tell WinNAT UI the progress window is on screen (or that there will be none),
+# so the app closes only now and the user never sees a gap without windows.
+try { New-Item -ItemType File -Path (Join-Path $StageRoot 'ui-ready') -Force | Out-Null } catch { }
 Write-Log ('Aggiornamento WinNAT UI ' + $FromVersion + ' -> ' + $ToVersion)
 $installStarted = $false
 $installCommitted = $false
@@ -512,7 +613,9 @@ try {
             $canReopen = $false
         }
     }
-    Show-Result $false ($failure + "`r`n" + $note) $canReopen
+    $saved = Save-FailureReport $failure $note 1
+    $hint = if ($saved -and $canReopen) { "`r`nRiaprendo WinNAT UI potrai inviare la segnalazione del problema." } else { '' }
+    Show-Result $false ($failure + "`r`n" + $note + $hint) $canReopen
     exit 1
 }
 
@@ -526,6 +629,7 @@ try {
     Show-Result $true $label $false
 } catch {
     Write-Log ('Aggiornamento installato, avvio fallito: ' + $_.Exception.ToString())
+    Save-FailureReport ('WinNAT UI non si è avviata dopo l''aggiornamento: ' + $_.Exception.Message) 'La nuova versione è installata.' 2 | Out-Null
     Show-Result $false ('Aggiornamento installato, ma WinNAT UI non si è avviata: ' + $_.Exception.Message) $true
     exit 2
 }
@@ -548,8 +652,19 @@ def helper_command(script, install_dir, staging, parent_pid, from_version="", to
     return command
 
 
+READY_MARKER = "ui-ready"
+
+
+def helper_ready(staging):
+    """True once the helper's progress window is shown (or the helper runs without UI)."""
+    return (Path(staging) / READY_MARKER).exists()
+
+
 def launch(staging, install_dir=None, parent_pid=None, from_version="", to_version=""):
-    """Schedule update after process exit; only for a packaged Windows EXE."""
+    """Schedule update after process exit; only for a packaged Windows EXE.
+
+    Returns the helper process: the caller should close the app once
+    helper_ready(staging) is true, so the progress window is already visible."""
     if sys.platform != "win32" or not getattr(sys, "frozen", False):
         raise RuntimeError("Aggiornamento automatico disponibile solo nell'EXE Windows installato.")
     install_dir = Path(install_dir or sys.executable).resolve()
@@ -562,12 +677,85 @@ def launch(staging, install_dir=None, parent_pid=None, from_version="", to_versi
     # BOM: Windows PowerShell 5.1 reads BOM-less scripts as ANSI, which would
     # garble the accented Italian text and symbols shown in the progress window.
     script.write_text(HELPER_PS, encoding="utf-8-sig")
+    try:
+        (staging / READY_MARKER).unlink()
+    except FileNotFoundError:
+        pass
     # Windows PowerShell 5.1 must load its own modules, not PowerShell 7 ones
     # inherited when the app was started from a pwsh terminal.
     env = {k: v for k, v in os.environ.items() if k.upper() != "PSMODULEPATH"}
     # No console window: the script shows its own progress window instead.
-    subprocess.Popen(helper_command(script, install_dir, staging, parent_pid or os.getpid(),
+    return subprocess.Popen(helper_command(script, install_dir, staging, parent_pid or os.getpid(),
                                     from_version, to_version),
                      env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, close_fds=True,
                      creationflags=CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW)
+
+
+# ---------------------------------------------------- failed update report ---
+FAILURE_FILE = "update-failure.json"
+MAX_FAILURE_BYTES = 64 * 1024
+_FAILURE_TEXT = {"from_version": 40, "to_version": 40, "step": 120, "error": 2000,
+                 "outcome": 600, "time": 60, "log": 12000}
+
+
+def failure_path():
+    root = os.environ.get("LOCALAPPDATA") or str(Path.home() / ".local" / "share")
+    return Path(root) / "WinNAT-UI" / FAILURE_FILE
+
+
+def pending_failure(path=None):
+    """Failure saved by the update helper, validated and bounded; else None.
+
+    The file is written by our own helper, but it is still read as untrusted
+    data: wrong types or sizes are discarded rather than shown or published.
+    """
+    path = Path(path or failure_path())
+    try:
+        if not path.is_file() or path.stat().st_size > MAX_FAILURE_BYTES:
+            return None
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict) or data.get("schema") != 1:
+        return None
+    result = {}
+    for key, size in _FAILURE_TEXT.items():
+        value = data.get(key, "")
+        if not isinstance(value, str):
+            return None
+        result[key] = value[:size]
+    code = data.get("exit_code")
+    result["exit_code"] = code if isinstance(code, int) and 0 <= code <= 9999 else None
+    if not result["error"].strip():
+        return None
+    return result
+
+
+def clear_failure(path=None):
+    try:
+        Path(path or failure_path()).unlink()
+    except OSError:
+        pass
+
+
+def failure_message(failure):
+    """Text for the standard error dialog and bug report.
+
+    The real error comes first: the report summary and its deduplication
+    signature are taken from the first line.
+    """
+    lines = [failure["error"].strip().splitlines()[0]]
+    lines += failure["error"].strip().splitlines()[1:]
+    versions = " → ".join(v for v in (failure["from_version"], failure["to_version"]) if v)
+    lines += ["",
+              "Aggiornamento" + (" " + versions if versions else "")
+              + " non riuscito nella fase: " + (failure["step"] or "non determinata") + ".",
+              failure["outcome"]]
+    if failure["exit_code"] is not None:
+        lines.append("PowerShell exit code: " + str(failure["exit_code"]))
+    if failure["time"]:
+        lines.append("Ora (UTC): " + failure["time"])
+    if failure["log"].strip():
+        lines += ["", "Registro dell'aggiornamento:", failure["log"].strip()]
+    return "\n".join(lines)
