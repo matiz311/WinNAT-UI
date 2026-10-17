@@ -1439,9 +1439,13 @@ class App(tk.Tk):
                   style="Muted.TLabel").pack(anchor="w", pady=(0, S2))
         selected = self.issue_table.selection() if hasattr(self, "issue_table") else ()
         selected_number = ""
+        selected_title = ""
         if selected:
-            selected_number = str(self.issue_table.item(selected[0], "values")[0]).lstrip("#")
-        title = tk.StringVar()
+            values = self.issue_table.item(selected[0], "values")
+            if values:
+                selected_number = str(values[0]).lstrip("#")
+                selected_title = str(values[1]) if len(values) > 1 else ""
+        title = tk.StringVar(value=selected_title[:180])
         category = tk.StringVar(value=issue_tracker.MANUAL_CATEGORIES[0])
         capture_label = tk.StringVar(value="Stato attuale")
         target = tk.StringVar(value=selected_number)
