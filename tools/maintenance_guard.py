@@ -31,9 +31,15 @@ RISK_FILES = {"tools/release.py", "version.py", "version_info.txt",
               "services/bug-gateway/package.json"}
 # Audited pre-policy change; exemption is bound to one immutable commit and path.
 # PR #67 introduced this exact gateway label change before registration became mandatory.
+# PR #72 integrates the same gateway change as an independently tested squash.
+# The exception is bound to this immutable commit and never to future changes.
 LEGACY_RISK_COMMITS = {
     67: {
         "ba987780caa641b84340e278d9e9fb70bf26401c":
+            {"services/bug-gateway/src/index.js"},
+    },
+    72: {
+        "ad1a51924b0736c0f3de1c32b01e9148786d34e3":
             {"services/bug-gateway/src/index.js"},
     },
 }
