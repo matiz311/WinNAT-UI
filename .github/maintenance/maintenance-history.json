@@ -124,6 +124,53 @@
       "commits": [],
       "observed_errors": [],
       "evidence": []
+    },
+    {
+      "id": "MAINT-20261017-002",
+      "type": "extraordinary",
+      "status": "planned",
+      "registered_at": "2026-10-17T07:17:56Z",
+      "planned_start_at": null,
+      "planned_end_at": null,
+      "started_at": null,
+      "ended_at": null,
+      "components": [
+        "github-actions",
+        "github-releases"
+      ],
+      "affected_endpoints": [
+        ".github/workflows/build.yml",
+        "release-approvals/v1.16.0.md",
+        "GitHub Releases latest API"
+      ],
+      "description": "Ripristino del gate di pubblicazione MINOR dopo errore PowerShell del primo tentativo sul commit 8189363: percorso di Get-Content con variabile non espansa.",
+      "planned_steps": [
+        "Registrare l'intervento prima di ogni modifica al workflow e associare la PR di ripristino.",
+        "Correggere esclusivamente la lettura del file di autorizzazione v1.16.0 e vincolare il retry a commit e file specifici.",
+        "Verificare CI Windows, metadati, Defender, maintenance guard, build e pubblicazione con nuovo commit main.",
+        "Confermare che l'asset ZIP ufficiale v1.16.0 esiste e che il digest SHA256 è disponibile."
+      ],
+      "expected_impact": "Nessun disservizio previsto sui download esistenti; possibile ritardo temporaneo della pubblicazione della nuova release v1.16.0.",
+      "expected_errors": [
+        "Get-Content Cannot find path release-approvals/v$current.md",
+        "Release gate failed",
+        "latest release remains v1.15.1 until successful retry"
+      ],
+      "actor": "ChatGPT per il proprietario repository",
+      "rollback": "In caso di CI non verde lasciare invariata la release pubblica v1.15.1, conservare la diagnostica della failure e preparare ulteriore PR senza disattivare i controlli.",
+      "related_issues": [
+        44
+      ],
+      "related_prs": [],
+      "related_workflows": [
+        "https://github.com/matiz311/WinNAT-UI/actions/runs/39012868510"
+      ],
+      "executed_steps": [],
+      "commits": [],
+      "observed_errors": [
+        "2026-10-17T07:16:29Z: PowerShell Get-Content non trova release-approvals/v$current.md per assenza di espansione della variabile nel path con apici singoli."
+      ],
+      "evidence": []
     }
   ]
 }
