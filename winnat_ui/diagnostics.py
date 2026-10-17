@@ -56,7 +56,8 @@ $r.globalRouter = Grab {
         Select-Object IPEnableRouter
 }
 $r.services = Grab {
-    Get-Service -ErrorAction Stop |\n        Where-Object { $_.Name -match 'WinNat|SharedAccess|VPN' -or $_.DisplayName -match 'WinNAT|VPN' } |
+    Get-Service -ErrorAction Stop |
+        Where-Object { $_.Name -match 'WinNat|SharedAccess|VPN' -or $_.DisplayName -match 'WinNAT|VPN' } |
         Select-Object Name, DisplayName, Status, StartType
 }
 $r | ConvertTo-Json -Depth 8 -Compress
