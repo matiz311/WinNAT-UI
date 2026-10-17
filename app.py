@@ -8,7 +8,7 @@ import traceback
 import time
 import tkinter as tk
 import webbrowser
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog, simpledialog
 from winnat_ui import network
 from winnat_ui import nat_backend  # Include headless NAT/IP capabilities in packaged Windows executable.
 from winnat_ui import secondary_ips
@@ -17,6 +17,7 @@ from winnat_ui import network_guide
 from winnat_ui import network_rollback
 from winnat_ui import bug_report
 from winnat_ui import issue_tracker
+from winnat_ui import diagnostics
 from winnat_ui import updater
 from winnat_ui import ui_theme as ui
 from version import VERSION
@@ -477,6 +478,8 @@ class App(tk.Tk):
 
     # --------------------------------------------------------- dashboard --
     def build_dashboard(self, page):
+        ttk.Button(page.actions, text="Diagnostica e OpenIssue",
+                   style="Accent.TButton", command=self.open_diagnostics).pack(side="right", padx=(S2, 0))
         ttk.Button(page.actions, text="Esporta JSON", command=self.export).pack(side="right")
         ttk.Button(page.actions, text="Aggiorna  (F5)",
                    command=self.refresh).pack(side="right", padx=S2)
@@ -1302,6 +1305,11 @@ class App(tk.Tk):
 
     # ------------------------------------------------------------ about ---
     def build_about(self, page):
+        # This page includes issue history and diagnostics; all controls must
+        # remain reachable even at the minimum supported window height.
+        scroll = ui.ScrollFrame(page)
+        scroll.pack(fill="both", expand=True)
+        page = scroll.inner
         card = ui.Card(page, padding=S5)
         card.pack(fill="x")
         tk.Label(card.body, text="WinNAT UI " + VERSION, font=F["title"], bg=C["surface"], fg=C["text"]).pack(anchor="w")
@@ -1330,6 +1338,7 @@ class App(tk.Tk):
         tk.Label(heading, text="Bug segnalati e correzioni", font=F["strong"],
                  bg=C["surface"], fg=C["text"]).pack(side="left")
         ttk.Button(heading, text="Verifica stato Issue", command=self.refresh_issue_tracker).pack(side="right")
+        ttk.Button(heading, text="+ Segui Issue", command=self.import_issue_dialog).pack(side="right", padx=S2)
         self.issue_status = tk.StringVar(value="Archivio locale delle segnalazioni.")
         tk.Label(issues.body, textvariable=self.issue_status, bg=C["surface"],
                  fg=C["text_muted"], font=F["caption"]).pack(anchor="w", pady=(S2, 0))
@@ -1361,6 +1370,22 @@ class App(tk.Tk):
                  fg=C["text_muted"], font=F["caption"], justify="left",
                  anchor="w", wraplength=750).pack(fill="x", pady=(S2, 0))
         self.render_issue_tracker()
+        diag = ui.Card(page, padding=S4)
+        diag.pack(fill="x", pady=(S3, 0))
+        tk.Label(diag.body, text="Diagnostica e segnalazioni",
+                 font=F["strong"], bg=C["surface"], fg=C["text"]).pack(anchor="w")
+        tk.Label(diag.body,
+                 text="Raccogli lo stato di Windows e WinNAT in qualsiasi momento, "
+                      "anche senza errori. Rivedi e modifica il report, apri una nuova "
+                      "Issue o aggiungi informazioni a una Issue esistente.",
+                 font=F["body"], bg=C["surface"], fg=C["text_muted"],
+                 wraplength=840, justify="left").pack(anchor="w", pady=(S1, S2))
+        ttk.Button(diag.body, text="Apri centro diagnostico",
+                   style="Accent.TButton", command=self.open_diagnostics).pack(anchor="w")
+        self.diagnostic_status = tk.StringVar(value=self.diagnostic_status_text())
+        tk.Label(diag.body, textvariable=self.diagnostic_status,
+                 font=F["caption"], bg=C["surface"], fg=C["text_muted"],
+                 wraplength=840, justify="left").pack(anchor="w", pady=(S2, 0))
         self.section(page, "Scorciatoie da tastiera")
         keys = ui.Card(page, padding=S4)
         keys.pack(fill="x")
@@ -1370,6 +1395,226 @@ class App(tk.Tk):
             tk.Label(keys.body, text=k, font=F["mono_s"], bg=C["surface_alt"], fg=C["text"], padx=S2, pady=2).grid(
                 row=i, column=0, sticky="w", pady=2)
             tk.Label(keys.body, text=v, font=F["body"], bg=C["surface"], fg=C["text_muted"]).grid(row=i, column=1, sticky="w", padx=S4)
+
+    def diagnostic_status_text(self):
+        try:
+            samples = diagnostics.read().get("snapshots", [])
+        except (OSError, ValueError) as exc:
+            return "Archivio locale non leggibile: " + str(exc)
+        if not samples:
+            return "Nessuna acquisizione locale. La raccolta è sempre facoltativa e in sola lettura."
+        recent = samples[-1]
+        return ("Acquisizioni locali: " + str(len(samples)) + " · ultima: "
+                + recent.get("label", "") + " · " + recent.get("collected_at", ""))
+
+    def import_issue_dialog(self):
+        number = simpledialog.askinteger(
+            "Segui Issue GitHub", "Numero della Issue di WinNAT-UI da seguire:",
+            minvalue=1, maxvalue=99999999, parent=self)
+        if number is None:
+            return
+
+        def imported(info):
+            self.render_issue_tracker()
+            self.toast.show("Issue #" + str(info["number"]) + " aggiunta al tracciamento.", "success")
+
+        self.run_task("Segui Issue", lambda: issue_tracker.track_issue(number),
+                      imported, on_error=lambda e: messagebox.showerror(
+                          "Impossibile seguire Issue", e, parent=self))
+
+    def open_diagnostics(self):
+        """Generic, user-triggered collector and editable GitHub report preview."""
+        win = tk.Toplevel(self)
+        win.title("Diagnostica e OpenIssue · WinNAT-UI")
+        win.transient(self)
+        win.geometry("980x760")
+        win.minsize(800, 600)
+        frame = ttk.Frame(win, padding=S4)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text="Diagnostica e OpenIssue",
+                  style="Display.TLabel").pack(anchor="w")
+        ttk.Label(frame,
+                  text="Dati raccolti in sola lettura. Nessun invio automatico. "
+                       "La bozza può essere modificata prima della pubblicazione.",
+                  style="Muted.TLabel").pack(anchor="w", pady=(0, S2))
+        selected = self.issue_table.selection() if hasattr(self, "issue_table") else ()
+        selected_number = ""
+        selected_title = ""
+        if selected:
+            values = self.issue_table.item(selected[0], "values")
+            if values:
+                selected_number = str(values[0]).lstrip("#")
+                selected_title = str(values[1]) if len(values) > 1 else ""
+        title = tk.StringVar(value=selected_title[:180])
+        category = tk.StringVar(value=issue_tracker.MANUAL_CATEGORIES[0])
+        capture_label = tk.StringVar(value="Stato attuale")
+        include_snapshot = tk.BooleanVar(value=True)
+        target = tk.StringVar(value=selected_number)
+        row = ttk.Frame(frame)
+        row.pack(fill="x", pady=(0, S2))
+        ttk.Label(row, text="Titolo del problema / richiesta").pack(side="left")
+        ttk.Entry(row, textvariable=title).pack(side="left", fill="x", expand=True, padx=S2)
+        ttk.Combobox(row, textvariable=category, state="readonly",
+                     values=issue_tracker.MANUAL_CATEGORIES, width=22).pack(side="right")
+        ttk.Label(frame, text="Descrizione, sintomo e comportamento atteso").pack(anchor="w")
+        description = tk.Text(frame, height=4, wrap="word", font=F["body"])
+        description.pack(fill="x", pady=(0, S2))
+        row = ttk.Frame(frame)
+        row.pack(fill="x", pady=(0, S2))
+        ttk.Label(row, text="Nome acquisizione").pack(side="left")
+        ttk.Entry(row, textvariable=capture_label, width=22).pack(side="left", padx=S2)
+        ttk.Button(row, text="Raccogli diagnostica", command=lambda: collect()).pack(side="left")
+        ttk.Checkbutton(row, text="Includi dati raccolti", variable=include_snapshot).pack(side="left", padx=S2)
+        status = tk.StringVar(value=self.diagnostic_status_text())
+        ttk.Label(row, textvariable=status, style="Muted.TLabel").pack(side="left", padx=S2)
+        ttk.Label(frame, text="Anteprima modificabile: il testo viene pubblicato salvo oscuramento "
+                  "di segreti riconoscibili dal gateway. Rigenera dopo le modifiche o nuove acquisizioni.",
+                  style="Muted.TLabel").pack(anchor="w")
+        report_frame = ttk.Frame(frame)
+        report_frame.pack(fill="both", expand=True, pady=(S1, S2))
+        preview = tk.Text(report_frame, wrap="word", font=F["mono_s"], undo=True)
+        sy = ttk.Scrollbar(report_frame, orient="vertical", command=preview.yview)
+        preview.configure(yscrollcommand=sy.set)
+        sy.pack(side="right", fill="y")
+        preview.pack(side="left", fill="both", expand=True)
+        toolbar = ttk.Frame(frame)
+        toolbar.pack(fill="x", pady=(0, S2))
+        ttk.Button(toolbar, text="Prepara anteprima",
+                   command=lambda: prepare()).pack(side="left")
+        ttk.Button(toolbar, text="Copia", command=lambda: copy()).pack(side="left", padx=S2)
+        ttk.Button(toolbar, text="Esporta .md", command=lambda: export()).pack(side="left")
+        bottom = ttk.Frame(frame)
+        bottom.pack(fill="x")
+        ttk.Label(bottom, text="Issue esistente #").pack(side="left")
+        ttk.Entry(bottom, textvariable=target, width=10).pack(side="left", padx=S2)
+        ttk.Button(bottom, text="Aggiungi aggiornamento",
+                   command=lambda: publish(True)).pack(side="left")
+        ttk.Button(bottom, text="Crea nuova OpenIssue", style="Accent.TButton",
+                   command=lambda: publish(False)).pack(side="right")
+
+        def get_text():
+            return preview.get("1.0", "end-1c")
+
+        def prepare():
+            try:
+                body = diagnostics.build_report(
+                    title.get(), description.get("1.0", "end-1c"),
+                    category.get(),
+                    data=None if include_snapshot.get() else {"snapshots": []}, version=VERSION)
+            except (OSError, ValueError) as exc:
+                messagebox.showerror("Anteprima non disponibile", str(exc), parent=win)
+                return
+            preview.delete("1.0", "end")
+            preview.insert("1.0", body)
+
+        def collect():
+            label = capture_label.get()
+            if not messagebox.askyesno(
+                    "Raccogli diagnostica Windows",
+                    "Acquisire ora stato di rete, NAT, routing, adattatori e servizi "
+                    "in sola lettura? I dati rimarranno sul PC.", parent=win):
+                return
+
+            def collected(sample):
+                if not win.winfo_exists():
+                    return
+                status.set(self.diagnostic_status_text())
+                if hasattr(self, "diagnostic_status"):
+                    self.diagnostic_status.set(self.diagnostic_status_text())
+                failures = [name for name, value in sample["sections"].items() if not value.get("ok")]
+                if failures:
+                    messagebox.showwarning("Raccolta parziale", "Sezioni non disponibili: "
+                                           + ", ".join(failures), parent=win)
+                else:
+                    self.toast.show("Diagnostica acquisita localmente.", "success")
+                if title.get().strip() and description.get("1.0", "end-1c").strip():
+                    prepare()
+
+            self.run_task("Raccolta diagnostica", lambda: diagnostics.capture(label),
+                          collected, on_error=lambda e: messagebox.showerror(
+                              "Diagnostica non disponibile", e, parent=win) if win.winfo_exists() else None)
+
+        def copy():
+            content = get_text()
+            if not content.strip():
+                messagebox.showinfo("Anteprima vuota", "Preparare prima il report.", parent=win)
+                return
+            win.clipboard_clear()
+            win.clipboard_append(content)
+            win.update_idletasks()
+            self.toast.show("Report copiato negli appunti.", "success")
+
+        def export():
+            content = get_text()
+            if not content.strip():
+                messagebox.showinfo("Anteprima vuota", "Preparare prima il report.", parent=win)
+                return
+            dest = filedialog.asksaveasfilename(
+                parent=win, defaultextension=".md",
+                filetypes=[("Markdown", "*.md"), ("Testo", "*.txt")],
+                initialfile="WinNAT-UI-diagnostica-" + time.strftime("%Y%m%d-%H%M") + ".md")
+            if dest:
+                try:
+                    with open(dest, "w", encoding="utf-8") as stream:
+                        stream.write(content)
+                except OSError as exc:
+                    messagebox.showerror("Esportazione fallita", str(exc), parent=win)
+                    return
+                self.toast.show("Report diagnostico esportato.", "success")
+
+        def publish(existing):
+            text = get_text()
+            name = title.get().strip()
+            if not text.strip() or not name:
+                messagebox.showerror("Report incompleto", "Inserisci titolo e prepara anteprima.",
+                                     parent=win)
+                return
+            if existing:
+                if not target.get().strip().isdigit() or not 1 <= int(target.get().strip()) <= 99999999:
+                    messagebox.showerror("Issue non valida",
+                                         "Inserire il numero della Issue da aggiornare.", parent=win)
+                    return
+                issue_number = int(target.get().strip())
+            else:
+                issue_number = None
+            if len(text) > 24000:
+                messagebox.showerror("Report troppo lungo",
+                                     "Ridurre l'anteprima a massimo 24000 caratteri.", parent=win)
+                return
+            destination = "Issue #" + str(issue_number) if existing else "una nuova Issue"
+            if not messagebox.askyesno(
+                    "Conferma pubblicazione GitHub",
+                    "Inviare il TESTO dell'anteprima a " + destination + " nel repository PUBBLICO?\n\n"
+                    "La pubblicazione è permanente e può contenere IP, DNS, "
+                    "nomi di schede e topologia. La mascheratura automatica non è infallibile.\n\n"
+                    "Hai verificato e corretto eventuali dati riservati?",
+                    parent=win):
+                return
+
+            def send():
+                result = issue_tracker.submit_manual(
+                    name, text, category.get(), issue_number=issue_number)
+                try:
+                    issue_tracker.save_manual_entry(name, category.get(), result)
+                except (OSError, ValueError) as exc:
+                    result["local_error"] = str(exc)
+                return result
+
+            def sent(result):
+                self.render_issue_tracker()
+                if win.winfo_exists():
+                    warning = ("\nTracciamento locale non aggiornato: " + result["local_error"]
+                               if result.get("local_error") else "")
+                    messagebox.showinfo("Segnalazione pubblicata",
+                                        "Issue #" + str(result["number"]) +
+                                        (" aggiornata." if existing else " creata.") +
+                                        warning, parent=win)
+                    webbrowser.open(result["url"])
+
+            self.run_task("Invio diagnostica", send, sent,
+                          on_error=lambda error: messagebox.showerror(
+                              "Invio non riuscito", error, parent=win) if win.winfo_exists() else None)
+
 
     def render_issue_tracker(self):
         if not hasattr(self, "issue_table"):

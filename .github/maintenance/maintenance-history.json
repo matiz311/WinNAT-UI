@@ -287,6 +287,124 @@
       "observed_errors": [],
       "evidence": [],
       "outcome": null
+    },
+    {
+      "id": "MAINT-20261017-005",
+      "type": "structural",
+      "status": "in_progress",
+      "registered_at": "2026-10-17T19:58:43Z",
+      "planned_start_at": null,
+      "planned_end_at": null,
+      "started_at": "2026-10-17T20:00:35Z",
+      "ended_at": null,
+      "components": [
+        "bug-gateway",
+        "issue-reporting",
+        "desktop-diagnostics"
+      ],
+      "affected_endpoints": [
+        "services/bug-gateway/src/index.js",
+        "POST /report",
+        "winnat_ui/issue_tracker.py",
+        "Informazioni > Diagnostica"
+      ],
+      "description": "Generalizzare le diagnostiche WinNAT-UI, consentire report manuali senza eccezioni e aggiornamenti espliciti a Issue GitHub esistenti tramite gateway opt-in, riutilizzando PR #80.",
+      "planned_steps": [
+        "Preregistrare prima delle modifiche al gateway e preservare il contratto legacy /report.",
+        "Progettare input rigorosamente validati, preview e conferma upload; verificare che la Issue di destinazione sia aperta e abbia label di triage/bug.",
+        "Aggiungere collector generale e test frontend/backend per creazione manuale e aggiornamento mirato di Issue esistenti.",
+        "Verificare CI Windows, gateway Node, Defender e guard prima di integrare; non eseguire deploy/release senza gate separati."
+      ],
+      "expected_impact": "Nessuna modifica live durante PR; eventuale futura pubblicazione del Worker può temporaneamente rendere POST /report indisponibile o generare errori di validazione. Rischio di pubblicazione involontaria di dati diagnostici mitigato con preview e conferma.",
+      "expected_errors": [
+        "HTTP 400 invalid-payload",
+        "HTTP 404 issue-not-found",
+        "HTTP 409 issue-not-eligible",
+        "HTTP 429 too-many-requests",
+        "HTTP 502 github-unavailable",
+        "HTTP 503 not-configured"
+      ],
+      "actor": "ChatGPT per il proprietario del repository",
+      "rollback": "Lasciare il Worker corrente in produzione fino a CI verificata. In caso di problemi revert del solo gateway tramite nuova PR, senza cancellare Issue o alterare rete locale; client usa esportazione/copia come fallback.",
+      "related_issues": [
+        76
+      ],
+      "related_prs": [
+        80
+      ],
+      "related_workflows": [],
+      "executed_steps": [
+        "Pre-registrazione manutenzione in commit 12ee071 prima delle modifiche gateway.",
+        "Implementata modalità manuale nel Worker con creazione nuova Issue e commenti a Issue esistenti, con filtri di sicurezza, controllo input e test Node.",
+        "Client refactor da diagnostica VPN-specifica a generic WinNAT-UI: raccolte multiple locali, anteprima modificabile e report GitHub.",
+        "Aggiunto tracciamento Issue importate da GitHub; nessun deploy live, merge o release eseguiti."
+      ],
+      "commits": [
+        "12ee071cebb5e5130e2a94e8230ae1b1a5d640d4",
+        "c7c785ba7d999970dc22f16b9423bc9d438b7b52",
+        "fc9d0b1bc589a9c796ea342ac91f301e9b7e3bae",
+        "6c868b64de183623fbd6d2409900f7d9354ee4b9"
+      ],
+      "observed_errors": [],
+      "evidence": [
+        "https://github.com/matiz311/WinNAT-UI/pull/80",
+        "https://github.com/matiz311/WinNAT-UI/actions/runs/39065390324 (build Windows success)",
+        "https://github.com/matiz311/WinNAT-UI/actions/runs/39065390342 (Maintenance guard success)"
+      ],
+      "outcome": null
+    },
+    {
+      "id": "MAINT-20261017-006",
+      "type": "routine",
+      "status": "planned",
+      "registered_at": "2026-10-17T20:54:17Z",
+      "planned_start_at": null,
+      "planned_end_at": null,
+      "started_at": null,
+      "ended_at": null,
+      "components": [
+        "github-actions",
+        "github-releases",
+        "desktop-client"
+      ],
+      "affected_endpoints": [
+        "version.py",
+        "version_info.txt",
+        "CHANGELOG.md",
+        "RELEASE_NOTES.it.md",
+        ".github/workflows/build.yml"
+      ],
+      "description": "Preparazione candidato MINOR v1.17.0 basato sulla PR #80: diagnostica generica, nuove segnalazioni manuali e tracking Issue, senza pubblicazione automatica o deploy implicito.",
+      "planned_steps": [
+        "Registrare preventivamente preparazione e gate del candidato v1.17.0.",
+        "Allineare versione EXE, changelog e note utente nel ramo PR #80.",
+        "Eseguire intera CI Windows, unit test, Defender, integrità artifact e guard.",
+        "Non effettuare merge o pubblicazione fino alla revisione, al collaudo necessario e all'approvazione del workflow manuale."
+      ],
+      "expected_impact": "Nessun downtime previsto: sola preparazione su branch di PR. Una successiva pubblicazione può modificare la release/latest e richiede verifica dell'updater e disponibilità del gateway.",
+      "expected_errors": [
+        "CI failing",
+        "version metadata mismatch",
+        "release approval blocked",
+        "gateway manual endpoint unavailable"
+      ],
+      "actor": "ChatGPT per proprietario repository",
+      "rollback": "Revert dei commit di preparazione su PR #80 prima del merge; nessuna modifica a tag o release v1.16.0 e nessuna configurazione WinNAT toccata.",
+      "related_issues": [
+        76
+      ],
+      "related_prs": [
+        80
+      ],
+      "related_workflows": [
+        "Build Windows executable",
+        "Maintenance guard"
+      ],
+      "executed_steps": [],
+      "commits": [],
+      "observed_errors": [],
+      "evidence": [],
+      "outcome": null
     }
   ]
 }

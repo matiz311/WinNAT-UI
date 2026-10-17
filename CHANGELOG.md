@@ -10,6 +10,25 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag già pubblicati nella numerazione corrente non vengono modificati; la normalizzazione dello storico è stata conclusa il 16 ottobre 2026.
 
 
+## [1.17.0] - 2026-10-17
+### Sintesi
+Candidato MINOR retrocompatibile: diagnostica locale utilizzabile anche senza errori dell'applicazione, segnalazioni manuali verso GitHub e possibilità di seguire o aggiornare Issue esistenti. Nessuna modifica automatica alle configurazioni WinNAT, LAN/WAN, routing o firewall.
+
+### Funzionalità
+- Informazioni → Diagnostica e OpenIssue: raccolta esplicita e in sola lettura dello stato di adattatori, IPv4, route, WinNAT e servizi; conservazione locale di sei acquisizioni e confronto tra campioni (PR #80).
+- Nuove OpenIssue senza eccezioni Python, con titolo e categoria, anteprima Markdown modificabile, copia/esportazione e consenso separato prima dell'invio a GitHub (PR #80).
+- Possibilità di aggiungere informazioni a una Issue aperta tramite il gateway, oppure seguire nella UI una Issue creata direttamente su GitHub senza fingerprint locale (PR #80).
+
+### Correzioni
+- Tracking delle Issue importate per numero con aggiornamento dei metadati senza dipendere dalla presenza di un errore applicativo; mantenimento dello storico locale in caso di problemi temporanei (PR #80).
+- Validazione lato gateway dell'identificativo Issue, repository di destinazione e stato aperto prima di permettere nuovi commenti; controlli di dimensione e sanitizzazione best-effort (PR #80).
+
+### Limiti
+- **Candidato, non ancora pubblicato:** la creazione manuale e l'aggiornamento remoto richiedono il deploy verificato della nuova versione del Cloudflare Worker; senza di esso restano disponibili raccolta, copia ed esportazione locale.
+- La CI Windows valida test, packaging e Defender ma non sostituisce test interattivi Windows, verifica end-to-end Worker e rollback.
+- La PR #81 e la PR #84 non sono incluse; le sovrapposizioni di app.py e del registro manutenzioni vanno risolte separatamente.
+- Eseguibile non firmato digitalmente.
+
 ## [1.16.0] - 2026-10-17
 ### Sintesi
 Release MINOR retrocompatibile: ricerca e triage dei bug segnalati, diagnosi più precisa del canale GitHub e aggiornamenti Windows più affidabili. Comprende le correzioni integrate dopo v1.15.1 e lascia invariata l'architettura WinNAT a singola subnet interna.
