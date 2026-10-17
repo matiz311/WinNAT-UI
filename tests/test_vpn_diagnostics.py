@@ -31,6 +31,13 @@ class VpnDiagnosticsTests(unittest.TestCase):
                 result[name] = {"ok": True, "rows": []}
         return json.dumps(result)
 
+    def test_dashboard_phase_suggestion_never_asserts_vpn_connected(self):
+        self.assertEqual(vpn.suggest_phase({"nats": [{"Name": "NAT-Firewall"}]}, {}), "winnat")
+        self.assertEqual(vpn.suggest_phase({"nats": []}, {}), "before")
+        self.assertEqual(vpn.suggest_phase({"nats": []}, {"before": {}, "winnat": {}}), "rollback")
+        self.assertEqual(vpn.suggest_phase(None, {}), "before")
+        self.assertEqual(vpn.suggest_phase({"nats": [{"Name": "Unrelated"}]}, {}), "winnat")
+
     def test_three_phases_save_without_mutations(self):
         calls = []
         for phase, forwarding in (("before", "Disabled"), ("winnat", "Enabled"),
