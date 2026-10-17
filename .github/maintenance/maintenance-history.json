@@ -291,11 +291,11 @@
     {
       "id": "MAINT-20261017-005",
       "type": "structural",
-      "status": "planned",
+      "status": "in_progress",
       "registered_at": "2026-10-17T19:58:43Z",
       "planned_start_at": null,
       "planned_end_at": null,
-      "started_at": null,
+      "started_at": "2026-10-17T20:00:35Z",
       "ended_at": null,
       "components": [
         "bug-gateway",
@@ -333,10 +333,24 @@
         80
       ],
       "related_workflows": [],
-      "executed_steps": [],
-      "commits": [],
+      "executed_steps": [
+        "Pre-registrazione manutenzione in commit 12ee071 prima delle modifiche gateway.",
+        "Implementata modalità manuale nel Worker con creazione nuova Issue e commenti a Issue esistenti, con filtri di sicurezza, controllo input e test Node.",
+        "Client refactor da diagnostica VPN-specifica a generic WinNAT-UI: raccolte multiple locali, anteprima modificabile e report GitHub.",
+        "Aggiunto tracciamento Issue importate da GitHub; nessun deploy live, merge o release eseguiti."
+      ],
+      "commits": [
+        "12ee071cebb5e5130e2a94e8230ae1b1a5d640d4",
+        "c7c785ba7d999970dc22f16b9423bc9d438b7b52",
+        "fc9d0b1bc589a9c796ea342ac91f301e9b7e3bae",
+        "6c868b64de183623fbd6d2409900f7d9354ee4b9"
+      ],
       "observed_errors": [],
-      "evidence": [],
+      "evidence": [
+        "https://github.com/matiz311/WinNAT-UI/pull/80",
+        "https://github.com/matiz311/WinNAT-UI/actions/runs/39065390324 (build Windows success)",
+        "https://github.com/matiz311/WinNAT-UI/actions/runs/39065390342 (Maintenance guard success)"
+      ],
       "outcome": null
     }
   ]
