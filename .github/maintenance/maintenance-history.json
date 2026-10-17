@@ -352,6 +352,59 @@
         "https://github.com/matiz311/WinNAT-UI/actions/runs/39065390342 (Maintenance guard success)"
       ],
       "outcome": null
+    },
+    {
+      "id": "MAINT-20261017-006",
+      "type": "routine",
+      "status": "planned",
+      "registered_at": "2026-10-17T20:54:17.334Z",
+      "planned_start_at": null,
+      "planned_end_at": null,
+      "started_at": null,
+      "ended_at": null,
+      "components": [
+        "github-actions",
+        "github-releases",
+        "desktop-client"
+      ],
+      "affected_endpoints": [
+        "version.py",
+        "version_info.txt",
+        "CHANGELOG.md",
+        "RELEASE_NOTES.it.md",
+        ".github/workflows/build.yml"
+      ],
+      "description": "Preparazione candidato MINOR v1.17.0 basato sulla PR #80: diagnostica generica, nuove segnalazioni manuali e tracking Issue, senza pubblicazione automatica o deploy implicito.",
+      "planned_steps": [
+        "Registrare preventivamente preparazione e gate del candidato v1.17.0.",
+        "Allineare versione EXE, changelog e note utente nel ramo PR #80.",
+        "Eseguire intera CI Windows, unit test, Defender, integrità artifact e guard.",
+        "Non effettuare merge o pubblicazione fino alla revisione, al collaudo necessario e all'approvazione del workflow manuale."
+      ],
+      "expected_impact": "Nessun downtime previsto: sola preparazione su branch di PR. Una successiva pubblicazione può modificare la release/latest e richiede verifica dell'updater e disponibilità del gateway.",
+      "expected_errors": [
+        "CI failing",
+        "version metadata mismatch",
+        "release approval blocked",
+        "gateway manual endpoint unavailable"
+      ],
+      "actor": "ChatGPT per proprietario repository",
+      "rollback": "Revert dei commit di preparazione su PR #80 prima del merge; nessuna modifica a tag o release v1.16.0 e nessuna configurazione WinNAT toccata.",
+      "related_issues": [
+        76
+      ],
+      "related_prs": [
+        80
+      ],
+      "related_workflows": [
+        "Build Windows executable",
+        "Maintenance guard"
+      ],
+      "executed_steps": [],
+      "commits": [],
+      "observed_errors": [],
+      "evidence": [],
+      "outcome": null
     }
   ]
 }
