@@ -54,7 +54,7 @@ def manual_payload(title, description, kind="Problema esterno", version=VERSION,
     # A broad recurring title can describe different external problems.
     # Include the actual description in deduplication without publishing its hash input.
     stable = json.dumps({"title": subject.casefold(), "kind": kind,
-                         "details": re.sub(r"\\s+", " ", details).casefold()},
+                         "details": re.sub(r"\s+", " ", details).casefold()},
                         ensure_ascii=False, sort_keys=True)
     payload["signature"] = hashlib.sha256(stable.encode("utf-8")).hexdigest()[:24]
     return payload
