@@ -8,7 +8,7 @@ import traceback
 import time
 import tkinter as tk
 import webbrowser
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog, simpledialog
 from winnat_ui import network
 from winnat_ui import nat_backend  # Include headless NAT/IP capabilities in packaged Windows executable.
 from winnat_ui import secondary_ips
@@ -18,6 +18,7 @@ from winnat_ui import network_rollback
 from winnat_ui import bug_report
 from winnat_ui import issue_tracker
 from winnat_ui import updater
+from winnat_ui import build_catalog
 from winnat_ui import ui_theme as ui
 from version import VERSION
 from winnat_ui.ui_theme import C, F, S1, S2, S3, S4, S5
@@ -32,6 +33,8 @@ PAGES = [  # key, label, icon, subtitle
     ("network", "Gateway", "network", "Trasforma il PC in un gateway LAN → NAT → WAN."),
     ("changes", "Modifiche", "changes", "Controlla le operazioni preparate prima di applicarle."),
     ("sessions", "Sessioni", "sessions", "Traduzioni NAT attive in questo momento."),
+    ("diagnostics", "Diagnostica", "dashboard", "Raccolta e consultazione locale delle informazioni diagnostiche."),
+    ("updates", "Aggiornamenti", "refresh", "Release ufficiali, build CI di test e rollback."),
     ("about", "Informazioni", "info", "Versione, scorciatoie e note di sicurezza."),
 ]
 FIELD_TITLES = {"lan": "LAN", "prefix": "Subnet LAN", "gateway": "IP del PC", "nat": "Nome NAT"}
@@ -426,7 +429,9 @@ class App(tk.Tk):
         self.stack.pack(fill="both", expand=True)
         self.pages = {}
         builders = dict(dashboard=self.build_dashboard, nat=self.build_nat, network=self.build_network,
-                        changes=self.build_changes, sessions=self.build_sessions, about=self.build_about)
+                        changes=self.build_changes, sessions=self.build_sessions,
+                        diagnostics=self.build_diagnostics, updates=self.build_updates,
+                        about=self.build_about)
         for key, label, _glyph, sub in PAGES:
             page = ttk.Frame(self.stack, padding=(S5 + S1, S4, S5 + S1, S4))
             self.pages[key] = page
@@ -1300,6 +1305,240 @@ class App(tk.Tk):
                   style="Caption.TLabel").pack(anchor="w", pady=(S2, 0))
         self.session_entry = entry
 
+
+    # ----------------------------------------------- diagnostic centre ---
+    def build_diagnostics(self, page):
+        ttk.Button(page.actions, text="Raccogli diagnostica", command=self.collect_diagnostics).pack(side="right")
+        card = ui.Card(page, padding=S4)
+        card.pack(fill="x")
+        tk.Label(card.body, text="Snapshot locale di rete e WinNAT", font=F["strong"],
+                 bg=C["surface"], fg=C["text"]).pack(anchor="w")
+        tk.Label(card.body, text="Lettura di interfacce, routing, indirizzi, NAT e servizi. Nessuna modifica al sistema. "
+                 "I dati (IP, nomi interfacce e topologia) rimangono sul PC finché non li esporti.",
+                 font=F["body"], bg=C["surface"], fg=C["text_muted"], wraplength=790,
+                 justify="left").pack(anchor="w", pady=S2)
+        self.diagnostic_status = tk.StringVar(value="Nessuna acquisizione eseguita da questa scheda.")
+        ttk.Label(page, textvariable=self.diagnostic_status, style="Muted.TLabel").pack(anchor="w", pady=S3)
+        actions = ttk.Frame(page)
+        actions.pack(fill="x", pady=(0, S3))
+        ttk.Button(actions, text="Copia diagnostica", command=self.copy_diagnostics).pack(side="left")
+        ttk.Button(actions, text="Esporta JSON…", command=self.export_diagnostics).pack(side="left", padx=S2)
+        ttk.Button(actions, text="Bug segnalati", command=lambda: self.show_page("about")).pack(side="left")
+        self.diagnostic_data = None
+        self.diagnostic_output = tk.Text(page, wrap="none", height=22, font=F["mono_s"],
+                                         state="disabled", bg=C["surface"], fg=C["text"],
+                                         highlightbackground=C["border"], highlightthickness=1)
+        self.diagnostic_output.pack(fill="both", expand=True)
+
+    def collect_diagnostics(self):
+        def finished(data):
+            self.diagnostic_data = data
+            text = json.dumps(data, ensure_ascii=False, indent=2, default=str)
+            self.diagnostic_output.configure(state="normal")
+            self.diagnostic_output.delete("1.0", "end")
+            self.diagnostic_output.insert("1.0", text[:300000])
+            self.diagnostic_output.configure(state="disabled")
+            self.diagnostic_status.set("Raccolta completata alle " + time.strftime("%H:%M:%S")
+                                       + ". Consultazione locale; nessuna pubblicazione.")
+        self.run_task("Diagnostica", network.collect, finished,
+                      lambda msg: self.diagnostic_status.set("Acquisizione non riuscita: " + msg))
+
+    def copy_diagnostics(self):
+        if self.diagnostic_data is None:
+            self.toast.show("Prima raccogli una diagnostica.", "warning")
+            return
+        self.clipboard_clear()
+        self.clipboard_append(json.dumps(self.diagnostic_data, ensure_ascii=False, indent=2, default=str))
+        self.toast.show("Diagnostica copiata. Controlla i dati prima di condividerli.", "success")
+
+    def export_diagnostics(self):
+        if self.diagnostic_data is None:
+            self.toast.show("Prima raccogli una diagnostica.", "warning")
+            return
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".json", filetypes=[("JSON", "*.json")],
+            initialfile="winnat-diagnostica-" + time.strftime("%Y%m%d-%H%M") + ".json")
+        if filename:
+            with open(filename, "w", encoding="utf-8") as dest:
+                json.dump(self.diagnostic_data, dest, ensure_ascii=False, indent=2, default=str)
+            self.toast.show("Diagnostica esportata.", "success")
+
+    # ------------------------------------------------ version management ---
+    def build_updates(self, page):
+        ttk.Button(page.actions, text="Aggiorna elenco", command=self.refresh_update_catalog).pack(side="right")
+        meta = build_catalog.installed_build_info()
+        build_id = meta.get("Build identifier", "")
+        self.installed_version_label = tk.StringVar(
+            value="Installata: " + VERSION + ((" · " + build_id) if build_id else ""))
+        ttk.Label(page, textvariable=self.installed_version_label, style="Muted.TLabel").pack(anchor="w")
+        tk.Label(page, text="Release ufficiali e build GitHub Actions sono canali differenti. "
+                 "Le build di test possono contenere modifiche non pubblicate e hanno una scadenza; "
+                 "l'installazione non modifica automaticamente la configurazione WinNAT.",
+                 bg=C["bg"], fg=C["text_muted"], font=F["body"], wraplength=800,
+                 justify="left").pack(anchor="w", pady=(S3, S3))
+        options = ttk.Frame(page)
+        options.pack(fill="x", pady=(0, S3))
+        self.update_channel = tk.StringVar(value="release")
+        ttk.Radiobutton(options, text="Release ufficiali / rollback", variable=self.update_channel,
+                        value="release", command=self.show_update_catalog).pack(side="left")
+        ttk.Radiobutton(options, text="Build di test CI (non ufficiali)", variable=self.update_channel,
+                        value="build", command=self.show_update_catalog).pack(side="left", padx=S3)
+        self.catalog_status = tk.StringVar(value="Caricamento catalogo non ancora eseguito.")
+        ttk.Label(page, textvariable=self.catalog_status, style="Muted.TLabel").pack(anchor="w", pady=(0, S2))
+        wrap, self.update_table = ui.make_table(page, [
+            ("name", "Versione / Build", 250), ("date", "Data UTC", 160),
+            ("branch", "Ramo", 210), ("sha", "Commit", 105)], height=11)
+        wrap.pack(fill="both", expand=True)
+        self.update_table.bind("<<TreeviewSelect>>", self.show_update_details)
+        self.update_details = tk.StringVar(value="Seleziona una versione dall'elenco.")
+        ttk.Label(page, textvariable=self.update_details, style="Muted.TLabel",
+                  wraplength=800, justify="left").pack(fill="x", pady=S3)
+        actions = ttk.Frame(page)
+        actions.pack(fill="x")
+        ttk.Button(actions, text="Installa versione selezionata…", style="Accent.TButton",
+                   command=self.install_catalog_selection).pack(side="left")
+        ttk.Button(actions, text="Scarica ZIP verificato…",
+                   command=self.download_catalog_selection).pack(side="left", padx=S2)
+        ttk.Button(actions, text="Apri su GitHub",
+                   command=self.open_catalog_selection).pack(side="right")
+        self._catalog_rows = {"release": [], "build": []}
+        self._catalog_loaded = False
+
+    def refresh_update_catalog(self):
+        if "Catalogo versioni" in self.tasks:
+            return
+        self.catalog_status.set("Lettura release e build GitHub in corso…")
+        def load():
+            found, errors = {}, []
+            for kind, fn in (("release", build_catalog.release_catalog),
+                             ("build", build_catalog.build_catalog)):
+                try:
+                    found[kind] = fn()
+                except Exception as exc:
+                    found[kind] = None
+                    errors.append(kind + ": " + str(exc))
+            return found, errors
+        def finished(result):
+            found, errors = result
+            for kind, rows in found.items():
+                if rows is not None:
+                    self._catalog_rows[kind] = rows
+            self._catalog_loaded = True
+            self.show_update_catalog()
+            status = ("Release: " + str(len(self._catalog_rows["release"])) +
+                      " · Build test: " + str(len(self._catalog_rows["build"])))
+            if errors:
+                status += " · Canali non disponibili: " + "; ".join(errors)
+            self.catalog_status.set(status)
+        self.run_task("Catalogo versioni", load, finished,
+                      lambda err: self.catalog_status.set("Catalogo non disponibile: " + err))
+
+    def show_update_catalog(self):
+        channel = self.update_channel.get()
+        self.update_table.delete(*self.update_table.get_children())
+        for index, info in enumerate(self._catalog_rows[channel]):
+            date = str(info.get("date", "")).replace("T", " ")[:19]
+            self.update_table.insert("", "end", iid=str(index), values=(
+                info["label"], date, info.get("branch", "—") or "—",
+                str(info.get("commit", ""))[:8] or "—"))
+        self.update_details.set("Seleziona una release ufficiale o una build di test.")
+
+    def catalog_selection(self):
+        selected = self.update_table.selection()
+        if not selected:
+            return None
+        try:
+            return self._catalog_rows[self.update_channel.get()][int(selected[0])]
+        except (IndexError, ValueError, KeyError):
+            return None
+
+    def show_update_details(self, _event=None):
+        info = self.catalog_selection()
+        if info is None:
+            self.update_details.set("Seleziona una versione dall'elenco.")
+            return
+        if info["kind"] == "release":
+            description = ("Release ufficiale " + info["version"] +
+                           " · selezionabile anche per un rollback verso una versione precedente.")
+        else:
+            description = ("Build NON ufficiale #" + str(info["run_number"]) +
+                           " · commit " + info["commit"][:12] +
+                           " · sorgente " + str(info.get("source_commit") or "—")[:12] +
+                           " · branch " + str(info.get("branch") or "—") +
+                           " · pacchetto pubblico verificato SHA256. " +
+                           "NON ufficiale: può contenere modifiche non revisionate.")
+        self.update_details.set(description)
+
+    def open_catalog_selection(self):
+        info = self.catalog_selection()
+        if info and info.get("page", "").startswith("https://github.com/matiz311/WinNAT-UI/"):
+            webbrowser.open(info["page"])
+
+    def _catalog_download_start(self, install):
+        info = self.catalog_selection()
+        if info is None:
+            messagebox.showinfo("Selezione richiesta", "Seleziona una versione.", parent=self)
+            return
+        if self.pending or self.tasks or getattr(self, "_update_launching", False):
+            messagebox.showwarning("Operazioni in corso",
+                                   "Completa o annulla le modifiche in sospeso prima di procedere.", parent=self)
+            return
+        if install and (sys.platform != "win32" or not getattr(sys, "frozen", False)):
+            messagebox.showwarning("Installazione non supportata",
+                                   "L'installazione integrata richiede l'eseguibile Windows.", parent=self)
+            return
+        target = None
+        if not install:
+            suggested = ("WinNAT-UI-" + (info.get("tag") or info["label"].split(" · ", 1)[0])
+                         .replace(" ", "-").replace("#", "") + ".zip")
+            target = filedialog.asksaveasfilename(
+                defaultextension=".zip", initialfile=suggested,
+                filetypes=[("Archivi ZIP", "*.zip")], parent=self)
+            if not target:
+                return
+        old = build_catalog.installed_build_info().get("Build identifier", VERSION)
+        warning = ("Release ufficiale " + info["version"] if info["kind"] == "release"
+                   else info["label"] + "\nATTENZIONE: build non pubblicata e non necessariamente revisionata. "
+                        "L'eseguibile può avviarsi con privilegi amministrativi.")
+        if install:
+            warning += ("\n\nAttuale: " + old + "\n"
+                        "L'app si chiuderà e l'installer conserverà una copia della versione attuale. "
+                        "Le impostazioni di rete non vengono ripristinate dal rollback del software.")
+        if not messagebox.askyesno("Conferma " + ("installazione" if install else "download"),
+                                   warning + "\n\nProcedere?", parent=self):
+            return
+        def work():
+            if info["kind"] == "build":
+                if install:
+                    return build_catalog.prepare_build(info)
+                build_catalog.download_build(info, target)
+                return None
+            if install:
+                return updater.prepare(info), info["version"]
+            received = updater._download(info["url"], target, info["sha256"])
+            if received != info["size"]:
+                try:
+                    import os
+                    os.unlink(target)
+                except OSError:
+                    pass
+                raise ValueError("Dimensione del download differente da quella attesa.")
+            return None
+        def finished(result):
+            if install:
+                staging, version = result
+                self._install_update(staging, version)
+            else:
+                self.toast.show("Archivio scaricato e verificato con SHA256.", "success")
+        self.run_task("Installazione versione" if install else "Download versione", work, finished,
+                      lambda err: messagebox.showwarning("Versione non disponibile", err, parent=self))
+
+    def install_catalog_selection(self):
+        self._catalog_download_start(True)
+
+    def download_catalog_selection(self):
+        self._catalog_download_start(False)
+
     # ------------------------------------------------------------ about ---
     def build_about(self, page):
         card = ui.Card(page, padding=S5)
@@ -1321,8 +1560,8 @@ class App(tk.Tk):
                  "L'installazione avviene dopo la chiusura, conservando un backup dei file precedenti.",
                  wraplength=600, justify="left", font=F["body"],
                  bg=C["surface"], fg=C["text_muted"]).pack(anchor="w", pady=(S1, S2))
-        ttk.Button(updates.body, text="Controlla aggiornamenti",
-                   command=self.check_updates).pack(anchor="w")
+        ttk.Button(updates.body, text="Apri gestione versioni",
+                   command=lambda: self.show_page("updates")).pack(anchor="w")
         issues = ui.Card(page, padding=S4)
         issues.pack(fill="x", pady=(S3, 0))
         heading = tk.Frame(issues.body, bg=C["surface"])
@@ -1597,6 +1836,8 @@ class App(tk.Tk):
         self.current = key
         if key == "sessions":
             self.refresh_sessions()
+        elif key == "updates" and not getattr(self, "_catalog_loaded", False):
+            self.refresh_update_catalog()
 
     def bind_shortcuts(self):
         self.bind("<F5>", lambda e: self.refresh())

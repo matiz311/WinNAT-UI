@@ -42,6 +42,11 @@ Un merge ordinario non rappresenta di per sé una nuova release. Rimangono obbli
 6. Pubblicare solo pacchetti verificati, con tag e versione interna coincidenti, senza riscrivere le release già pubblicate.
 7. Validare l'updater su Windows reale prima di considerare completamente collaudato il percorso di aggiornamento.
 
+## Distribuzione sperimentale CI (canale tecnico separato)
+Le compilazioni di test possono essere archiviate come **GitHub pre-release CI** con tag tecnico `ci-run-<run_id>`, esclusivamente per il catalogo pubblico del branch `ci-builds`. Il tag è un identificatore di distribuzione, non coincide con `X.Y.Z+ci.<run>.<sha>`, non incrementa `version.py`, non crea una nuova release funzionale `vX.Y.Z` e non costituisce autorizzazione a pubblicare un nuovo numero MAJOR/MINOR. I workflow ufficiali di gate e il canale `releases/latest` restano invariati.
+
+La pubblicazione automatica di preview è vincolata all'esito positivo del workflow Windows originale e all'integrità dell'asset, consentita esclusivamente per esecuzioni della repository ufficiale, e va tenuta distinta da qualunque approvazione di distribuzione stabile. Una pre-release CI non certifica la sicurezza del codice non revisionato o l'esito su un host Windows reale.
+
 ## Integrità e documentazione
 
 Ogni ZIP ufficiale deve avere un digest SHA-256 verificabile. `BUILD_INFO.txt` identifica la compilazione e il commit; la scansione Microsoft Defender **non** sostituisce una firma digitale Authenticode. Indicare sempre lo stato effettivo della firma e le limitazioni.

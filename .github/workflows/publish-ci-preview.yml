@@ -1,0 +1,43 @@
+name: Publish CI preview catalog
+
+on:
+  workflow_run:
+    workflows:
+      - Build Windows executable
+    types:
+      - completed
+
+# An independent, trusted-default-branch job. Never run scripts from the
+# pull request being published or execute its Windows payload.
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: win-nat-ui-ci-preview-catalog
+  cancel-in-progress: false
+
+jobs:
+  publish-preview:
+    name: publish-preview
+    if: >-
+      ${{ github.event.workflow_run.conclusion == 'success'
+          && github.event.workflow_run.head_repository.full_name == github.repository
+          && github.event.workflow_run.repository.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout reviewed publisher from main (never from PR)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Configure Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Publish verified preview and update branch catalog
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: python tools/publish_ci_preview.py "$RUN_ID"

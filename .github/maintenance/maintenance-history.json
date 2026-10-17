@@ -287,6 +287,56 @@
       "observed_errors": [],
       "evidence": [],
       "outcome": null
+    },
+    {
+      "id": "MAINT-20261017-005",
+      "type": "structural",
+      "status": "planned",
+      "registered_at": "2026-10-17T20:31:45Z",
+      "planned_start_at": null,
+      "planned_end_at": null,
+      "started_at": null,
+      "ended_at": null,
+      "components": [
+        "github-actions",
+        "github-releases",
+        "ci-preview-catalog",
+        "win-nat-updater"
+      ],
+      "affected_endpoints": [
+        ".github/workflows/publish-ci-preview.yml",
+        "tools/publish_ci_preview.py",
+        "ci-builds/index.json",
+        "GitHub pre-release CI assets",
+        "winnat_ui/build_catalog.py",
+        "app.py"
+      ],
+      "description": "Predisposizione del canale build sperimentali WinNAT-UI con catalogo dedicato, download pubblico verificato e pubblicazione autonoma solo dopo CI/Defender completati; release ufficiali invariate.",
+      "planned_steps": [
+        "Registrare la manutenzione in commit separato e antecedente al nuovo workflow nella PR #84.",
+        "Aggiungere publisher su workflow_run CI riuscito con validazione artifact, codice trusted main e limiti origine.",
+        "Pubblicare ZIP in GitHub prerelease contrassegnate CI, senza flag latest, e indice JSON su ramo tecnico ci-builds.",
+        "Aggiungere validazione dell'indice e SHA256 all'app WinNAT-UI; testare su CI senza cambiare release ufficiali."
+      ],
+      "expected_impact": "Nessun downtime previsto; rischio di preview non disponibili, download non validi, Actions permissions insufficienti o superamento della quota GitHub Releases; non alterare releases/latest.",
+      "expected_errors": [
+        "preview_publishing_failed",
+        "github_actions_forbidden_403",
+        "invalid_preview_checksum",
+        "ci_catalog_unavailable"
+      ],
+      "actor": "ChatGPT su richiesta del proprietario repository",
+      "rollback": "Disabilitare/rimuovere esclusivamente il workflow preview e fare revert delle modifiche UI; preservare le release ufficiali, non forzare né cancellare tag/stable release; catalogo opzionale/fail-closed.",
+      "related_issues": [],
+      "related_prs": [
+        84
+      ],
+      "related_workflows": [],
+      "executed_steps": [],
+      "commits": [],
+      "observed_errors": [],
+      "evidence": [],
+      "outcome": null
     }
   ]
 }
