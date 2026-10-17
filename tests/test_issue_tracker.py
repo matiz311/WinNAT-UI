@@ -191,7 +191,7 @@ class IssueTrackerTests(TestCase):
     def test_manual_report_without_application_error_or_inventory(self):
         payload = it.manual_payload(
             "VPN non si collega", "Il servizio VPN esterno non apre il tunnel.",
-            "Incompatibilita", "1.16.0")
+            "Incompatibilità", "1.16.0")
         self.assertEqual(payload["operation"], "Segnalazione manuale")
         self.assertEqual(payload["exception"], "Non determinato")
         self.assertEqual(payload["traceback"], "")
