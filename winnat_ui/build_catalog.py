@@ -204,19 +204,27 @@ def _download_build(info, output, token):
     req_storage = urllib.request.Request(location, headers={"User-Agent": "WinNAT-UI-Catalog"})
     hash_value = hashlib.sha256()
     total = 0
-    with urllib.request.urlopen(req_storage, timeout=60) as source, open(output, "wb") as target:
-        while True:
-            chunk = source.read(1024 * 1024)
-            if not chunk:
-                break
-            total += len(chunk)
-            if total > updater.MAX_ZIP_BYTES:
-                raise ValueError("Artifact eccessivamente grande.")
-            hash_value.update(chunk)
-            target.write(chunk)
-    if total != info["size"] or hash_value.hexdigest() != info["sha256"]:
-        raise ValueError("Integrità della build non verificata: dimensione o SHA256 differente.")
-    return total
+    partial = Path(str(output) + ".partial")
+    try:
+        with urllib.request.urlopen(req_storage, timeout=60) as source, open(partial, "wb") as target:
+            while True:
+                chunk = source.read(1024 * 1024)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > updater.MAX_ZIP_BYTES:
+                    raise ValueError("Artifact eccessivamente grande.")
+                hash_value.update(chunk)
+                target.write(chunk)
+        if total != info["size"] or hash_value.hexdigest() != info["sha256"]:
+            raise ValueError("Integrità della build non verificata: dimensione o SHA256 differente.")
+        os.replace(partial, output)
+        return total
+    finally:
+        try:
+            partial.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def prepare_build(info, token):
