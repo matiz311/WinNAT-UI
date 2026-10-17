@@ -73,12 +73,12 @@
     {
       "id": "MAINT-20261017-001",
       "type": "routine",
-      "status": "planned",
+      "status": "completed",
       "registered_at": "2026-10-17T06:59:25Z",
       "planned_start_at": null,
       "planned_end_at": null,
-      "started_at": null,
-      "ended_at": null,
+      "started_at": "2026-10-17T07:14:03Z",
+      "ended_at": "2026-10-17T07:24:48Z",
       "components": [
         "github-releases",
         "github-actions",
@@ -120,20 +120,35 @@
         71
       ],
       "related_workflows": [],
-      "executed_steps": [],
-      "commits": [],
-      "observed_errors": [],
-      "evidence": []
+      "executed_steps": [
+        "PR #72 integrata in main al commit 8189363, workflow run 39012868510 completato con fallimento del solo gate di autorizzazione.",
+        "La PR #73 ha corretto la lettura del path e ristretto il retry di release; commit main aa63c7d8.",
+        "Pubblicazione riuscita con build Windows, test Python/Node, packaging, metadati EXE, scansione Microsoft Defender e SHA-256."
+      ],
+      "commits": [
+        "8189363c1549c14cf736e7b1b0fe876a79cb37ab",
+        "aa63c7d80f478a988c9814c7698553a4cb3db4fb"
+      ],
+      "observed_errors": [
+        "2026-10-17T07:16:29Z: gate originale non riesce a leggere release-approvals/v$current.md (variabile non espansa nelle virgolette singole)."
+      ],
+      "evidence": [
+        "Workflow prima esecuzione, failure release gate: https://github.com/matiz311/WinNAT-UI/actions/runs/39012868510",
+        "Workflow finale, success, completato 2026-10-17T07:24:48Z: https://github.com/matiz311/WinNAT-UI/actions/runs/39013376627",
+        "Release pubblicata 2026-10-17T07:24:43Z: https://github.com/matiz311/WinNAT-UI/releases/tag/v1.16.0",
+        "Asset WinNAT-UI-Windows.zip SHA256: 2bfdaadfe80495fd5ddf96098f39fcb07625d1ceedd8e175b6687da48ccd3fee"
+      ],
+      "outcome": "Release v1.16.0 pubblicata dopo una prima failure del gate dovuta a quoting PowerShell, corretta e verificata tramite PR #73."
     },
     {
       "id": "MAINT-20261017-002",
       "type": "extraordinary",
-      "status": "planned",
+      "status": "completed",
       "registered_at": "2026-10-17T07:17:56Z",
       "planned_start_at": null,
       "planned_end_at": null,
-      "started_at": null,
-      "ended_at": null,
+      "started_at": "2026-10-17T07:19:41Z",
+      "ended_at": "2026-10-17T07:24:48Z",
       "components": [
         "github-actions",
         "github-releases"
@@ -167,12 +182,23 @@
       "related_workflows": [
         "https://github.com/matiz311/WinNAT-UI/actions/runs/39012868510"
       ],
-      "executed_steps": [],
-      "commits": [],
+      "executed_steps": [
+        "PR #73 ha corretto il Get-Content del file autorizzazione e delimitato il retry a una parent SHA e tre percorsi.",
+        "Verificati maintenance-guard e build PR, poi merge al commit aa63c7d8.",
+        "Esecuzione main 39013376627 ha autorizzato e pubblicato v1.16.0."
+      ],
+      "commits": [
+        "aa63c7d80f478a988c9814c7698553a4cb3db4fb"
+      ],
       "observed_errors": [
         "2026-10-17T07:16:29Z: PowerShell Get-Content non trova release-approvals/v$current.md per assenza di espansione della variabile nel path con apici singoli."
       ],
-      "evidence": []
+      "evidence": [
+        "CI PR #73 success: https://github.com/matiz311/WinNAT-UI/actions/runs/39013214959",
+        "CI main release success: https://github.com/matiz311/WinNAT-UI/actions/runs/39013376627",
+        "Release v1.16.0: https://github.com/matiz311/WinNAT-UI/releases/tag/v1.16.0"
+      ],
+      "outcome": "Ripristino del gate di autorizzazione riuscito, successiva pubblicazione v1.16.0 completata senza disattivare test o scansioni."
     }
   ]
 }
