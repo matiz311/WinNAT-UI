@@ -8,9 +8,9 @@
 [![Latest release](https://img.shields.io/github/v/release/matiz311/WinNAT-UI)](https://github.com/matiz311/WinNAT-UI/releases/latest)
 [![Windows build](https://github.com/matiz311/WinNAT-UI/actions/workflows/build.yml/badge.svg)](https://github.com/matiz311/WinNAT-UI/actions/workflows/build.yml)
 
-**[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)**. Extract the entire ZIP, then run `WinNAT-UI.exe`. The current release is **v1.15.0** and **unsigned**; SignPath Foundation signing has not yet been approved.
+**[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)**. Extract the entire ZIP, then run `WinNAT-UI.exe`. The current published release is **v1.15.1** and **unsigned**; SignPath Foundation signing has not yet been approved.
 
-**Patch being prepared:** v1.15.1 fixes Windows icon fallback; the currently published release remains v1.15.0. **What's new in v1.15.0:** v1.15.0 introduces the redesigned vector icon, secondary LAN IPv4 addresses, DHCP-to-static setup, and improvements to diagnostics and the user interface. Always confirm the current version on [GitHub Releases](https://github.com/matiz311/WinNAT-UI/releases).
+**Upcoming release candidate:** v1.16.0 adds issue triage/search, failed-update reporting, and structured GitHub update channel diagnostics. The published release remains v1.15.1 until approved CI publication.
 
 [Releases](https://github.com/matiz311/WinNAT-UI/releases) · [Privacy policy](PRIVACY.md) ([Italiano](PRIVACY.it.md)) · [Code signing policy](CODE_SIGNING_POLICY.md) ([Italiano](CODE_SIGNING_POLICY.it.md)) · [Changelog (IT)](CHANGELOG.md) · [MIT License](LICENSE)
 
