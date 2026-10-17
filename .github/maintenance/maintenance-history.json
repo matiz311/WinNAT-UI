@@ -287,6 +287,57 @@
       "observed_errors": [],
       "evidence": [],
       "outcome": null
+    },
+    {
+      "id": "MAINT-20261017-005",
+      "type": "structural",
+      "status": "planned",
+      "registered_at": "2026-10-17T19:58:43Z",
+      "planned_start_at": null,
+      "planned_end_at": null,
+      "started_at": null,
+      "ended_at": null,
+      "components": [
+        "bug-gateway",
+        "issue-reporting",
+        "desktop-diagnostics"
+      ],
+      "affected_endpoints": [
+        "services/bug-gateway/src/index.js",
+        "POST /report",
+        "winnat_ui/issue_tracker.py",
+        "Informazioni > Diagnostica"
+      ],
+      "description": "Generalizzare le diagnostiche WinNAT-UI, consentire report manuali senza eccezioni e aggiornamenti espliciti a Issue GitHub esistenti tramite gateway opt-in, riutilizzando PR #80.",
+      "planned_steps": [
+        "Preregistrare prima delle modifiche al gateway e preservare il contratto legacy /report.",
+        "Progettare input rigorosamente validati, preview e conferma upload; verificare che la Issue di destinazione sia aperta e abbia label di triage/bug.",
+        "Aggiungere collector generale e test frontend/backend per creazione manuale e aggiornamento mirato di Issue esistenti.",
+        "Verificare CI Windows, gateway Node, Defender e guard prima di integrare; non eseguire deploy/release senza gate separati."
+      ],
+      "expected_impact": "Nessuna modifica live durante PR; eventuale futura pubblicazione del Worker può temporaneamente rendere POST /report indisponibile o generare errori di validazione. Rischio di pubblicazione involontaria di dati diagnostici mitigato con preview e conferma.",
+      "expected_errors": [
+        "HTTP 400 invalid-payload",
+        "HTTP 404 issue-not-found",
+        "HTTP 409 issue-not-eligible",
+        "HTTP 429 too-many-requests",
+        "HTTP 502 github-unavailable",
+        "HTTP 503 not-configured"
+      ],
+      "actor": "ChatGPT per il proprietario del repository",
+      "rollback": "Lasciare il Worker corrente in produzione fino a CI verificata. In caso di problemi revert del solo gateway tramite nuova PR, senza cancellare Issue o alterare rete locale; client usa esportazione/copia come fallback.",
+      "related_issues": [
+        76
+      ],
+      "related_prs": [
+        80
+      ],
+      "related_workflows": [],
+      "executed_steps": [],
+      "commits": [],
+      "observed_errors": [],
+      "evidence": [],
+      "outcome": null
     }
   ]
 }
