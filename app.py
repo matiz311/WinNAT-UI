@@ -1427,10 +1427,19 @@ class App(tk.Tk):
         win = tk.Toplevel(self)
         win.title("Diagnostica e OpenIssue · WinNAT-UI")
         win.transient(self)
-        win.geometry("980x760")
-        win.minsize(800, 600)
-        frame = ttk.Frame(win, padding=S4)
-        frame.pack(fill="both", expand=True)
+        width = min(980, max(1, win.winfo_screenwidth() - 80))
+        height = min(760, max(1, win.winfo_screenheight() - 120))
+        win.geometry(f"{width}x{height}+20+20")
+        win.minsize(min(640, width), min(400, height))
+        shell = ttk.Frame(win, padding=S3)
+        shell.pack(fill="both", expand=True)
+        shell.columnconfigure(0, weight=1)
+        shell.rowconfigure(0, weight=1)
+        # Reserve the action rows before allocating space to the report. The
+        # default Text request used to push the later packed buttons offscreen.
+        scroll = ui.ScrollFrame(shell)
+        scroll.grid(row=0, column=0, sticky="nsew")
+        frame = scroll.inner
         ttk.Label(frame, text="Diagnostica e OpenIssue",
                   style="Display.TLabel").pack(anchor="w")
         ttk.Label(frame,
@@ -1472,25 +1481,25 @@ class App(tk.Tk):
                   style="Muted.TLabel").pack(anchor="w")
         report_frame = ttk.Frame(frame)
         report_frame.pack(fill="both", expand=True, pady=(S1, S2))
-        preview = tk.Text(report_frame, wrap="word", font=F["mono_s"], undo=True)
+        preview = tk.Text(report_frame, height=12, wrap="word", font=F["mono_s"], undo=True)
         sy = ttk.Scrollbar(report_frame, orient="vertical", command=preview.yview)
         preview.configure(yscrollcommand=sy.set)
         sy.pack(side="right", fill="y")
         preview.pack(side="left", fill="both", expand=True)
-        toolbar = ttk.Frame(frame)
-        toolbar.pack(fill="x", pady=(0, S2))
+        toolbar = ttk.Frame(shell)
+        toolbar.grid(row=1, column=0, sticky="ew", pady=(S2, S2))
         ttk.Button(toolbar, text="Prepara anteprima",
                    command=lambda: prepare()).pack(side="left")
         ttk.Button(toolbar, text="Copia", command=lambda: copy()).pack(side="left", padx=S2)
         ttk.Button(toolbar, text="Esporta .md", command=lambda: export()).pack(side="left")
-        bottom = ttk.Frame(frame)
-        bottom.pack(fill="x")
+        bottom = ttk.Frame(shell)
+        bottom.grid(row=2, column=0, sticky="ew")
         ttk.Label(bottom, text="Issue esistente #").pack(side="left")
         ttk.Entry(bottom, textvariable=target, width=10).pack(side="left", padx=S2)
         ttk.Button(bottom, text="Aggiungi aggiornamento",
                    command=lambda: publish(True)).pack(side="left")
-        ttk.Button(bottom, text="Crea nuova OpenIssue", style="Accent.TButton",
-                   command=lambda: publish(False)).pack(side="right")
+        ttk.Button(shell, text="Invia nuova richiesta / OpenIssue", style="Accent.TButton",
+                   command=lambda: publish(False)).grid(row=3, column=0, sticky="ew", pady=(S2, 0))
 
         def get_text():
             return preview.get("1.0", "end-1c")
