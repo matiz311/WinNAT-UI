@@ -4,6 +4,14 @@ Le note di questa pagina sono destinate agli utilizzatori dell'applicazione. Per
 
 > **Importante:** WinNAT-UI modifica routing, indirizzi IPv4 e Windows NAT. Prima di applicare configurazioni su computer utilizzati per l'accesso remoto, verificare di disporre di un accesso locale e di una procedura di ripristino. Le operazioni che ricreano WinNAT possono interrompere sessioni NAT attive.
 
+## 1.17.1 — 6 novembre 2026
+
+**PATCH di stabilità per gateway e segnalazioni.** Gli adattatori Bluetooth PAN non sono più selezionabili come LAN o WAN. Il controllo di sicurezza prima delle operazioni di ripristino/disabilitazione non interrompe il lavoro soltanto perché una VPN non selezionata scompare dall'inventario ICS, se la condivisione è certamente inattiva; le verifiche sulle modifiche importanti restano attive. I comandi per pubblicare le segnalazioni dalla finestra diagnostica rimangono visibili anche su finestre più piccole.
+
+La PATCH **non risolve la mancata connessione Malwarebytes VPN (#76)** e non introduce il monitoraggio automatico delle WAN disconnesse (#91). I test CI Windows e il controllo Defender non sostituiscono le prove funzionali sul computer utilizzato per i test. L'eseguibile non è firmato digitalmente.
+
+**Distribuzione prevista:** GitHub Release v1.17.1 con pacchetto Windows ZIP, SHA-256 e aggiornamento tramite **Informazioni → Controlla aggiornamenti**. La pubblicazione va verificata prima di considerare disponibile questa versione.
+
 ## 1.17.0 — 17 ottobre 2026
 
 **Nuove OpenIssue e diagnostica senza errori applicativi.** Da **Informazioni → Diagnostica e OpenIssue** puoi raccogliere dati di rete in sola lettura, confrontare acquisizioni, creare una segnalazione manuale, aggiungere informazioni a una Issue aperta e importare nel tracciamento una Issue GitHub già esistente. L'anteprima è modificabile e la pubblicazione sul repository pubblico richiede conferma.
