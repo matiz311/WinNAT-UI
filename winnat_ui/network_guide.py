@@ -225,6 +225,12 @@ def fingerprint_state(profile, data):
         {"Name": c.get("Name"), "SharingEnabled": c.get("SharingEnabled"),
          "SharingConnectionType": c.get("SharingConnectionType"), "Error": c.get("Error")}
         for c in data.get("icsConnections", [])
+        # Ignore churn from unrelated, definitively unshared VPN/virtual
+        # adapters. Selected interfaces, enabled sharing and uncertain/error
+        # results remain guarded (fail closed for destructive operations).
+        if (c.get("Name") in aliases
+            or c.get("SharingEnabled") is not False
+            or c.get("Error") not in (None, ""))
     ])
     return {"adapters": adapters, "ips": ips, "routes": routes, "ifaces": interfaces,
             "nats": nats, "global": data.get("globalRouter"), "ics": ics}
