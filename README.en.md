@@ -2,6 +2,8 @@
 
 # WinNAT UI
 
+**v1.17.1 PATCH candidate (not yet published):** excludes Bluetooth PAN from gateway interfaces, tolerates inactive ICS inventory churn on unrelated VPN adapters, and keeps diagnostic issue-submission actions visible. Do not treat this build as an official release until verified on GitHub.
+
 **v1.17.0:** on-demand, read-only diagnostics, manual GitHub issue reporting and follow-up, and tracking of existing issues. The gateway deploy and automated checks passed; interactive Windows validation remains outstanding.
 
 **English** | [Italiano](README.md)
