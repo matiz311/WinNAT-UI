@@ -10,6 +10,18 @@ Regole del progetto (dettagli in [VERSIONING_POLICY.md](VERSIONING_POLICY.md)):
 - La versione è definita in `version.py`; tag e note si generano solo per una release autorizzata. I tag già pubblicati nella numerazione corrente non vengono modificati; la normalizzazione dello storico è stata conclusa il 16 ottobre 2026.
 
 
+## [1.17.1] - 2026-11-06
+### Correzioni
+- **#82 / PR #89 e #92 — Bluetooth:** esclusi gli adattatori Bluetooth PAN dalla selezione LAN/WAN e dalla validazione dei profili gateway, evitando setup non supportati su queste interfacce.
+- **#83 / PR #90 e #92 — ICS e VPN:** il controllo di concorrenza ignora la scomparsa di un adattatore VPN non selezionato con condivisione ICS sicuramente disabilitata e senza errori; rimane rigoroso per interfacce selezionate, ICS attivo, stati incerti, NAT e route.
+- **#87 / PR #88 — Diagnostica:** area centrale scorrevole e pulsanti di invio OpenIssue mantenuti visibili anche con finestre ridotte o scaling elevato.
+
+### Limiti e verifica
+- La compatibilità con Malwarebytes VPN **#76** non è corretta né diagnosticata da questa PATCH.
+- Il monitoraggio di interfacce WAN disconnesse **#91** non è incluso.
+- Build e test automatici Windows/Defender attestano la compilazione; i test su adattatori Bluetooth reali, VPN che cade durante disable/reset e aggiornamento in-app restano da validare separatamente.
+- La pubblicazione non implica la chiusura delle Issue prima dell'esito del collaudo reale; applicazione Windows non firmata digitalmente.
+
 ## [1.17.0] - 2026-10-17
 ### Sintesi
 Release MINOR retrocompatibile: diagnostica locale utilizzabile anche senza errori dell'applicazione, segnalazioni manuali verso GitHub e possibilità di seguire o aggiornare Issue esistenti. Nessuna modifica automatica alle configurazioni WinNAT, LAN/WAN, routing o firewall.
