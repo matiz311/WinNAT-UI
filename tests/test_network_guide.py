@@ -55,6 +55,24 @@ class GuideTests(unittest.TestCase):
         self.data = inventory()
         self.data["interfaces"][0]["Dhcp"] = "Disabled"  # Existing LAN has static primary IPv4.
 
+    def test_bluetooth_pan_not_valid_as_lan_or_wan(self):
+        pan = {"Name": "Connessione di rete Bluetooth", "InterfaceIndex": 17,
+               "InterfaceDescription": "Bluetooth Device (Personal Area Network)", "Status": "Disconnected"}
+        self.data["adapters"].append(pan)
+        self.data["interfaces"].append({"InterfaceAlias": pan["Name"], "InterfaceIndex": 17,
+                                        "Dhcp": "Enabled", "Forwarding": "Disabled"})
+        self.assertTrue(guide.is_bluetooth_adapter(pan))
+        self.assertNotIn(pan["Name"], guide._names(self.data))
+        p = copy.deepcopy(self.profile)
+        p["lan"] = pan["Name"]
+        with self.assertRaisesRegex(ValueError, "Bluetooth"):
+            guide.validate(p, self.data, "apply")
+        p = copy.deepcopy(self.profile)
+        p["wans"][0]["alias"] = pan["Name"]
+        with self.assertRaisesRegex(ValueError, "Bluetooth"):
+            guide.validate(p, self.data, "apply")
+        self.assertFalse(guide.is_bluetooth_adapter(self.data["adapters"][0]))
+
     def test_failed_commit_includes_inventory_before_and_after(self):
         fp = guide.fingerprint(self.profile, self.data)
         post = dict(self.data)
