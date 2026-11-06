@@ -2,7 +2,7 @@
 
 # WinNAT UI
 
-**v1.17.1 PATCH candidate (not yet published):** excludes Bluetooth PAN from gateway interfaces, tolerates inactive ICS inventory churn on unrelated VPN adapters, and keeps diagnostic issue-submission actions visible. Do not treat this build as an official release until verified on GitHub.
+**v1.17.1 PATCH (published):** excludes Bluetooth PAN from gateway interfaces, tolerates inactive ICS inventory churn on unrelated VPN adapters, and keeps diagnostic issue-submission actions visible. CI/Defender passed; live Bluetooth/VPN tests remain pending.
 
 **v1.17.0:** on-demand, read-only diagnostics, manual GitHub issue reporting and follow-up, and tracking of existing issues. The gateway deploy and automated checks passed; interactive Windows validation remains outstanding.
 
@@ -12,7 +12,7 @@
 [![Latest release](https://img.shields.io/github/v/release/matiz311/WinNAT-UI)](https://github.com/matiz311/WinNAT-UI/releases/latest)
 [![Windows build](https://github.com/matiz311/WinNAT-UI/actions/workflows/build.yml/badge.svg)](https://github.com/matiz311/WinNAT-UI/actions/workflows/build.yml)
 
-**[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)**. Extract the entire ZIP, then run `WinNAT-UI.exe`. The current published release is **v1.17.0** and **unsigned**; SignPath Foundation signing has not yet been approved.
+**[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)**. Extract the entire ZIP, then run `WinNAT-UI.exe`. The current published release is **v1.17.1** and **unsigned**; SignPath Foundation signing has not yet been approved.
 
 **Previous v1.16.0:** issue triage and search, failed-update reporting, and structured GitHub update channel diagnostics. Published after Windows tests and Microsoft Defender checks, with a verifiable SHA-256 asset digest.
 

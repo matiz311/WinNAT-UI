@@ -1,6 +1,6 @@
 # Piano di pubblicazione — PATCH v1.17.1
 
-Stato: preparazione; nessuna GitHub Release ancora pubblicata.
+Stato: **pubblicata** il 6 novembre 2026, GitHub Release v1.17.1 con CI Windows/Defender e Maintenance Guard superati. Restano i test reali su Bluetooth/VPN e aggiornamento in-app.
 
 Sorgente di integrazione: [PR #92](https://github.com/matiz311/WinNAT-UI/pull/92), merge commit `d8b8f69d2525a6398cac18008ea6282046fd990a`. Include anche la correzione della finestra diagnostica [PR #88](https://github.com/matiz311/WinNAT-UI/pull/88).
 
