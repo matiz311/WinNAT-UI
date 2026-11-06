@@ -86,8 +86,15 @@ def psquote(value):
     return "'" + str(value).replace("'", "''") + "'"
 
 
+def is_bluetooth_adapter(adapter):
+    """Exclude Bluetooth PAN devices from gateway LAN/WAN configuration."""
+    description = str(adapter.get("InterfaceDescription") or "").casefold()
+    name = str(adapter.get("Name") or "").casefold()
+    return "bluetooth" in description or "bluetooth" in name
+
+
 def _names(data):
-    return {a["Name"] for a in data.get("adapters", [])}
+    return {a["Name"] for a in data.get("adapters", []) if not is_bluetooth_adapter(a)}
 
 
 def _iface(data, alias):
@@ -109,6 +116,9 @@ def validate(profile, data, action):
     aliases = [lan] + [w["alias"] for w in wans]
     if len(set(aliases)) != len(aliases):
         raise ValueError("Seleziona interfacce LAN e WAN distinte.")
+    if any(is_bluetooth_adapter(a) and a.get("Name") in aliases
+           for a in data.get("adapters", [])):
+        raise ValueError("Gli adattatori Bluetooth non sono supportati per LAN/WAN del gateway.")
     if any(a not in _names(data) for a in aliases):
         raise ValueError("Almeno un'interfaccia non è presente sul PC.")
     for a in aliases:
