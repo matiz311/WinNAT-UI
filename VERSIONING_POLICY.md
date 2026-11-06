@@ -1,5 +1,9 @@
 # Versioning e pubblicazione — WinNAT-UI
 
+## Versione in preparazione — 6 novembre 2026
+
+**v1.17.1 (PATCH, candidata):** correzioni #82 (esclusione Bluetooth PAN), #83 (fingerprint ICS delle VPN inattive non selezionate), #87 (pulsanti OpenIssue accessibili). La PR #93 prepara metadati e note, senza dichiarare pubblicata una release prima dell'esito dei gate CI/Defender e della verifica dell'asset. Le precedenti autorizzazioni monouso v1.16.0/v1.17.0 non valgono per questa versione. La v1.17.0 resta la stabile finché GitHub Releases non indica il contrario.
+
 ## Stato attuale — 17 ottobre 2026
 
 La **release stabile pubblicata è v1.17.0**: [GitHub Releases](https://github.com/matiz311/WinNAT-UI/releases/latest). La release MINOR introduce diagnostica generica, issue manuali e tracking per numero. Il catalogo comprende 34 release pubbliche fino alla v1.17.0. Le ultime versioni sono `v1.13.0` → `v1.13.0.1` → `v1.14.0` → `v1.14.1` → `v1.15.0` → `v1.15.1` → `v1.16.0` → `v1.17.0`.
