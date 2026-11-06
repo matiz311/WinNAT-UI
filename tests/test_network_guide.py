@@ -55,6 +55,33 @@ class GuideTests(unittest.TestCase):
         self.data = inventory()
         self.data["interfaces"][0]["Dhcp"] = "Disabled"  # Existing LAN has static primary IPv4.
 
+    def test_inactive_unselected_vpn_ics_churn_does_not_block_reset(self):
+        fp = guide.fingerprint(self.profile, self.data)
+        modified = copy.deepcopy(self.data)
+        modified["icsConnections"].append({
+            "Name": "mbvpn", "SharingEnabled": False,
+            "SharingConnectionType": None, "Error": None})
+        self.assertEqual(fp, guide.fingerprint(self.profile, modified))
+
+    def test_selected_or_active_vpn_ics_changes_still_guarded(self):
+        base = copy.deepcopy(self.data)
+        base["icsConnections"] = [{"Name": "mbvpn", "SharingEnabled": True,
+                                   "SharingConnectionType": 0, "Error": None}]
+        self.assertNotEqual(guide.fingerprint(self.profile, base),
+                            guide.fingerprint(self.profile, self.data))
+        base["icsConnections"][0]["SharingEnabled"] = None
+        self.assertNotEqual(guide.fingerprint(self.profile, base),
+                            guide.fingerprint(self.profile, self.data))
+        base["icsConnections"][0]["SharingEnabled"] = False
+        base["icsConnections"][0]["Error"] = "unavailable"
+        self.assertNotEqual(guide.fingerprint(self.profile, base),
+                            guide.fingerprint(self.profile, self.data))
+        selected = copy.deepcopy(self.data)
+        selected["icsConnections"] = [{"Name": "Ethernet", "SharingEnabled": False,
+                                        "SharingConnectionType": None, "Error": None}]
+        self.assertNotEqual(guide.fingerprint(self.profile, selected),
+                            guide.fingerprint(self.profile, self.data))
+
     def test_failed_commit_includes_inventory_before_and_after(self):
         fp = guide.fingerprint(self.profile, self.data)
         post = dict(self.data)
