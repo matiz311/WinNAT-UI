@@ -774,7 +774,8 @@ class App(tk.Tk):
 
     # ---- WAN rows (1..N, bounded by the adapters on this PC) ----
     def adapter_names(self):
-        return [ad["Name"] for ad in (self.data or {}).get("adapters", [])]
+        return [ad["Name"] for ad in (self.data or {}).get("adapters", [])
+                if not network_guide.is_bluetooth_adapter(ad)]
 
     def default_route_aliases(self):
         return [r.get("InterfaceAlias") for r in self.default_routes()]
@@ -2035,7 +2036,7 @@ class App(tk.Tk):
 
     def render(self, data):
         self.data = data
-        adapter_names = [a["Name"] for a in data.get("adapters", [])]
+        adapter_names = self.adapter_names()
         self.lan_box["values"] = adapter_names
         routes = self.default_routes()
         online = [r.get("InterfaceAlias") for r in routes]
