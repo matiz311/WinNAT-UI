@@ -10,6 +10,8 @@
 
 **[Download WinNAT UI for Windows](https://github.com/matiz311/WinNAT-UI/releases/latest/download/WinNAT-UI-Windows.zip)** — scarica lo ZIP della release pubblica, estrai completamente la cartella e avvia `WinNAT-UI.exe`. La release pubblicata è **v1.17.0**, **non firmata**; la firma tramite SignPath Foundation non è ancora approvata.
 
+**Correzioni candidate per v1.17.1 (non dichiarare pubblicate prima del gate):** esclusione Bluetooth PAN dai profili gateway, gestione delle variazioni ICS inattive su VPN non selezionate e visibilità dei pulsanti OpenIssue. La pubblicazione deve essere verificata su GitHub Release.
+
 **Novità della v1.17.0:** diagnostica locale in sola lettura, creazione manuale di OpenIssue senza errori applicativi, aggiornamento delle Issue e importazione nel tracciamento delle segnalazioni GitHub. Il gateway è stato distribuito; collaudo Windows interattivo ancora necessario.
 
 **Nella precedente v1.16.0:** ricerca e triage dei bug, segnalazione degli errori di aggiornamento e diagnostica del canale GitHub. Pubblicata con test Windows, controllo Microsoft Defender e asset SHA-256 verificabile.

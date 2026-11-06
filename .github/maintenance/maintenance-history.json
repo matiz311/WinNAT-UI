@@ -490,6 +490,63 @@
         "https://github.com/matiz311/WinNAT-UI/releases/tag/v1.17.0"
       ],
       "outcome": "Release MINOR v1.17.0 pubblicata, ZIP integro e download pubblico. Nessun automatismo permanente per MINOR successive; test interattivo Windows reale resta aperto."
+    },
+    {
+      "id": "MAINT-20261106-001",
+      "type": "routine",
+      "status": "planned",
+      "registered_at": "2026-11-06T16:43:01Z",
+      "planned_start_at": null,
+      "planned_end_at": null,
+      "started_at": null,
+      "ended_at": null,
+      "components": [
+        "github-releases",
+        "github-actions",
+        "win-nat-updater"
+      ],
+      "affected_endpoints": [
+        "version.py",
+        "version_info.txt",
+        "GitHub Releases v1.17.1",
+        "releases/latest",
+        "WinNAT-UI-Windows.zip"
+      ],
+      "description": "Preparazione e possibile pubblicazione della PATCH 1.17.1 contenente fix #82, #83 e #87, con verifica dei gate di rilascio e degli asset.",
+      "planned_steps": [
+        "Registrare la manutenzione in un commit distinto e precedente alla modifica dei file di versione.",
+        "Aggiornare versione, risorse EXE, CHANGELOG e note nella PR #93.",
+        "Verificare sul candidato build CI Windows, test Python/Node, Defender, integrità ZIP e maintenance guard.",
+        "Valutare rilascio PATCH e verificarne tag, URL ufficiale e SHA256, senza sovrascrivere v1.17.0."
+      ],
+      "expected_impact": "Nessun downtime pianificato; aggiornamento metadati releases/latest e download ZIP, potenziali errori HTTP temporanei; possibile installazione della PATCH tramite updater in-app dopo pubblicazione.",
+      "expected_errors": [
+        "release gate blocked",
+        "GitHub releases API HTTP 403/404/5xx",
+        "version metadata mismatch",
+        "Defender scan failure",
+        "asset SHA256 mismatch",
+        "updater download/install failure"
+      ],
+      "actor": "ChatGPT su richiesta del proprietario repository",
+      "rollback": "Bloccare la pubblicazione se il gate fallisce; conservare invariata la release v1.17.0 e il relativo tag; per il codice ripristinare tramite nuova PR senza riscrivere tag o asset già pubblicati.",
+      "related_prs": [
+        93
+      ],
+      "related_issues": [
+        82,
+        83,
+        87
+      ],
+      "related_workflows": [
+        "Build Windows executable",
+        "Maintenance guard"
+      ],
+      "executed_steps": [],
+      "commits": [],
+      "observed_errors": [],
+      "evidence": [],
+      "outcome": null
     }
   ]
 }
